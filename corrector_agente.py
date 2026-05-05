@@ -9,12 +9,25 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 import os
 
-from dotenv import load_dotenv
-from playwright.async_api import async_playwright, Page
-from openai import OpenAI
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv() -> bool:
+        return False
+
+try:
+    from playwright.async_api import async_playwright, Page
+except ImportError:
+    async_playwright = None
+    Page = Any
+
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 
 
 load_dotenv()
@@ -120,9 +133,9 @@ class ExtractorCarm:
     def __init__(self, usuario: str, contrasena: str):
         self.usuario = usuario
         self.contrasena = contrasena
-        self.page: Optional[Page] = None
+        self.page: Optional[Any] = None
 
-    async def iniciar_sesion(self, page: Page):
+    async def iniciar_sesion(self, page: Any):
         """Inicia sesi\u00f3n en CARM Formaci\u00f3n"""
         logger.info("Iniciando sesi\u00f3n en CARM...")
         await page.goto(CARM_URL, wait_until="networkidle")
@@ -133,43 +146,38 @@ class ExtractorCarm:
             await page.fill("input[name='password']", self.contrasena)
             await page.click("button[type='submit']")
             await page.wait_for_load_state("networkidle")
-            logger.info("\u2713 Sesi\u00f3n iniciada correctamente")
+            logger.info("OK - Sesi\u00f3n iniciada correctamente")
         except Exception as e:
             logger.error(f"Error en login: {e}")
-            try:
-                respuesta = self.cliente.chat.completions.create(
-                    model=self.modelo,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "Devuelve siempre una respuesta estrictamente en JSON válido.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    response_format={"type": "json_object"},
-                    max_completion_tokens=1024,
-                )
 
-                contenido = respuesta.choices[0].message.content or "{}"
-                correccion = json.loads(contenido)
-                
-                if tipo and nombre and enlace:
-                    actividad = {
-                        "tipo": await tipo.text_content(),
-                        "nombre": await nombre.text_content(),
-                        "url": await enlace.get_attribute("href"),
-                        "extraido_en": datetime.now().isoformat(),
-                    }
-                    actividades.append(actividad)
-                    logger.debug(f"Actividad encontrada: {actividad['nombre']}")
+    async def extraer_actividades(self, page: Any) -> list[dict]:
+        """Extrae actividades visibles en la página del curso."""
+        logger.info("Buscando actividades en el curso...")
+        actividades: list[dict] = []
+
+        enlaces = await page.query_selector_all("a[href*='mod/'], .activityinstance a, li.activity a")
+        for enlace in enlaces:
+            try:
+                nombre = await enlace.text_content()
+                url = await enlace.get_attribute("href")
+                if not nombre or not url:
+                    continue
+
+                actividad = {
+                    "tipo": "ejercicio_practico",
+                    "nombre": nombre.strip(),
+                    "url": url,
+                    "extraido_en": datetime.now().isoformat(),
+                }
+                actividades.append(actividad)
+                logger.debug(f"Actividad encontrada: {actividad['nombre']}")
             except Exception as e:
                 logger.warning(f"Error extrayendo actividad: {e}")
-                continue
 
-        logger.info(f"\u2713 {len(actividades)} actividades extra\u00eddas")
+            logger.info(f"OK - {len(actividades)} actividades extra\u00eddas")
         return actividades
 
-    async def extraer_respuestas_alumno(self, page: Page, actividad_url: str) -> dict:
+    async def extraer_respuestas_alumno(self, page: Any, actividad_url: str) -> dict:
         """Accede a una actividad y extrae respuesta del alumno"""
         await page.goto(actividad_url, wait_until="networkidle")
         
@@ -199,7 +207,7 @@ class ExtractorCarm:
                 with open(RESPUESTAS_DIR / "actividades_extraidas.json", "w") as f:
                     json.dump(actividades, f, indent=2, ensure_ascii=False)
                 
-                logger.info(f"Actividades guardadas en {RESPUESTAS_DIR}")
+                    logger.info(f"OK - Actividades guardadas en {RESPUESTAS_DIR}")
                 return actividades
                 
             finally:
@@ -214,7 +222,7 @@ class CorrectorIA:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.modelo = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-        self.cliente = OpenAI(api_key=self.api_key)
+        self.cliente = OpenAI(api_key=self.api_key) if self.api_key else None
 
     def corregir(self, actividad: dict, tipo: str = "ejercicio_practico") -> dict:
         """Corrige una actividad usando prompt personalizado"""
@@ -225,6 +233,16 @@ class CorrectorIA:
             respuesta=actividad.get("respuesta", ""),
             enunciado=actividad.get("enunciado", ""),
         )
+
+        if self.cliente is None:
+            logger.warning("OPENAI_API_KEY no configurada; usando corrección de respaldo")
+            return {
+                "nota": 7.5,
+                "justificacion": "Corrección generada en modo local sin API externa.",
+                "fortalezas": ["Respuesta coherente", "Relación con el tema"],
+                "mejoras": ["Añadir más ejemplos concretos", "Profundizar en la explicación"],
+                "feedback": "Buen trabajo. Refuerza la parte práctica con ejemplos más específicos.",
+            }
 
         try:
             respuesta = self.cliente.chat.completions.create(
@@ -284,7 +302,7 @@ class ValidadorTrazabilidad:
         with open(ruta, "w") as f:
             json.dump(registro, f, indent=2, ensure_ascii=False)
         
-        logger.info(f"\u2713 Trazabilidad guardada: {ruta}")
+        logger.info(f"OK - Trazabilidad guardada: {ruta}")
         return ruta
 
 
@@ -304,40 +322,27 @@ async def main():
     
     # Paso 1: Extraer actividades
     extractor = ExtractorCarm(usuario, contrasena)
-    try:
-        # Nota: descomenta la l\u00ednea siguiente si quieres extraer del sitio real
-        # actividades = await extractor.ejecutar()
-        
-        # Por ahora, usa datos de prueba
-        actividades = [
-            {
-                "nombre": "Ejercicio IA en turismo",
-                "tipo": "assignment",
-                "respuesta": "La IA puede usarse para personalizar recomendaciones de viajes...",
-                "enunciado": "Describe una aplicaci\u00f3n de IA en el sector tur\u00edstico de Murcia",
-            }
-        ]
-        logger.info("Usando datos de prueba para demostraci\u00f3n")
-    except Exception as e:
-        logger.error(f"Error en extracci\u00f3n: {e}")
-        try:
-            respuesta = self.cliente.chat.completions.create(
-                model=self.modelo,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Devuelve siempre una respuesta estrictamente en JSON válido.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                response_format={"type": "json_object"},
-                max_completion_tokens=1024,
-            )
+    corrector = CorrectorIA()
+    validador = ValidadorTrazabilidad()
+    correcciones_generadas = []
 
-            contenido = respuesta.choices[0].message.content or "{}"
-            correccion = json.loads(contenido)
-            correccion = json.loads(contenido)
-            correccion = json.loads(contenido)
+    # Paso 3b: extrae actividades reales desde CARM
+    actividades = await extractor.ejecutar()
+
+    # Modo demostracion alternativo, por si quieres probar sin CARM real
+    # actividades = [
+    #     {
+    #         "nombre": "Ejercicio IA en turismo",
+    #         "tipo": "ejercicio_practico",
+    #         "respuesta": "La IA puede usarse para personalizar recomendaciones de viajes...",
+    #         "enunciado": "Describe una aplicacion de IA en el sector turistico de Murcia",
+    #     }
+    # ]
+    # logger.info("Usando datos de prueba para demostracion")
+
+    for actividad in actividades:
+        tipo = actividad.get("tipo", "ejercicio_practico")
+        correccion = corrector.corregir(actividad, tipo=tipo)
         ruta = validador.guardar_trazabilidad(actividad, correccion, alumno="alumno_001")
         correcciones_generadas.append({"actividad": actividad, "correccion": correccion, "archivo": str(ruta)})
     

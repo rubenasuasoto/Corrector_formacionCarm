@@ -2,7 +2,7 @@
 
 ### Paso 1: Setup (2 min)
 ```bash
-cd c:\temp\vscode
+cd C:\Users\ruben\Desktop\agente
 
 # Crear entorno virtual
 python -m venv venv
