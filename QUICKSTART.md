@@ -1,108 +1,55 @@
-## 🚀 GUÍA RÁPIDA DE INICIO
+# Guía rápida
 
-### Paso 1: Setup (2 min)
-```bash
-cd C:\Users\ruben\Desktop\agente
+## 1. Instalar
 
-# Crear entorno virtual
+```powershell
 python -m venv venv
-
-# PowerShell: permitir la activación solo en esta sesión
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\venv\Scripts\Activate.ps1
-
-# Instalar dependencias
 pip install -r requirements.txt
-
-# Instalar navegadores Playwright
 playwright install chromium
 ```
 
-### Paso 2: Configurar credenciales (1 min)
-```bash
-# Copiar archivo de ejemplo
-copy .env.example .env
+## 2. Configurar
 
-# Editar .env con tus datos
-notepad .env
-```
+Copia `.env.example` a `.env` y rellena las credenciales.
 
-Rellena:
-- `CARM_USUARIO=` tu usuario de CARM
-- `CARM_CONTRASENA=` tu contraseña
-- `OPENAI_API_KEY=` tu API key de OpenAI/Codex
-- `OPENAI_MODEL=` modelo a usar, por ejemplo uno disponible en tu cuenta de Codex
+Importante: `.env` contiene usuario, contraseña y API key. No lo subas al repositorio y rota cualquier clave que se haya compartido por error.
 
-### Paso 3a: Prueba sin conectar a CARM (5 min)
-```bash
+## 3. Probar sin CARM y sin IA
+
+```powershell
 python prueba_correcciones.py
 ```
 
-Esto:
-- Usa casos de prueba predefinidos
-- Corrige con IA sin acceder al sitio
-- Genera trazabilidad en `correcciones_validadas/`
+Esto crea envíos ficticios en `tmp_prueba/pendientes`, genera correcciones de respaldo y deja las salidas en `tmp_prueba/temporal`.
 
-### Paso 3b: Conexión a CARM real (requiere permisos)
-Ejecuta:
-```bash
+## 4. Corregir archivos reales ya descargados
+
+Coloca las entregas en `C:\temp\vscodec\pendientes` con el nombre del alumno como nombre de archivo.
+
+```powershell
+python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt
+```
+
+Salidas:
+
+- `C:\temp\vscodec\temporal\<alumno>\ud01cp01.ext`: copia de la entrega.
+- `C:\temp\vscodec\temporal\<alumno>\ud01cp01.txt`: corrección generada.
+- `C:\temp\vscodec\temporal\resumen.txt`: resumen global.
+- `C:\temp\vscodec\temporal\resumen_ud01cp01.txt`: resumen específico de esa unidad y caso práctico.
+- `C:\temp\vscodec\temporal\revision_pendiente.csv`: hoja para revisar notas y feedback antes de subir.
+
+El código `ud01cp01` cambia según la actividad. Si se extrae desde CARM, el agente intenta detectarlo desde el nombre de la unidad y del caso práctico. Si corriges archivos descargados a mano, puedes indicarlo con `--actividad-codigo ud02cp03` o meter los archivos en una subcarpeta con ese nombre.
+
+## 5. Extraer desde CARM
+
+```powershell
 python corrector_agente.py --extraer-carm
 ```
 
-Este modo sigue la ruta:
-- `https://formacion.carm.es/login/index.php`
-- `https://formacion.carm.es/my/index.php`
-- `https://formacion.carm.es/course/view.php?id=1592`
-- Actividades tipo caso práctico con `(OBLIGATORIO)`
-- Vista de calificación con `&action=grading`
+En este modo descarga los archivos entregados desde CARM a `C:\temp\vscodec\pendientes\<actividad>\` con el nombre del alumno, y corrige cada actividad en lote para hacer una petición de IA por unidad/caso práctico.
 
-### Resultado
-Encuentra las correcciones en:
-- **Salidas por alumno**: `C:\temp\vscodec\temporal\<alumno>\` (`ud01cp01.ext` + `ud01cp01.txt`)
-- **Resumen global**: `C:\temp\vscodec\temporal\resumen.txt`
-- **Trazabilidad JSON**: `correcciones_validadas/correcciones_lote.json`
-- **Logs**: `logs_correcciones/`
+Cuando una entrega ya ha sido copiada a `temporal` y tiene su corrección generada, se elimina automáticamente de `pendientes`. Para pruebas en las que quieras conservar los originales, usa `--conservar-pendientes`.
 
-### Próximo paso: Publicar correcciones validadas
-```bash
-# Después de revisar y validar las correcciones:
-python sincronizador_moodle.py
-```
-
----
-
-### 🔧 Troubleshooting rápido
-
-| Problema | Solución |
-|----------|----------|
-| `ModuleNotFoundError: No module named 'playwright'` | Ejecuta: `pip install -r requirements.txt` y luego `playwright install chromium` |
-| `CARM_USUARIO not found` | Copia `.env.example` a `.env` y rellena |
-| `Error en login` | Verifica usuario/contraseña en `.env` |
-| No hay API key | Añade `OPENAI_API_KEY` en `.env` con tu clave de OpenAI |
-| Playwright no encuentra navegador | Ejecuta: `playwright install chromium` |
-| `No hay archivos pendientes en C:\temp\vscodec\pendientes` | Copia ejercicios a esa carpeta o usa `--extraer-carm` |
-
----
-
-### 📊 Estructura de salida (JSON ejemplo)
-
-```json
-{
-  "timestamp": "2026-05-05T14:30:00",
-  "alumno": "alumno_001",
-  "actividad": "Ejercicio IA en turismo",
-  "respuesta_original": "La IA puede usarse para...",
-  "correccion_generada": {
-    "nota": 8.5,
-    "justificacion": "Respuesta clara y bien fundamentada...",
-    "fortalezas": ["Aplicación concreta", "Argumento sólido"],
-    "mejoras": ["Más ejemplos de Murcia"],
-    "feedback": "Excelente. Para mejorar..."
-  },
-  "estado": "borrador"
-}
-```
-
----
-
-**¡Listo! Empieza con la prueba y dime si algo no funciona.**
+La subida automática queda para una fase posterior. En esta primera prueba, todo queda en estado `borrador_pendiente_de_revision`.

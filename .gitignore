@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.py[cod]
+
+logs_correcciones/
+respuestas_extraidas/
+correcciones_validadas/
+tmp_prueba/

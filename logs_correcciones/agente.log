@@ -1,2 +1,17 @@
 2026-05-05 15:15:35,561 - WARNING - No hay archivos pendientes en C:\temp\vscodec\pendientes
 2026-05-05 15:17:30,498 - WARNING - No hay archivos pendientes en C:\temp\vscodec\pendientes
+2026-05-05 19:17:08,604 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-05 19:17:08,606 - INFO - Corrigiendo lote ud01cp01: 3 entrega(s)
+2026-05-05 19:17:08,610 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-05 19:17:08,613 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-05 19:17:08,617 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-05 19:17:08,620 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-05 19:17:08,620 - INFO - Corrigiendo lote ud02cp03: 1 entrega(s)
+2026-05-05 19:17:08,622 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-05 19:17:08,624 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-05 19:17:08,625 - INFO - Eliminada carpeta de pendientes vacía: tmp_prueba\pendientes\ud02cp03
+2026-05-05 19:17:08,632 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-05 19:17:08,632 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-05 19:17:08,632 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-05 19:17:08,632 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-05 19:17:08,632 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
