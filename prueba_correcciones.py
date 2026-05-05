@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import zipfile
 from argparse import Namespace
 from pathlib import Path
 
@@ -39,6 +40,12 @@ CASOS_PRUEBA = {
     "Entrega vacia.txt": "",
 }
 
+DOCX_PRUEBA = "Marta Sanchez.docx"
+MULTIMEDIA_PRUEBA = "ud02cp03/Video Alumno.mp4"
+ZIP_PRUEBA = "ud02cp03/Entrega Comprimida.zip"
+PPTX_PRUEBA = "Presentacion Alumno.pptx"
+XLSX_PRUEBA = "Tabla Alumno.xlsx"
+
 
 def preparar_carpetas() -> None:
     if BASE_PRUEBA.exists():
@@ -59,6 +66,42 @@ def preparar_carpetas() -> None:
         destino.parent.mkdir(parents=True, exist_ok=True)
         destino.write_text(contenido, encoding="utf-8")
 
+    crear_docx_minimo(
+        PENDIENTES / DOCX_PRUEBA,
+        "No subiría reservas completas a una herramienta gratuita. Usaría datos anonimizados y revisaría el cumplimiento del RGPD.",
+    )
+
+    multimedia = PENDIENTES / MULTIMEDIA_PRUEBA
+    multimedia.parent.mkdir(parents=True, exist_ok=True)
+    multimedia.write_bytes(b"video-falso-para-prueba")
+
+    crear_zip_prueba(PENDIENTES / ZIP_PRUEBA)
+    (PENDIENTES / PPTX_PRUEBA).write_bytes(b"pptx-falso-para-probar-dependencia-opcional")
+    (PENDIENTES / XLSX_PRUEBA).write_bytes(b"xlsx-falso-para-probar-dependencia-opcional")
+
+
+def crear_docx_minimo(path: Path, texto: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    document_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        "<w:body><w:p><w:r><w:t>"
+        f"{texto}"
+        "</w:t></w:r></w:p></w:body></w:document>"
+    )
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("[Content_Types].xml", "")
+        z.writestr("word/document.xml", document_xml)
+
+
+def crear_zip_prueba(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr(
+            "respuesta.txt",
+            "Dentro del ZIP explico que anonimizaría los datos antes de usar cualquier herramienta externa.",
+        )
+
 
 def main() -> None:
     preparar_carpetas()
@@ -68,6 +111,7 @@ def main() -> None:
         pendientes=str(PENDIENTES),
         temporal=str(TEMPORAL),
         contexto_unidad=str(CONTEXTO),
+        prompts="prompts_correccion.json",
         actividad_codigo="ud01cp01",
         sin_ia=True,
         conservar_pendientes=False,
