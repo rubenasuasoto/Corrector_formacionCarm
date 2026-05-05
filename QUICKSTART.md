@@ -44,23 +44,24 @@ Esto:
 - Genera trazabilidad en `correcciones_validadas/`
 
 ### Paso 3b: Conexión a CARM real (requiere permisos)
-En `corrector_agente.py` línea ~200:
-
-Descomenta:
-```python
-actividades = await extractor.ejecutar()
-```
-
-Y ejecuta:
+Ejecuta:
 ```bash
-python corrector_agente.py
+python corrector_agente.py --extraer-carm
 ```
+
+Este modo sigue la ruta:
+- `https://formacion.carm.es/login/index.php`
+- `https://formacion.carm.es/my/index.php`
+- `https://formacion.carm.es/course/view.php?id=1592`
+- Actividades tipo caso práctico con `(OBLIGATORIO)`
+- Vista de calificación con `&action=grading`
 
 ### Resultado
 Encuentra las correcciones en:
-- **Correcciones**: `correcciones_validadas/` (JSON con notas, feedback, trazabilidad)
-- **Logs**: `logs_correcciones/` (detalles de ejecución)
-- **Respuestas extraídas**: `respuestas_extraidas/` (datos del sitio)
+- **Salidas por alumno**: `C:\temp\vscodec\temporal\<alumno>\` (`ud01cp01.ext` + `ud01cp01.txt`)
+- **Resumen global**: `C:\temp\vscodec\temporal\resumen.txt`
+- **Trazabilidad JSON**: `correcciones_validadas/correcciones_lote.json`
+- **Logs**: `logs_correcciones/`
 
 ### Próximo paso: Publicar correcciones validadas
 ```bash
@@ -74,11 +75,12 @@ python sincronizador_moodle.py
 
 | Problema | Solución |
 |----------|----------|
-| `ModuleNotFoundError: No module named 'playwright'` | Ejecuta: `pip install -r requirements.txt` |
+| `ModuleNotFoundError: No module named 'playwright'` | Ejecuta: `pip install -r requirements.txt` y luego `playwright install chromium` |
 | `CARM_USUARIO not found` | Copia `.env.example` a `.env` y rellena |
 | `Error en login` | Verifica usuario/contraseña en `.env` |
 | No hay API key | Añade `OPENAI_API_KEY` en `.env` con tu clave de OpenAI |
 | Playwright no encuentra navegador | Ejecuta: `playwright install chromium` |
+| `No hay archivos pendientes en C:\temp\vscodec\pendientes` | Copia ejercicios a esa carpeta o usa `--extraer-carm` |
 
 ---
 

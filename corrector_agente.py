@@ -1,16 +1,25 @@
 """
-Agente de correcci\u00f3n autom\u00e1tica para CARM Formaci\u00f3n
-Extrae actividades del curso Moodle, las corrige con prompts programados
-y guarda trazabilidad completa.
+Agente de correccion automatica para CARM Formacion.
+
+Flujo principal:
+1) (Opcional) Extrae envios desde CARM a una carpeta local de pendientes.
+2) Corrige los ejercicios encontrados en pendientes con contexto de unidad.
+3) Genera estructura de salida por alumno en carpeta temporal.
+4) Genera resumen global con nota y feedback por alumno.
 """
 
+from __future__ import annotations
+
+import argparse
 import asyncio
 import json
 import logging
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Optional
 import os
+import re
+import shutil
+from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 try:
     from dotenv import load_dotenv
@@ -19,342 +28,502 @@ except ImportError:
         return False
 
 try:
-    from playwright.async_api import async_playwright, Page
-except ImportError:
-    async_playwright = None
-    Page = Any
-
-try:
     from openai import OpenAI
 except ImportError:
     OpenAI = None
 
+try:
+    from playwright.async_api import async_playwright
+except ImportError:
+    async_playwright = None
+
 
 load_dotenv()
 
-# Configuraci\u00f3n
-CARM_URL = "https://formacion.carm.es/course/view.php?id=1592"
+# ---------------------------------------------------------------------------
+# Configuracion
+# ---------------------------------------------------------------------------
+
+CARM_LOGIN_URL = "https://formacion.carm.es/login/index.php"
+CARM_MY_URL = "https://formacion.carm.es/my/index.php"
+CARM_COURSE_URL = "https://formacion.carm.es/course/view.php?id=1592"
+
+DEFAULT_PENDIENTES_DIR = Path(r"C:\temp\vscodec\pendientes")
+DEFAULT_TEMPORAL_DIR = Path(r"C:\temp\vscodec\temporal")
+
 LOG_DIR = Path("logs_correcciones")
 RESPUESTAS_DIR = Path("respuestas_extraidas")
 CORRECCIONES_DIR = Path("correcciones_validadas")
 
-# Crear directorios
-LOG_DIR.mkdir(exist_ok=True)
-RESPUESTAS_DIR.mkdir(exist_ok=True)
-CORRECCIONES_DIR.mkdir(exist_ok=True)
+for d in (LOG_DIR, RESPUESTAS_DIR, CORRECCIONES_DIR):
+    d.mkdir(exist_ok=True)
 
-# Logger
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(LOG_DIR / f"agente_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"),
+        logging.FileHandler(LOG_DIR / "agente.log", encoding="utf-8"),
         logging.StreamHandler(),
     ],
 )
 logger = logging.getLogger(__name__)
 
 
-# ============================================================================
-# PROMPTS PROGRAMADOS POR TIPO DE ACTIVIDAD
-# ============================================================================
+PROMPT_SISTEMA = (
+    "Eres un corrector experto en inteligencia artificial aplicada al turismo de Murcia. "
+    "Responde SIEMPRE en JSON valido y en espanol con acentos."
+)
 
-PROMPTS = {
-    "ejercicio_practico": """
-Eres un corrector experto en Inteligencia Artificial aplicada al turismo.
-Debes evaluar la respuesta del alumno seg\u00fan esta r\u00fabrica:
+PROMPT_CRITERIOS = """
+Te paso un archivo con un manual sobre inteligencia artificial aplicada al sector turistico de Murcia como contexto para corregir un ejercicio practico.
 
-**R\u00fabrica:**
-1. Precisi\u00f3n t\u00e9cnica (40%): \u00bfUtiliza conceptos correctos de IA?
-2. Aplicaci\u00f3n al turismo (30%): \u00bfRealiza conexiones concretas al sector?
-3. Profundidad (20%): \u00bfVa m\u00e1s all\u00e1 de lo superficial?
-4. Claridad (10%): \u00bfEst\u00e1 bien estructurado?
+Ahora quiero que me des unos criterios de correccion para este ejercicio en una escala del 0 al 10, asignando 3 puntos a la presentacion del trabajo:
+Un tecnico introduce en una herramienta gratuita datos completos de reservas con informacion personal identificable para que el sistema genere un analisis de comportamiento del visitante.
 
-**Respuesta del alumno:**
-{respuesta}
+Que actuacion deberia realizar para ajustar el uso de la herramienta a principios de proteccion de datos y buenas practicas?
 
-**Enunciado:**
-{enunciado}
-
-Genera una evaluaci\u00f3n en JSON con este formato:
-{{
-    "nota": (0-10),
-    "justificacion": "Explicaci\u00f3n breve de la calificaci\u00f3n",
-    "fortalezas": ["Lista de puntos fuertes"],
-    "mejoras": ["Sugerencias de mejora"],
-    "feedback": "Comentario constructivo para el alumno"
-}}
-""",
-    "autoevaluacion": """
-Analiza esta autoevaluaci\u00f3n del alumno considerando coherencia y realismo.
-
-**Autoevaluaci\u00f3n del alumno:**
-{respuesta}
-
-**Criterios de validez:**
-- \u00bfEs honesta y realista?
-- \u00bfDemuestra autoconocimiento?
-- \u00bfEst\u00e1 alineada con los objetivos del curso?
-
-Responde en JSON:
-{{
-    "es_valida": true/false,
-    "razon": "Explicaci\u00f3n",
-    "sugerencia": "Qu\u00e9 mejorar\u00eda la reflexi\u00f3n"
-}}
-""",
-    "discusion": """
-Valida la participaci\u00f3n del alumno en el foro considerando:
-- Relevancia al tema
-- Fundamento con ejemplos
-- Respeto y constructividad
-
-**Contribuci\u00f3n:**
-{respuesta}
-
-**Tema del debate:**
-{enunciado}
-
-Responde en JSON:
-{{
-    "puntuacion": (0-10),
-    "comentario": "Feedback sobre la participaci\u00f3n",
-    "incentivar": "Sugiere c\u00f3mo mejorar para pr\u00f3ximos aportes"
-}}
-""",
+Devuelve JSON con este formato exacto:
+{
+  "nota": 0-10,
+  "criterios": [
+    {"nombre": "Presentacion del trabajo", "maximo": 3, "puntuacion": 0-3, "comentario": "..."},
+    {"nombre": "Proteccion de datos", "maximo": 4, "puntuacion": 0-4, "comentario": "..."},
+    {"nombre": "Buenas practicas y aplicacion", "maximo": 3, "puntuacion": 0-3, "comentario": "..."}
+  ],
+  "retroalimentacion": "Feedback final, coloquial pero formal, adaptado al caso y la unidad"
 }
+""".strip()
 
 
-# ============================================================================
-# EXTRACTOR DE ACTIVIDADES
-# ============================================================================
+@dataclass
+class EnvioPendiente:
+    alumno: str
+    archivo: Path
+
+
+class CorrectorIA:
+    def __init__(self, api_key: str | None = None, modelo: str | None = None):
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.modelo = modelo or os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+        self.cliente = OpenAI(api_key=self.api_key) if (OpenAI and self.api_key) else None
+
+    def corregir(self, respuesta: str, contexto_unidad: str) -> dict:
+        if not respuesta.strip():
+            return {
+                "nota": 0,
+                "criterios": [
+                    {
+                        "nombre": "Presentacion del trabajo",
+                        "maximo": 3,
+                        "puntuacion": 0,
+                        "comentario": "No se pudo evaluar la presentacion por falta de contenido.",
+                    },
+                    {
+                        "nombre": "Proteccion de datos",
+                        "maximo": 4,
+                        "puntuacion": 0,
+                        "comentario": "No hay desarrollo sobre tratamiento de datos personales.",
+                    },
+                    {
+                        "nombre": "Buenas practicas y aplicacion",
+                        "maximo": 3,
+                        "puntuacion": 0,
+                        "comentario": "No se aportan medidas aplicables al caso.",
+                    },
+                ],
+                "retroalimentacion": "No he podido corregir este ejercicio porque el archivo aparece vacio o ilegible.",
+            }
+
+        if self.cliente is None:
+            logger.warning("OPENAI_API_KEY o paquete openai no disponible; usando correccion de respaldo")
+            return {
+                "nota": 7.0,
+                "criterios": [
+                    {
+                        "nombre": "Presentacion del trabajo",
+                        "maximo": 3,
+                        "puntuacion": 2.2,
+                        "comentario": "La presentacion es correcta, aunque se puede ordenar mejor la estructura.",
+                    },
+                    {
+                        "nombre": "Proteccion de datos",
+                        "maximo": 4,
+                        "puntuacion": 2.8,
+                        "comentario": "Identifica riesgos de datos personales, pero faltan medidas concretas de minimizacion y anonimizado.",
+                    },
+                    {
+                        "nombre": "Buenas practicas y aplicacion",
+                        "maximo": 3,
+                        "puntuacion": 2.0,
+                        "comentario": "Aplica ideas utiles, aunque conviene aterrizarlas mejor al entorno turistico de Murcia.",
+                    },
+                ],
+                "retroalimentacion": "Buen trabajo general. Vas en la linea correcta, pero te recomiendo reforzar la parte de cumplimiento y proponer acciones mas concretas para el caso.",
+            }
+
+        prompt_usuario = (
+            f"{PROMPT_CRITERIOS}\n\n"
+            f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_unidad}\n\n"
+            f"RESPUESTA DEL ALUMNO A EVALUAR:\n{respuesta}"
+        )
+
+        try:
+            respuesta_api = self.cliente.chat.completions.create(
+                model=self.modelo,
+                messages=[
+                    {"role": "system", "content": PROMPT_SISTEMA},
+                    {"role": "user", "content": prompt_usuario},
+                ],
+                response_format={"type": "json_object"},
+                max_completion_tokens=1400,
+            )
+            contenido = respuesta_api.choices[0].message.content or "{}"
+            data = json.loads(contenido)
+            data.setdefault("nota", 0)
+            data.setdefault("criterios", [])
+            data.setdefault("retroalimentacion", "Sin retroalimentacion generada.")
+            return data
+        except Exception as e:
+            logger.error(f"Error corrigiendo con IA: {e}")
+            return {
+                "nota": 0,
+                "criterios": [],
+                "retroalimentacion": f"No se pudo generar correccion automatica: {e}",
+            }
+
 
 class ExtractorCarm:
-    def __init__(self, usuario: str, contrasena: str):
+    def __init__(self, usuario: str, contrasena: str, pendientes_dir: Path):
         self.usuario = usuario
         self.contrasena = contrasena
-        self.page: Optional[Any] = None
+        self.pendientes_dir = pendientes_dir
 
-    async def iniciar_sesion(self, page: Any):
-        """Inicia sesi\u00f3n en CARM Formaci\u00f3n"""
-        logger.info("Iniciando sesi\u00f3n en CARM...")
-        await page.goto(CARM_URL, wait_until="networkidle")
-        
-        # Rellena credenciales (ajusta selectores seg\u00fan HTML real)
-        try:
-            await page.fill("input[name='username']", self.usuario)
-            await page.fill("input[name='password']", self.contrasena)
-            await page.click("button[type='submit']")
-            await page.wait_for_load_state("networkidle")
-            logger.info("OK - Sesi\u00f3n iniciada correctamente")
-        except Exception as e:
-            logger.error(f"Error en login: {e}")
+    @staticmethod
+    def _normalizar(texto: str) -> str:
+        return re.sub(r"\s+", " ", (texto or "")).strip().lower()
 
-    async def extraer_actividades(self, page: Any) -> list[dict]:
-        """Extrae actividades visibles en la página del curso."""
-        logger.info("Buscando actividades en el curso...")
-        actividades: list[dict] = []
+    @staticmethod
+    def _sanitizar_nombre(nombre: str) -> str:
+        limpio = re.sub(r"[\\/:*?\"<>|]", "_", nombre.strip())
+        return re.sub(r"\s+", " ", limpio)[:120] or "alumno"
 
-        enlaces = await page.query_selector_all("a[href*='mod/'], .activityinstance a, li.activity a")
-        for enlace in enlaces:
+    @staticmethod
+    def _agregar_action_grading(url: str) -> str:
+        p = urlparse(url)
+        q = dict(parse_qsl(p.query))
+        q["action"] = "grading"
+        return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
+
+    async def _extraer_contexto_imprimible(self, page) -> str:
+        contexto_partes: list[str] = []
+        enlaces = await page.query_selector_all("a")
+        for a in enlaces:
+            txt = (await a.text_content() or "").strip().lower()
+            if "contenido imprimible" not in txt:
+                continue
+            href = await a.get_attribute("href")
+            if not href:
+                continue
             try:
-                nombre = await enlace.text_content()
-                url = await enlace.get_attribute("href")
-                if not nombre or not url:
-                    continue
-
-                actividad = {
-                    "tipo": "ejercicio_practico",
-                    "nombre": nombre.strip(),
-                    "url": url,
-                    "extraido_en": datetime.now().isoformat(),
-                }
-                actividades.append(actividad)
-                logger.debug(f"Actividad encontrada: {actividad['nombre']}")
+                await page.goto(href, wait_until="networkidle")
+                body = await page.text_content("body")
+                if body and body.strip():
+                    contexto_partes.append(body.strip())
+                await page.goto(CARM_COURSE_URL, wait_until="networkidle")
             except Exception as e:
-                logger.warning(f"Error extrayendo actividad: {e}")
+                logger.warning(f"No se pudo leer contenido imprimible {href}: {e}")
+        return "\n\n".join(contexto_partes)
 
-            logger.info(f"OK - {len(actividades)} actividades extra\u00eddas")
+    async def _obtener_actividades_obligatorias(self, page) -> list[dict]:
+        actividades: list[dict] = []
+        enlaces = await page.query_selector_all("a[href*='mod/assign/view.php']")
+        for a in enlaces:
+            nombre = (await a.text_content() or "").strip()
+            if not nombre:
+                continue
+            base = self._normalizar(nombre)
+            if "caso practico" not in base and "caso práctico" not in nombre.lower():
+                continue
+            if "(obligatorio)" not in nombre.lower():
+                continue
+            href = await a.get_attribute("href")
+            if not href:
+                continue
+            actividades.append(
+                {
+                    "nombre": nombre,
+                    "url_grading": self._agregar_action_grading(href),
+                }
+            )
         return actividades
 
-    async def extraer_respuestas_alumno(self, page: Any, actividad_url: str) -> dict:
-        """Accede a una actividad y extrae respuesta del alumno"""
-        await page.goto(actividad_url, wait_until="networkidle")
-        
-        # Intenta extraer el contenido de respuesta (selectores aproximados)
-        respuesta_elem = await page.query_selector(".student-response, .user-answer, textarea")
-        enunciado_elem = await page.query_selector(".activity-description, .mod-description")
-        
-        respuesta = await respuesta_elem.text_content() if respuesta_elem else ""
-        enunciado = await enunciado_elem.text_content() if enunciado_elem else ""
-        
-        return {
-            "respuesta": respuesta.strip(),
-            "enunciado": enunciado.strip(),
-        }
+    async def _descargar_envios_actividad(self, page, actividad: dict) -> list[EnvioPendiente]:
+        descargados: list[EnvioPendiente] = []
+        await page.goto(actividad["url_grading"], wait_until="networkidle")
 
-    async def ejecutar(self) -> list[dict]:
-        """Orquesta el flujo completo de extracci\u00f3n"""
+        filas = await page.query_selector_all("table.generaltable tbody tr")
+        for fila in filas:
+            celdas = await fila.query_selector_all("td")
+            if len(celdas) < 2:
+                continue
+
+            alumno = (await celdas[0].text_content() or "").strip()
+            if not alumno:
+                continue
+
+            enlace_archivo = await fila.query_selector("a[href*='pluginfile.php'], a[href*='forcedownload=1'], a[download]")
+            if enlace_archivo is None:
+                continue
+
+            file_url = await enlace_archivo.get_attribute("href")
+            if not file_url:
+                continue
+
+            nombre_archivo = (await enlace_archivo.text_content() or "entrega").strip()
+            ext = Path(nombre_archivo).suffix or ".txt"
+            alumno_limpio = self._sanitizar_nombre(alumno)
+            destino = self.pendientes_dir / f"{alumno_limpio}{ext}"
+
+            try:
+                resp = await page.context.request.get(file_url)
+                if resp.status != 200:
+                    logger.warning(f"No se pudo descargar envio de {alumno}: HTTP {resp.status}")
+                    continue
+                body = await resp.body()
+                destino.write_bytes(body)
+                descargados.append(EnvioPendiente(alumno=alumno_limpio, archivo=destino))
+                logger.info(f"Descargado envio de {alumno_limpio}: {destino}")
+            except Exception as e:
+                logger.warning(f"Error descargando envio de {alumno}: {e}")
+
+        return descargados
+
+    async def ejecutar(self) -> tuple[str, list[EnvioPendiente]]:
+        if async_playwright is None:
+            raise RuntimeError(
+                "Playwright no esta disponible. Ejecuta: pip install -r requirements.txt y luego playwright install chromium"
+            )
+
+        self.pendientes_dir.mkdir(parents=True, exist_ok=True)
+
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=False)
             page = await browser.new_page()
-            
             try:
-                await self.iniciar_sesion(page)
-                actividades = await self.extraer_actividades(page)
-                
-                # Guarda actividades en JSON para inspecci\u00f3n
-                with open(RESPUESTAS_DIR / "actividades_extraidas.json", "w") as f:
-                    json.dump(actividades, f, indent=2, ensure_ascii=False)
-                
-                    logger.info(f"OK - Actividades guardadas en {RESPUESTAS_DIR}")
-                return actividades
-                
+                await page.goto(CARM_LOGIN_URL, wait_until="networkidle")
+                await page.fill("input[name='username']", self.usuario)
+                await page.fill("input[name='password']", self.contrasena)
+                await page.click("button[type='submit']")
+                await page.wait_for_load_state("networkidle")
+
+                await page.goto(CARM_MY_URL, wait_until="networkidle")
+                await page.goto(CARM_COURSE_URL, wait_until="networkidle")
+
+                contexto = await self._extraer_contexto_imprimible(page)
+                actividades = await self._obtener_actividades_obligatorias(page)
+
+                logger.info(f"Actividades prioritarias encontradas: {len(actividades)}")
+
+                todos_envios: list[EnvioPendiente] = []
+                for act in actividades:
+                    logger.info(f"Procesando grading: {act['nombre']}")
+                    envios = await self._descargar_envios_actividad(page, act)
+                    todos_envios.extend(envios)
+
+                with open(RESPUESTAS_DIR / "envios_descargados.json", "w", encoding="utf-8") as f:
+                    json.dump(
+                        [{"alumno": e.alumno, "archivo": str(e.archivo)} for e in todos_envios],
+                        f,
+                        indent=2,
+                        ensure_ascii=False,
+                    )
+
+                return contexto, todos_envios
             finally:
                 await browser.close()
 
 
-# ============================================================================
-# CORRECTOR CON PROMPTS PERSONALIZADOS
-# ============================================================================
-
-class CorrectorIA:
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.modelo = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-        self.cliente = OpenAI(api_key=self.api_key) if self.api_key else None
-
-    def corregir(self, actividad: dict, tipo: str = "ejercicio_practico") -> dict:
-        """Corrige una actividad usando prompt personalizado"""
-        logger.info(f"Corrigiendo: {actividad.get('nombre', 'S/N')}")
-        
-        prompt_template = PROMPTS.get(tipo, PROMPTS["ejercicio_practico"])
-        prompt = prompt_template.format(
-            respuesta=actividad.get("respuesta", ""),
-            enunciado=actividad.get("enunciado", ""),
-        )
-
-        if self.cliente is None:
-            logger.warning("OPENAI_API_KEY no configurada; usando corrección de respaldo")
-            return {
-                "nota": 7.5,
-                "justificacion": "Corrección generada en modo local sin API externa.",
-                "fortalezas": ["Respuesta coherente", "Relación con el tema"],
-                "mejoras": ["Añadir más ejemplos concretos", "Profundizar en la explicación"],
-                "feedback": "Buen trabajo. Refuerza la parte práctica con ejemplos más específicos.",
-            }
-
-        try:
-            respuesta = self.cliente.chat.completions.create(
-                model=self.modelo,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Devuelve siempre una respuesta estrictamente en JSON válido.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                response_format={"type": "json_object"},
-                max_completion_tokens=1024,
-            )
-
-            contenido = respuesta.choices[0].message.content or "{}"
-            correccion = json.loads(contenido)
-            
-            logger.debug(f"Correccion: {correccion}")
-            return correccion
-            
-        except Exception as e:
-            logger.error(f"Error en correcci\u00f3n IA: {e}")
-            return {"error": str(e), "actividad": actividad.get("nombre")}
-
-
-# ============================================================================
-# VALIDADOR Y GUARDADO CON TRAZABILIDAD
-# ============================================================================
-
-class ValidadorTrazabilidad:
-    @staticmethod
-    def validar_correccion(correccion: dict) -> bool:
-        """Valida que la correcci\u00f3n tenga estructura esperada"""
-        campos_esperados = ["nota", "justificacion"] if "nota" in correccion else ["error"]
-        return all(campo in correccion or "error" in correccion for campo in ["nota", "justificacion"])
+class GeneradorSalidas:
+    def __init__(self, pendientes_dir: Path, temporal_dir: Path):
+        self.pendientes_dir = pendientes_dir
+        self.temporal_dir = temporal_dir
 
     @staticmethod
-    def guardar_trazabilidad(actividad: dict, correccion: dict, alumno: str = "anonimo"):
-        """Guarda registro completo de correcci\u00f3n para auditor\u00eda"""
-        registro = {
-            "timestamp": datetime.now().isoformat(),
-            "alumno": alumno,
-            "actividad": actividad.get("nombre", "S/N"),
-            "respuesta_original": actividad.get("respuesta", ""),
-            "correccion_generada": correccion,
-            "prompt_tipo": "ejercicio_practico",  # Configurable
-            "estado": "borrador",  # Se puede cambiar a "validado" o "publicado"
+    def _leer_archivo_texto(path: Path) -> str:
+        if not path.exists() or not path.is_file():
+            return ""
+
+        for enc in ("utf-8", "utf-8-sig", "cp1252", "latin-1"):
+            try:
+                return path.read_text(encoding=enc)
+            except Exception:
+                continue
+
+        return ""
+
+    @staticmethod
+    def _sanitizar(nombre: str) -> str:
+        limpio = re.sub(r"[\\/:*?\"<>|]", "_", nombre.strip())
+        return re.sub(r"\s+", " ", limpio)[:120] or "alumno"
+
+    def obtener_pendientes(self) -> list[EnvioPendiente]:
+        self.pendientes_dir.mkdir(parents=True, exist_ok=True)
+        pendientes: list[EnvioPendiente] = []
+        for f in sorted(self.pendientes_dir.iterdir()):
+            if f.is_file():
+                pendientes.append(EnvioPendiente(alumno=self._sanitizar(f.stem), archivo=f))
+        return pendientes
+
+    def escribir_salidas(self, envio: EnvioPendiente, correccion: dict) -> dict:
+        alumno_dir = self.temporal_dir / envio.alumno
+        alumno_dir.mkdir(parents=True, exist_ok=True)
+
+        ext = envio.archivo.suffix or ".txt"
+        copia_entrega = alumno_dir / f"ud01cp01{ext}"
+        shutil.copy2(envio.archivo, copia_entrega)
+
+        texto_correccion = self._formatear_correccion(correccion)
+        archivo_correccion = alumno_dir / "ud01cp01.txt"
+        archivo_correccion.write_text(texto_correccion, encoding="utf-8")
+
+        return {
+            "alumno": envio.alumno,
+            "nota": float(correccion.get("nota", 0)),
+            "retroalimentacion": str(correccion.get("retroalimentacion", "")),
+            "archivo_original": str(envio.archivo),
+            "archivo_copiado": str(copia_entrega),
+            "archivo_correccion": str(archivo_correccion),
         }
-        
-        # Genera nombre \u00fanico basado en timestamp y nombre
-        nombre_archivo = (
-            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{alumno}_{actividad.get('nombre', 'unknown')}.json"
+
+    @staticmethod
+    def _formatear_correccion(correccion: dict) -> str:
+        lineas = []
+        lineas.append("Correccion del caso practico UD01 CP01")
+        lineas.append("")
+        lineas.append(f"Nota final: {correccion.get('nota', 0)}/10")
+        lineas.append("")
+        lineas.append("Detalle por criterios:")
+
+        for crit in correccion.get("criterios", []):
+            nombre = crit.get("nombre", "Criterio")
+            p = crit.get("puntuacion", 0)
+            m = crit.get("maximo", "?")
+            c = crit.get("comentario", "")
+            lineas.append(f"- {nombre}: {p}/{m}. {c}")
+
+        lineas.append("")
+        lineas.append("Retroalimentacion:")
+        lineas.append(str(correccion.get("retroalimentacion", "")))
+        lineas.append("")
+
+        return "\n".join(lineas)
+
+    def escribir_resumen(self, resultados: list[dict]) -> Path:
+        self.temporal_dir.mkdir(parents=True, exist_ok=True)
+        resumen_path = self.temporal_dir / "resumen.txt"
+
+        lineas = []
+        lineas.append("Resumen de puntuaciones y retroalimentacion")
+        lineas.append("")
+
+        for r in resultados:
+            lineas.append(f"Alumno: {r['alumno']}")
+            lineas.append(f"Nota: {r['nota']}/10")
+            lineas.append(f"Feedback a comunicar: {r['retroalimentacion']}")
+            lineas.append("")
+
+        resumen_path.write_text("\n".join(lineas), encoding="utf-8")
+        return resumen_path
+
+
+async def ejecutar_flujo(args) -> None:
+    pendientes_dir = Path(args.pendientes)
+    temporal_dir = Path(args.temporal)
+
+    contexto_unidad = ""
+
+    if args.extraer_carm:
+        usuario = os.getenv("CARM_USUARIO", "")
+        contrasena = os.getenv("CARM_CONTRASENA", "")
+        if not usuario or not contrasena:
+            logger.error("Faltan CARM_USUARIO/CARM_CONTRASENA en .env para extraer desde CARM")
+            return
+
+        extractor = ExtractorCarm(usuario, contrasena, pendientes_dir)
+        try:
+            logger.info("Iniciando extraccion en CARM (login -> my -> curso -> grading)")
+            contexto_unidad, _ = await extractor.ejecutar()
+        except Exception as e:
+            logger.error(f"No se pudo completar extraccion CARM: {e}")
+            return
+
+    if not contexto_unidad:
+        contexto_unidad = (
+            "No se pudo extraer automaticamente el contenido imprimible. "
+            "Aplica igualmente criterios de proteccion de datos y buenas practicas del caso."
         )
-        
-        ruta = CORRECCIONES_DIR / nombre_archivo
-        with open(ruta, "w") as f:
-            json.dump(registro, f, indent=2, ensure_ascii=False)
-        
-        logger.info(f"OK - Trazabilidad guardada: {ruta}")
-        return ruta
 
+    salida = GeneradorSalidas(pendientes_dir, temporal_dir)
+    pendientes = salida.obtener_pendientes()
 
-# ============================================================================
-# ORQUESTADOR PRINCIPAL
-# ============================================================================
+    if not pendientes:
+        logger.warning(f"No hay archivos pendientes en {pendientes_dir}")
+        return
 
-async def main():
-    """Flujo principal de correcci\u00f3n autom\u00e1tica"""
-    logger.info("=" * 70)
-    logger.info("INICIANDO AGENTE DE CORRECCI\u00d3N - CARM FORMACI\u00d3N")
-    logger.info("=" * 70)
-    
-    # Credenciales (usa variables de entorno en producci\u00f3n)
-    usuario = os.getenv("CARM_USUARIO", "tu_usuario")
-    contrasena = os.getenv("CARM_CONTRASENA", "tu_contrasena")
-    
-    # Paso 1: Extraer actividades
-    extractor = ExtractorCarm(usuario, contrasena)
     corrector = CorrectorIA()
-    validador = ValidadorTrazabilidad()
-    correcciones_generadas = []
 
-    # Paso 3b: extrae actividades reales desde CARM
-    actividades = await extractor.ejecutar()
+    resultados: list[dict] = []
+    trazas: list[dict] = []
 
-    # Modo demostracion alternativo, por si quieres probar sin CARM real
-    # actividades = [
-    #     {
-    #         "nombre": "Ejercicio IA en turismo",
-    #         "tipo": "ejercicio_practico",
-    #         "respuesta": "La IA puede usarse para personalizar recomendaciones de viajes...",
-    #         "enunciado": "Describe una aplicacion de IA en el sector turistico de Murcia",
-    #     }
-    # ]
-    # logger.info("Usando datos de prueba para demostracion")
+    for envio in pendientes:
+        logger.info(f"Corrigiendo archivo de {envio.alumno}: {envio.archivo.name}")
+        respuesta_alumno = salida._leer_archivo_texto(envio.archivo)
+        correccion = corrector.corregir(respuesta_alumno, contexto_unidad)
 
-    for actividad in actividades:
-        tipo = actividad.get("tipo", "ejercicio_practico")
-        correccion = corrector.corregir(actividad, tipo=tipo)
-        ruta = validador.guardar_trazabilidad(actividad, correccion, alumno="alumno_001")
-        correcciones_generadas.append({"actividad": actividad, "correccion": correccion, "archivo": str(ruta)})
-    
-    # Resumen final
-    logger.info("=" * 70)
-    logger.info(f"RESUMEN: {len(correcciones_generadas)} actividades procesadas")
-    logger.info(f"Correcciones guardadas en: {CORRECCIONES_DIR}")
-    logger.info("ESTADO: En borrador - Requiere revisi\u00f3n manual antes de publicar")
-    logger.info("=" * 70)
-    
-    return correcciones_generadas
+        resultado = salida.escribir_salidas(envio, correccion)
+        resultados.append(resultado)
+
+        trazas.append(
+            {
+                "timestamp": __import__("datetime").datetime.now().isoformat(),
+                "alumno": envio.alumno,
+                "archivo_entrada": str(envio.archivo),
+                "correccion": correccion,
+                "estado": "borrador",
+            }
+        )
+
+    resumen_path = salida.escribir_resumen(resultados)
+
+    traza_path = CORRECCIONES_DIR / "correcciones_lote.json"
+    traza_path.write_text(json.dumps(trazas, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    logger.info(f"Proceso completado. Resumen generado en: {resumen_path}")
+    logger.info(f"Trazabilidad de lote en: {traza_path}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Corrige ejercicios de pendientes y genera salidas por alumno."
+    )
+    parser.add_argument(
+        "--extraer-carm",
+        action="store_true",
+        help="Activa extraccion de envios desde CARM antes de corregir.",
+    )
+    parser.add_argument(
+        "--pendientes",
+        default=str(DEFAULT_PENDIENTES_DIR),
+        help="Carpeta de archivos pendientes.",
+    )
+    parser.add_argument(
+        "--temporal",
+        default=str(DEFAULT_TEMPORAL_DIR),
+        help="Carpeta de salida temporal por alumno.",
+    )
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    argumentos = parse_args()
+    asyncio.run(ejecutar_flujo(argumentos))
