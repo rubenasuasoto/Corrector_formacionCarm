@@ -18,8 +18,11 @@ import os
 import re
 import shutil
 import unicodedata
+import zipfile
 from dataclasses import dataclass
+from html import unescape
 from pathlib import Path
+from xml.etree import ElementTree
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 try:
@@ -106,16 +109,57 @@ class EnvioPendiente:
     actividad_nombre: str = ""
 
 
+@dataclass
+class LecturaEntrega:
+    texto: str
+    requiere_revision_manual: bool = False
+    motivo: str = ""
+
+
+class GestorPrompts:
+    DEFAULT_PROMPTS_PATH = Path("prompts_correccion.json")
+
+    def __init__(self, path: str | Path | None = None):
+        self.path = Path(path) if path else self.DEFAULT_PROMPTS_PATH
+        self.config = self._cargar()
+
+    def _cargar(self) -> dict:
+        if not self.path.exists():
+            logger.warning(f"No se encontró archivo de prompts {self.path}; usando prompts internos.")
+            return {}
+
+        try:
+            return json.loads(self.path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.warning(f"No se pudo leer {self.path}: {e}. Usando prompts internos.")
+            return {}
+
+    def obtener(self, actividad_codigo: str) -> dict:
+        prompts = self.config.get("prompts", {})
+        bloque = (
+            prompts.get(actividad_codigo)
+            or prompts.get(actividad_codigo.lower())
+            or prompts.get("default")
+            or {}
+        )
+        return {
+            "sistema": bloque.get("sistema", PROMPT_SISTEMA),
+            "criterios": bloque.get("criterios", PROMPT_CRITERIOS),
+        }
+
+
 class CorrectorIA:
     def __init__(
         self,
         api_key: str | None = None,
         modelo: str | None = None,
         usar_ia: bool = True,
+        prompts_path: str | Path | None = None,
     ):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.modelo = modelo or os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
         self.cliente = OpenAI(api_key=self.api_key) if (usar_ia and OpenAI and self.api_key) else None
+        self.prompts = GestorPrompts(prompts_path)
 
     def corregir(self, respuesta: str, contexto_unidad: str) -> dict:
         if not respuesta.strip():
@@ -125,8 +169,9 @@ class CorrectorIA:
             logger.warning("OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo")
             return self._correccion_respaldo()
 
+        prompt_cfg = self.prompts.obtener(DEFAULT_ACTIVIDAD_CODIGO)
         prompt_usuario = (
-            f"{PROMPT_CRITERIOS}\n\n"
+            f"{prompt_cfg['criterios']}\n\n"
             f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_unidad}\n\n"
             f"RESPUESTA DEL ALUMNO A EVALUAR:\n{respuesta}"
         )
@@ -135,7 +180,7 @@ class CorrectorIA:
             respuesta_api = self.cliente.chat.completions.create(
                 model=self.modelo,
                 messages=[
-                    {"role": "system", "content": PROMPT_SISTEMA},
+                    {"role": "system", "content": prompt_cfg["sistema"]},
                     {"role": "user", "content": prompt_usuario},
                 ],
                 response_format={"type": "json_object"},
@@ -183,8 +228,9 @@ class CorrectorIA:
             for idx, (envio, respuesta) in enumerate(entregas)
         ]
 
+        prompt_cfg = self.prompts.obtener(actividad_codigo)
         prompt_usuario = (
-            f"{PROMPT_CRITERIOS}\n\n"
+            f"{prompt_cfg['criterios']}\n\n"
             f"ACTIVIDAD: {actividad_codigo}\n\n"
             f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_unidad}\n\n"
             "Corrige todas las entregas siguientes en una sola respuesta. "
@@ -212,7 +258,7 @@ class CorrectorIA:
             respuesta_api = self.cliente.chat.completions.create(
                 model=self.modelo,
                 messages=[
-                    {"role": "system", "content": PROMPT_SISTEMA},
+                    {"role": "system", "content": prompt_cfg["sistema"]},
                     {"role": "user", "content": prompt_usuario},
                 ],
                 response_format={"type": "json_object"},
@@ -313,6 +359,25 @@ class CorrectorIA:
             "nota": 0,
             "criterios": [],
             "retroalimentacion": mensaje,
+        }
+
+    @staticmethod
+    def correccion_revision_manual(motivo: str) -> dict:
+        return {
+            "nota": 0,
+            "criterios": [
+                {
+                    "nombre": "Revisión manual",
+                    "maximo": 10,
+                    "puntuacion": 0,
+                    "comentario": motivo,
+                }
+            ],
+            "retroalimentacion": (
+                "Esta entrega necesita revisión manual antes de calificarla. "
+                f"Motivo: {motivo}"
+            ),
+            "estado": "revision_manual_necesaria",
         }
 
 
@@ -551,6 +616,46 @@ class ExtractorCarm:
 
 
 class GeneradorSalidas:
+    EXTENSIONES_TEXTO = {
+        ".txt",
+        ".md",
+        ".csv",
+        ".tsv",
+        ".json",
+        ".xml",
+        ".html",
+        ".htm",
+        ".log",
+    }
+    EXTENSIONES_OFFICE_TEXTO = {".docx", ".odt", ".rtf"}
+    EXTENSIONES_REVISION_MANUAL = {
+        ".doc",
+        ".ppt",
+        ".pages",
+        ".numbers",
+        ".key",
+    }
+    EXTENSIONES_MULTIMEDIA = {
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".tif",
+        ".tiff",
+        ".svg",
+        ".mp3",
+        ".wav",
+        ".m4a",
+        ".ogg",
+        ".mp4",
+        ".mov",
+        ".avi",
+        ".mkv",
+        ".webm",
+        ".rar",
+        ".7z",
+    }
+    EXTENSIONES_OCR = {".jpg", ".jpeg", ".png"}
+
     def __init__(self, pendientes_dir: Path, temporal_dir: Path, actividad_codigo: str = DEFAULT_ACTIVIDAD_CODIGO):
         self.pendientes_dir = pendientes_dir
         self.temporal_dir = temporal_dir
@@ -568,6 +673,175 @@ class GeneradorSalidas:
                 continue
 
         return ""
+
+    def leer_entrega(self, path: Path) -> LecturaEntrega:
+        if not path.exists() or not path.is_file():
+            return LecturaEntrega("", True, "El archivo no existe o no es un archivo válido.")
+
+        ext = path.suffix.lower()
+
+        if ext in self.EXTENSIONES_MULTIMEDIA:
+            return LecturaEntrega(
+                "",
+                True,
+                f"Archivo multimedia o comprimido ({ext}); requiere revisión manual.",
+            )
+
+        if ext in self.EXTENSIONES_REVISION_MANUAL:
+            return LecturaEntrega(
+                "",
+                True,
+                f"Formato no textual no extraído automáticamente ({ext}); requiere revisión manual.",
+            )
+
+        try:
+            if ext in self.EXTENSIONES_TEXTO or not ext:
+                texto = self._leer_archivo_texto(path)
+            elif ext == ".docx":
+                texto = self._leer_docx(path)
+            elif ext == ".odt":
+                texto = self._leer_odt(path)
+            elif ext == ".rtf":
+                texto = self._leer_rtf(path)
+            elif ext == ".pdf":
+                texto = self._leer_pdf(path)
+            elif ext == ".pptx":
+                texto = self._leer_pptx(path)
+            elif ext == ".xlsx":
+                texto = self._leer_xlsx(path)
+            elif ext == ".zip":
+                texto = self._leer_zip(path)
+            elif ext in self.EXTENSIONES_OCR:
+                texto = self._leer_imagen_ocr(path)
+            else:
+                texto = self._leer_archivo_texto(path)
+                if not texto.strip():
+                    return LecturaEntrega(
+                        "",
+                        True,
+                        f"Formato no reconocido ({ext or 'sin extensión'}); requiere revisión manual.",
+                    )
+        except Exception as e:
+            return LecturaEntrega(
+                "",
+                True,
+                f"No se pudo extraer texto de {path.name}: {e}",
+            )
+
+        if not texto.strip():
+            return LecturaEntrega("", False, "El archivo está vacío o no contiene texto legible.")
+
+        return LecturaEntrega(texto)
+
+    @staticmethod
+    def _leer_docx(path: Path) -> str:
+        with zipfile.ZipFile(path) as z:
+            xml = z.read("word/document.xml")
+        root = ElementTree.fromstring(xml)
+        textos = [
+            node.text
+            for node in root.iter()
+            if node.tag.endswith("}t") and node.text
+        ]
+        return "\n".join(textos)
+
+    @staticmethod
+    def _leer_odt(path: Path) -> str:
+        with zipfile.ZipFile(path) as z:
+            xml = z.read("content.xml")
+        root = ElementTree.fromstring(xml)
+        textos = [node.text for node in root.iter() if node.text and node.text.strip()]
+        return "\n".join(textos)
+
+    @staticmethod
+    def _leer_rtf(path: Path) -> str:
+        raw = GeneradorSalidas._leer_archivo_texto(path)
+        texto = re.sub(r"\\'[0-9a-fA-F]{2}", " ", raw)
+        texto = re.sub(r"\\[a-zA-Z]+\d* ?", " ", texto)
+        texto = texto.replace("{", " ").replace("}", " ").replace("\\", " ")
+        return unescape(re.sub(r"\s+", " ", texto)).strip()
+
+    @staticmethod
+    def _leer_pdf(path: Path) -> str:
+        try:
+            from pypdf import PdfReader
+        except ImportError as e:
+            raise RuntimeError("Instala pypdf para extraer texto de PDF") from e
+
+        reader = PdfReader(str(path))
+        textos = []
+        for page in reader.pages:
+            textos.append(page.extract_text() or "")
+        return "\n".join(textos)
+
+    @staticmethod
+    def _leer_pptx(path: Path) -> str:
+        try:
+            from pptx import Presentation
+        except ImportError as e:
+            raise RuntimeError("Instala python-pptx para extraer texto de PPTX") from e
+
+        prs = Presentation(str(path))
+        textos = []
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if hasattr(shape, "text") and shape.text:
+                    textos.append(shape.text)
+        return "\n".join(textos)
+
+    @staticmethod
+    def _leer_xlsx(path: Path) -> str:
+        try:
+            from openpyxl import load_workbook
+        except ImportError as e:
+            raise RuntimeError("Instala openpyxl para extraer texto de XLSX") from e
+
+        wb = load_workbook(str(path), read_only=True, data_only=True)
+        textos = []
+        for ws in wb.worksheets:
+            textos.append(f"Hoja: {ws.title}")
+            for row in ws.iter_rows(values_only=True):
+                valores = [str(v) for v in row if v is not None and str(v).strip()]
+                if valores:
+                    textos.append(" | ".join(valores))
+        return "\n".join(textos)
+
+    def _leer_zip(self, path: Path) -> str:
+        textos = []
+        with zipfile.ZipFile(path) as z:
+            for info in z.infolist():
+                if info.is_dir() or info.file_size > 5_000_000:
+                    continue
+                nombre = Path(info.filename)
+                ext = nombre.suffix.lower()
+                if ext in self.EXTENSIONES_MULTIMEDIA or ext in self.EXTENSIONES_OCR:
+                    textos.append(f"[{info.filename}: omitido, requiere revisión manual]")
+                    continue
+                if ext not in self.EXTENSIONES_TEXTO and ext not in self.EXTENSIONES_OFFICE_TEXTO and ext not in {".pdf", ".pptx", ".xlsx"}:
+                    textos.append(f"[{info.filename}: formato no soportado dentro del ZIP]")
+                    continue
+
+                temporal = self.temporal_dir / "_tmp_zip_extract" / nombre.name
+                temporal.parent.mkdir(parents=True, exist_ok=True)
+                temporal.write_bytes(z.read(info))
+                lectura = self.leer_entrega(temporal)
+                try:
+                    temporal.unlink()
+                except Exception:
+                    pass
+                textos.append(f"--- {info.filename} ---")
+                textos.append(lectura.texto or lectura.motivo)
+        return "\n".join(textos)
+
+    @staticmethod
+    def _leer_imagen_ocr(path: Path) -> str:
+        try:
+            from PIL import Image
+            import pytesseract
+        except ImportError as e:
+            raise RuntimeError("Instala pillow y pytesseract para OCR de imágenes") from e
+
+        return pytesseract.image_to_string(Image.open(path), lang="spa+eng")
 
     @staticmethod
     def _sanitizar(nombre: str) -> str:
@@ -605,7 +879,7 @@ class GeneradorSalidas:
 
         actividad_codigo = envio.actividad_codigo or self.actividad_codigo
         ext = envio.archivo.suffix or ".txt"
-        copia_entrega = alumno_dir / f"{actividad_codigo}{ext}"
+        copia_entrega = alumno_dir / self._nombre_copia_entrega(actividad_codigo, ext)
         shutil.copy2(envio.archivo, copia_entrega)
 
         texto_correccion = self._formatear_correccion(correccion, actividad_codigo)
@@ -621,8 +895,14 @@ class GeneradorSalidas:
             "archivo_original": str(envio.archivo),
             "archivo_copiado": str(copia_entrega),
             "archivo_correccion": str(archivo_correccion),
-            "estado": "borrador_pendiente_de_revision",
+            "estado": correccion.get("estado", "borrador_pendiente_de_revision"),
         }
+
+    @staticmethod
+    def _nombre_copia_entrega(actividad_codigo: str, extension: str) -> str:
+        if extension.lower() == ".txt":
+            return f"{actividad_codigo}_respuesta.txt"
+        return f"{actividad_codigo}{extension}"
 
     def eliminar_pendiente_calificado(self, envio: EnvioPendiente) -> None:
         try:
@@ -762,7 +1042,7 @@ async def ejecutar_flujo(args) -> None:
         logger.warning(f"No hay archivos pendientes en {pendientes_dir}")
         return
 
-    corrector = CorrectorIA(usar_ia=not args.sin_ia)
+    corrector = CorrectorIA(usar_ia=not args.sin_ia, prompts_path=args.prompts)
 
     resultados: list[dict] = []
     trazas: list[dict] = []
@@ -775,20 +1055,34 @@ async def ejecutar_flujo(args) -> None:
         logger.info(
             f"Corrigiendo lote {actividad_codigo}: {len(envios_actividad)} entrega(s)"
         )
-        entregas_con_texto = [
-            (envio, salida._leer_archivo_texto(envio.archivo))
-            for envio in envios_actividad
-        ]
-        correcciones = corrector.corregir_lote(
-            entregas_con_texto,
-            contexto_unidad,
-            actividad_codigo,
-        )
+        entregas_automaticas: list[tuple[EnvioPendiente, str]] = []
+        correcciones_por_archivo: dict[Path, dict] = {}
 
-        for (envio, _), correccion in zip(entregas_con_texto, correcciones):
+        for envio in envios_actividad:
+            lectura = salida.leer_entrega(envio.archivo)
+            if lectura.requiere_revision_manual:
+                correcciones_por_archivo[envio.archivo] = corrector.correccion_revision_manual(lectura.motivo)
+                logger.warning(f"Entrega marcada para revisión manual: {envio.archivo} ({lectura.motivo})")
+            else:
+                entregas_automaticas.append((envio, lectura.texto))
+
+        if entregas_automaticas:
+            correcciones = corrector.corregir_lote(
+                entregas_automaticas,
+                contexto_unidad,
+                actividad_codigo,
+            )
+            for (envio, _), correccion in zip(entregas_automaticas, correcciones):
+                correcciones_por_archivo[envio.archivo] = correccion
+
+        for envio in envios_actividad:
+            correccion = correcciones_por_archivo.get(
+                envio.archivo,
+                corrector.correccion_revision_manual("No se generó corrección automática para esta entrega."),
+            )
             resultado = salida.escribir_salidas(envio, correccion)
             resultados.append(resultado)
-            if not args.conservar_pendientes:
+            if not args.conservar_pendientes and resultado["estado"] != "revision_manual_necesaria":
                 salida.eliminar_pendiente_calificado(envio)
 
             trazas.append(
@@ -799,7 +1093,7 @@ async def ejecutar_flujo(args) -> None:
                     "actividad_nombre": envio.actividad_nombre,
                     "archivo_entrada": str(envio.archivo),
                     "correccion": correccion,
-                    "estado": "borrador",
+                    "estado": resultado["estado"],
                 }
             )
 
@@ -840,6 +1134,11 @@ def parse_args() -> argparse.Namespace:
         "--contexto-unidad",
         default="",
         help="Archivo de texto con el manual o contenido imprimible de la unidad.",
+    )
+    parser.add_argument(
+        "--prompts",
+        default=str(GestorPrompts.DEFAULT_PROMPTS_PATH),
+        help="Archivo JSON con prompts por defecto o por actividad.",
     )
     parser.add_argument(
         "--actividad-codigo",
