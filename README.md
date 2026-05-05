@@ -22,7 +22,7 @@ Agente inteligente para corregir ejercicios prácticos del curso **"Inteligencia
 
 ### 1. Clonar/descargar el proyecto
 ```bash
-cd c:\temp\vscode
+cd C:\Users\ruben\Desktop\agente
 ```
 
 ### 2. Crear entorno virtual (recomendado)

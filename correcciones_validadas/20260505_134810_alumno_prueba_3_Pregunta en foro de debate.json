@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-05-05T13:48:10.665807",
+  "alumno": "alumno_prueba_3",
+  "actividad": "Pregunta en foro de debate",
+  "respuesta_original": "\n        Excelente pregunta. Creo que los retos principales son:\n        1. Privacidad: Recopilar datos de comportamiento levanta preocupaciones legales\n        2. Sesgos: Un algoritmo mal diseñado podría discriminar a ciertos grupos de turistas\n        3. Transparencia: Los usuarios no siempre saben que están siendo \"perfilados\"\n        \n        En Murcia, con RGPD europeo, es aún más crítico. ¿Alguien ha visto cómo otras\n        regiones turísticas lo manejan?\n        ",
+  "correccion_generada": {
+    "nota": 7.5,
+    "justificacion": "Corrección generada en modo local sin API externa.",
+    "fortalezas": [
+      "Respuesta coherente",
+      "Relación con el tema"
+    ],
+    "mejoras": [
+      "Añadir más ejemplos concretos",
+      "Profundizar en la explicación"
+    ],
+    "feedback": "Buen trabajo. Refuerza la parte práctica con ejemplos más específicos."
+  },
+  "prompt_tipo": "ejercicio_practico",
+  "estado": "borrador"
+}

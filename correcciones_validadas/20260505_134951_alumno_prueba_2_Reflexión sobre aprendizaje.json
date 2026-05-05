@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-05-05T13:49:51.993999",
+  "alumno": "alumno_prueba_2",
+  "actividad": "Reflexión sobre aprendizaje",
+  "respuesta_original": "\n        He aprendido que la IA no es solo reconocimiento de voz, sino un conjunto de técnicas\n        que se pueden aplicar de forma muy práctica. Mis fortalezas fueron entender cómo\n        personalizar recomendaciones y ver aplicaciones reales. Necesito mejorar en machine\n        learning y en cómo entrenar modelos con datos locales.\n        ",
+  "correccion_generada": {
+    "nota": 7.5,
+    "justificacion": "Corrección generada en modo local sin API externa.",
+    "fortalezas": [
+      "Respuesta coherente",
+      "Relación con el tema"
+    ],
+    "mejoras": [
+      "Añadir más ejemplos concretos",
+      "Profundizar en la explicación"
+    ],
+    "feedback": "Buen trabajo. Refuerza la parte práctica con ejemplos más específicos."
+  },
+  "prompt_tipo": "ejercicio_practico",
+  "estado": "borrador"
+}

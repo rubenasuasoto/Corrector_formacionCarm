@@ -1,0 +1,9 @@
+2026-05-05 13:50:35,678 - INFO - Corrigiendo: IA en recomendaciones turísticas
+2026-05-05 13:50:35,678 - WARNING - OPENAI_API_KEY no configurada; usando corrección de respaldo
+2026-05-05 13:50:35,680 - INFO - OK - Trazabilidad guardada: correcciones_validadas\20260505_135035_alumno_prueba_1_IA en recomendaciones turísticas.json
+2026-05-05 13:50:35,681 - INFO - Corrigiendo: Reflexión sobre aprendizaje
+2026-05-05 13:50:35,681 - WARNING - OPENAI_API_KEY no configurada; usando corrección de respaldo
+2026-05-05 13:50:35,684 - INFO - OK - Trazabilidad guardada: correcciones_validadas\20260505_135035_alumno_prueba_2_Reflexión sobre aprendizaje.json
+2026-05-05 13:50:35,688 - INFO - Corrigiendo: Pregunta en foro de debate
+2026-05-05 13:50:35,688 - WARNING - OPENAI_API_KEY no configurada; usando corrección de respaldo
+2026-05-05 13:50:35,690 - INFO - OK - Trazabilidad guardada: correcciones_validadas\20260505_135035_alumno_prueba_3_Pregunta en foro de debate.json
