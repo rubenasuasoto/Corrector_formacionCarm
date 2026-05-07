@@ -1,6 +1,6 @@
 # Estado del proyecto: agente corrector CARM
 
-Última actualización: 2026-05-05
+Última actualización: 2026-05-07
 
 ## Objetivo
 
@@ -15,6 +15,16 @@ El flujo manual original era:
 5. Corregirlas con Codex/OpenAI.
 6. Crear en `C:\temp\vscodec\temporal` una carpeta por alumno con la respuesta y la corrección.
 7. Subir manualmente la nota y la retroalimentación tras revisión.
+
+## Relación entre documentos
+
+Se ha decidido separar responsabilidades para evitar duplicación:
+
+- `README.md`: entrada breve y estable para entender qué es el proyecto y cómo arrancar.
+- `QUICKSTART.md`: comandos de uso rápido.
+- `ESTADO_PROYECTO.md`: memoria viva, decisiones tomadas y próximos pasos.
+
+Si algún detalle operativo cambia, actualizar primero este archivo y después reflejar solo lo imprescindible en `README.md` o `QUICKSTART.md`.
 
 ## Flujo actual implementado
 
@@ -38,19 +48,31 @@ Cuando corrige:
 
 Los archivos que no puedan leerse de forma fiable no se envían a la IA. Se copian a `temporal`, se marca la corrección como `revision_manual_necesaria` y se mantienen en `pendientes` para revisarlos.
 
-Se ha preparado extracción ampliada opcional:
+También existe un modo sin API:
+
+```powershell
+python corrector_agente.py --preparar-prompts-codex
+```
+
+Este modo lee o extrae las entregas, las agrupa por actividad y genera prompts en `temporal\prompts_codex` para pegarlos manualmente en Codex/ChatGPT. No llama a OpenAI API y no genera notas finales todavía.
+
+## Extracción ampliada opcional
+
+Con `requirements-extraccion.txt` se añaden lectores para:
 
 - PDF con `pypdf`.
 - PPTX con `python-pptx`.
 - XLSX con `openpyxl`.
 - ZIP leyendo internamente archivos soportados.
-- JPG/PNG con OCR mediante `pillow` + `pytesseract`, pero requiere instalar Tesseract OCR en Windows.
+- JPG/PNG con OCR mediante `pillow` y `pytesseract`.
 
 Instalación:
 
 ```powershell
 pip install -r requirements-extraccion.txt
 ```
+
+El OCR de imágenes requiere instalar Tesseract OCR en Windows y tenerlo disponible en el `PATH`.
 
 El formato `.doc` antiguo queda de momento para revisión manual porque no tiene una lectura fiable sin Word, LibreOffice o herramientas externas.
 
@@ -88,7 +110,7 @@ En `temporal\<alumno>\`:
 
 ## Prompts modulares
 
-Los prompts se han sacado a `prompts_correccion.json`.
+Los prompts viven en `prompts_correccion.json`.
 
 Estructura:
 
@@ -107,8 +129,7 @@ Estructura:
 }
 ```
 
-Si existe una clave concreta para la actividad, se usa esa.
-Si no existe, se usa `default`.
+Si existe una clave concreta para la actividad, se usa esa. Si no existe, se usa `default`.
 
 También se puede usar otro archivo:
 
@@ -121,7 +142,7 @@ python corrector_agente.py --prompts C:\ruta\prompts_modulo_02.json
 Compilar:
 
 ```powershell
-python -m py_compile corrector_agente.py prueba_correcciones.py
+python -m py_compile corrector_agente.py prueba_correcciones.py sincronizador_moodle.py
 ```
 
 Prueba offline:
@@ -144,9 +165,47 @@ Resultados esperados:
 - `tmp_prueba\temporal\resumen_ud02cp03.txt`
 - `tmp_prueba\temporal\revision_pendiente.csv`
 - Carpetas por alumno con respuesta y corrección.
-- `tmp_prueba\pendientes` queda vacío tras corregir.
+- `tmp_prueba\pendientes` queda vacío tras corregir, salvo los casos marcados para revisión manual.
 
 ## Uso previsto en real
+
+Diagnóstico de navegación CARM:
+
+```powershell
+python corrector_agente.py --diagnosticar-carm
+```
+
+Este modo inicia sesión, entra al área personal y al curso, guarda un `diagnostico.json` limpio en `logs_correcciones\diagnostico_carm` y no descarga ni corrige nada. Por defecto no guarda HTML, capturas ni URLs.
+
+Para depurar selectores visualmente se puede usar:
+
+```powershell
+python corrector_agente.py --diagnosticar-carm --guardar-evidencias
+```
+
+Las evidencias se redactan de forma básica, pero pueden contener datos de alumnos y no deben compartirse.
+
+Listado seguro sin descarga:
+
+```powershell
+python corrector_agente.py --solo-listar-carm
+```
+
+Este modo entra en CARM y genera `respuestas_extraidas\envios_carm_registros.json` con el mínimo necesario por fila, sin descargar archivos ni corregir.
+
+Tras la primera prueba real de CARM se ajustó la lógica para:
+
+- Deduplicar actividades, porque el curso muestra enlaces repetidos desde el bloque de estado/finalización.
+- Respetar el enlace de CARM con `filter=require_grading` cuando existe, para trabajar solo con entregas que requieren calificación.
+- Mapear la tabla de grading por cabeceras, no por posición fija.
+- Leer alumno desde la columna `Nombre / Apellido(s)`.
+- Leer solo las columnas necesarias: alumno, estado y archivos enviados.
+- Registrar filas sin archivo diferenciando `sin_entrega`, `sin_archivo_detectado` y `error_descarga`.
+- Extraer el enunciado de cada caso práctico desde la vista de la actividad antes de entrar al grading.
+- Guardar `respuestas_extraidas\envios_carm_registros.json` como auditoría completa por alumno/fila.
+- Usar contexto temporal de Playwright y limpiar cookies/localStorage/sessionStorage al cerrar.
+- No guardar HTML/capturas por defecto en diagnóstico; solo con `--guardar-evidencias`.
+- Añadir redacción básica de emails, `sesskey` y secretos en HTML diagnóstico cuando se guardan evidencias.
 
 Con archivos ya descargados:
 
@@ -179,12 +238,32 @@ python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --conservar
 - Las correcciones quedan como `borrador_pendiente_de_revision`.
 - Se elimina de `pendientes` solo después de copiar la entrega y escribir la corrección.
 - Se agrupa por actividad para reducir peticiones a la IA.
+- Se añade un modo `--preparar-prompts-codex` para trabajar sin API, usando Codex/ChatGPT manualmente.
+- Se añade un modo `--diagnosticar-carm` para probar navegación real sin tocar entregas.
 - Se mantiene `resumen.txt` global y además `resumen_udXXcpYY.txt` por actividad.
 - Los prompts viven fuera del código para adaptar el agente a otros módulos.
+- `README.md` se mantiene como resumen de entrada y este archivo como fuente de verdad del estado.
+
+## Verificación hecha
+
+El 2026-05-07 se comprobó:
+
+```powershell
+python -m py_compile corrector_agente.py prueba_correcciones.py sincronizador_moodle.py
+python prueba_correcciones.py
+```
+
+Resultado:
+
+- Compilación correcta.
+- Prueba offline correcta.
+- Sin `OPENAI_API_KEY`, el sistema usa corrección de respaldo.
+- Sin dependencias opcionales, PPTX/XLSX quedan correctamente marcados como revisión manual.
 
 ## Pendiente / próximos pasos
 
 - Probar `--extraer-carm` en la plataforma real y ajustar selectores si Moodle muestra la tabla de entregas de otra forma.
+- Añadir importación del JSON devuelto por Codex para convertir el modo sin API en flujo completo.
 - Probar en entorno real la extracción de PDF/PPTX/XLSX/ZIP tras instalar `requirements-extraccion.txt`.
 - Decidir si merece la pena instalar Tesseract OCR para imágenes.
 - Decidir si se añade conversión de `.doc` antiguo con LibreOffice o Word instalado.

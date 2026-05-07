@@ -107,6 +107,9 @@ class EnvioPendiente:
     archivo: Path
     actividad_codigo: str = DEFAULT_ACTIVIDAD_CODIGO
     actividad_nombre: str = ""
+    actividad_enunciado: str = ""
+    estado_entrega: str = ""
+    archivo_original_nombre: str = ""
 
 
 @dataclass
@@ -382,10 +385,20 @@ class CorrectorIA:
 
 
 class ExtractorCarm:
-    def __init__(self, usuario: str, contrasena: str, pendientes_dir: Path):
+    def __init__(
+        self,
+        usuario: str,
+        contrasena: str,
+        pendientes_dir: Path,
+        mantener_navegador: bool = False,
+        guardar_evidencias: bool = False,
+    ):
         self.usuario = usuario
         self.contrasena = contrasena
         self.pendientes_dir = pendientes_dir
+        self.mantener_navegador = mantener_navegador
+        self.guardar_evidencias = guardar_evidencias
+        self.registros_envios: list[dict] = []
 
     @staticmethod
     def _normalizar(texto: str) -> str:
@@ -397,6 +410,57 @@ class ExtractorCarm:
     def _sanitizar_nombre(nombre: str) -> str:
         limpio = re.sub(r"[\\/:*?\"<>|]", "_", nombre.strip())
         return re.sub(r"\s+", " ", limpio)[:120] or "alumno"
+
+    @staticmethod
+    def _texto_limpio(texto: str) -> str:
+        return re.sub(r"\s+", " ", (texto or "")).strip()
+
+    @staticmethod
+    def _redactar_texto_sensible(texto: str) -> str:
+        texto = re.sub(r"[\w.\-+%]+@[\w.\-]+\.[A-Za-z]{2,}", "[email-redactado]", texto or "")
+        texto = re.sub(r"(sesskey=)[^&\"'>\s]+", r"\1[redactado]", texto, flags=re.I)
+        texto = re.sub(r'("sesskey"\s*:\s*")[^"]+', r'\1[redactado]', texto, flags=re.I)
+        texto = re.sub(r"(password|contrasena|contraseña)(=|%3D)[^&\"'>\s]+", r"\1\2[redactado]", texto, flags=re.I)
+        return texto
+
+    @classmethod
+    def _limpiar_diagnostico_json(cls, diagnostico: dict, incluir_enlaces: bool = False) -> dict:
+        actividades = []
+        for act in diagnostico.get("actividades_obligatorias", []):
+            limpio = {
+                "nombre": act.get("nombre", ""),
+                "codigo": act.get("codigo", ""),
+                "filtro": act.get("filtro", ""),
+            }
+            for clave in ("filas_grading_detectadas", "columnas_grading", "error_grading"):
+                if clave in act:
+                    limpio[clave] = act[clave]
+            if incluir_enlaces:
+                limpio["url"] = cls._redactar_texto_sensible(act.get("url", ""))
+                limpio["url_grading"] = cls._redactar_texto_sensible(act.get("url_grading", ""))
+            actividades.append(limpio)
+
+        return {
+            "course_url": cls._redactar_texto_sensible(diagnostico.get("course_url", "")),
+            "title": diagnostico.get("title", ""),
+            "assign_links_count": diagnostico.get("assign_links_count", 0),
+            "actividades_obligatorias_count": diagnostico.get("actividades_obligatorias_count", 0),
+            "actividades_obligatorias": actividades,
+        }
+
+    @classmethod
+    def _es_estado_sin_entrega(cls, estado: str) -> bool:
+        normalizado = cls._normalizar(estado)
+        return any(
+            patron in normalizado
+            for patron in (
+                "sin entregar",
+                "no entregado",
+                "no ha enviado",
+                "no se ha enviado",
+                "borrador",
+            )
+        )
 
     @classmethod
     def _inferir_codigo_actividad(cls, nombre_actividad: str, nombre_unidad: str = "") -> str:
@@ -464,6 +528,36 @@ class ExtractorCarm:
         q["action"] = "grading"
         return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
 
+    @staticmethod
+    def _url_vista_actividad(url: str) -> str:
+        p = urlparse(url)
+        q = dict(parse_qsl(p.query))
+        q.pop("action", None)
+        q.pop("filter", None)
+        q.pop("tsort", None)
+        q.pop("tdir", None)
+        return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
+
+    async def _login(self, page) -> None:
+        await page.goto(CARM_LOGIN_URL, wait_until="networkidle")
+        await page.fill("input[name='username'], #username", self.usuario)
+        await page.fill("input[name='password'], #password", self.contrasena)
+        await page.click("button[type='submit'], input[type='submit']")
+        await page.wait_for_load_state("networkidle")
+
+        if await page.locator("input[name='username'], #username").count():
+            raise RuntimeError("El login parece seguir mostrando el formulario. Revisa credenciales o flujo de acceso.")
+
+    @staticmethod
+    async def _guardar_diagnostico_pagina(page, destino_dir: Path, nombre: str) -> None:
+        destino_dir.mkdir(parents=True, exist_ok=True)
+        html = ExtractorCarm._redactar_texto_sensible(await page.content())
+        (destino_dir / f"{nombre}.html").write_text(html, encoding="utf-8")
+        try:
+            await page.screenshot(path=str(destino_dir / f"{nombre}.png"), full_page=True)
+        except Exception as e:
+            logger.warning(f"No se pudo guardar captura de diagnóstico {nombre}: {e}")
+
     async def _extraer_contexto_imprimible(self, page) -> str:
         contexto_partes: list[str] = []
         enlaces = await page.query_selector_all("a")
@@ -484,11 +578,42 @@ class ExtractorCarm:
                 logger.warning(f"No se pudo leer contenido imprimible {href}: {e}")
         return "\n\n".join(contexto_partes)
 
+    async def _extraer_enunciado_actividad(self, page, actividad_url: str) -> str:
+        try:
+            await page.goto(self._url_vista_actividad(actividad_url), wait_until="networkidle")
+        except Exception as e:
+            logger.warning(f"No se pudo extraer enunciado de {actividad_url}: {e}")
+            return ""
+
+        for selector in (
+            ".activity-description",
+            ".intro",
+            "#intro",
+            ".box.generalbox",
+            "[role='main']",
+        ):
+            try:
+                texto = await page.locator(selector).first.text_content(timeout=1500)
+            except Exception:
+                continue
+            texto = self._texto_limpio(texto or "")
+            if texto:
+                return texto[:12000]
+        return ""
+
     async def _obtener_actividades_obligatorias(self, page) -> list[dict]:
         actividades: list[dict] = []
-        enlaces = await page.query_selector_all("a[href*='mod/assign/view.php']")
-        for a in enlaces:
-            nombre = (await a.text_content() or "").strip()
+        vistos: set[str] = set()
+        modulos = await page.query_selector_all("li.activity.assign, .activity.assign, li.modtype_assign")
+        if not modulos:
+            modulos = await page.query_selector_all("a[href*='mod/assign/view.php']")
+
+        for modulo in modulos:
+            enlace_actividad = await modulo.query_selector("a[href*='mod/assign/view.php']:not(.ad-activity-action)")
+            if enlace_actividad is None:
+                enlace_actividad = modulo
+
+            nombre = (await enlace_actividad.text_content() or "").strip()
             if not nombre:
                 continue
             base = self._normalizar(nombre)
@@ -496,73 +621,209 @@ class ExtractorCarm:
                 continue
             if "(obligatorio)" not in base:
                 continue
-            href = await a.get_attribute("href")
+            href = await enlace_actividad.get_attribute("href")
             if not href:
                 continue
-            unidad = await self._obtener_nombre_unidad(a)
+            vista_url = self._url_vista_actividad(href)
+            if vista_url in vistos:
+                continue
+            vistos.add(vista_url)
+            enlace_require_grading = await modulo.query_selector(
+                "a[href*='action=grading'][href*='filter=require_grading']"
+            )
+            href_require_grading = (
+                await enlace_require_grading.get_attribute("href")
+                if enlace_require_grading is not None
+                else ""
+            )
+            unidad = await self._obtener_nombre_unidad(enlace_actividad)
             codigo = self._inferir_codigo_actividad(nombre, unidad)
             actividades.append(
                 {
                     "nombre": nombre,
                     "unidad": unidad,
                     "codigo": codigo,
-                    "url_grading": self._agregar_action_grading(href),
+                    "url": vista_url,
+                    "url_grading": href_require_grading or self._agregar_action_grading(vista_url),
+                    "filtro": "require_grading" if href_require_grading else "grading",
                 }
             )
         return actividades
 
-    async def _descargar_envios_actividad(self, page, actividad: dict) -> list[EnvioPendiente]:
+    async def _listar_enlaces_assign(self, page) -> list[dict]:
+        enlaces = await page.query_selector_all("a[href*='mod/assign/view.php']")
+        resultado: list[dict] = []
+        for a in enlaces:
+            nombre = (await a.text_content() or "").strip()
+            resultado.append(
+                {
+                    "texto": nombre,
+                    "unidad": await self._obtener_nombre_unidad(a),
+                    "href": await a.get_attribute("href"),
+                    "normalizado": self._normalizar(nombre),
+                }
+            )
+        return resultado
+
+    async def _mapear_columnas_grading(self, page) -> dict[str, int]:
+        headers = await page.query_selector_all("table.generaltable thead th")
+        columnas: dict[str, int] = {}
+        for idx, th in enumerate(headers):
+            texto = self._normalizar(await th.text_content() or "")
+            if "nombre" in texto and ("apellido" in texto or "completo" in texto):
+                columnas["alumno"] = idx
+            elif texto.startswith("estado"):
+                columnas["estado"] = idx
+            elif "archivos enviados" in texto or "archivo enviado" in texto:
+                columnas["archivos"] = idx
+        return columnas
+
+    @staticmethod
+    async def _texto_celda(celdas: list, indice: int | None) -> str:
+        if indice is None or indice >= len(celdas):
+            return ""
+        return ExtractorCarm._texto_limpio(await celdas[indice].text_content() or "")
+
+    async def _nombre_alumno_desde_celda(self, celda) -> str:
+        enlace_usuario = await celda.query_selector("a[href*='user/view.php']")
+        if enlace_usuario is not None:
+            texto = await enlace_usuario.text_content()
+            if texto and texto.strip():
+                return self._texto_limpio(texto)
+        return self._texto_limpio(await celda.text_content() or "")
+
+    async def _descargar_envios_actividad(self, page, actividad: dict, descargar: bool = True) -> list[EnvioPendiente]:
         descargados: list[EnvioPendiente] = []
         await page.goto(actividad["url_grading"], wait_until="networkidle")
 
+        columnas = await self._mapear_columnas_grading(page)
+        if "alumno" not in columnas:
+            logger.warning(f"No se detectó la columna de alumno en {actividad.get('codigo')}")
+
         filas = await page.query_selector_all("table.generaltable tbody tr")
         for fila in filas:
+            clase = await fila.get_attribute("class") or ""
+            if "emptyrow" in clase:
+                continue
+
             celdas = await fila.query_selector_all("td")
             if len(celdas) < 2:
                 continue
 
-            alumno = (await celdas[0].text_content() or "").strip()
+            indice_alumno = columnas.get("alumno", 0)
+            if indice_alumno >= len(celdas):
+                continue
+            alumno = await self._nombre_alumno_desde_celda(celdas[indice_alumno])
             if not alumno:
                 continue
 
-            enlace_archivo = await fila.query_selector("a[href*='pluginfile.php'], a[href*='forcedownload=1'], a[download]")
-            if enlace_archivo is None:
+            estado = await self._texto_celda(celdas, columnas.get("estado"))
+            celda_archivos = celdas[columnas["archivos"]] if "archivos" in columnas and columnas["archivos"] < len(celdas) else fila
+            enlaces_archivo = await celda_archivos.query_selector_all(
+                "a[href*='pluginfile.php'], a[href*='forcedownload=1'], a[download]"
+            )
+
+            registro_base = {
+                "alumno": self._sanitizar_nombre(alumno),
+                "alumno_original": alumno,
+                "actividad_codigo": actividad.get("codigo", DEFAULT_ACTIVIDAD_CODIGO),
+                "actividad_nombre": actividad.get("nombre", ""),
+                "estado_entrega": estado,
+                "tiene_archivo": bool(enlaces_archivo),
+                "archivos": [],
+            }
+
+            if not enlaces_archivo:
+                if self._es_estado_sin_entrega(estado):
+                    registro_base["resultado"] = "sin_entrega"
+                    logger.info(f"Sin entrega en {actividad.get('codigo')}: {alumno}")
+                else:
+                    registro_base["resultado"] = "sin_archivo_detectado"
+                    logger.warning(
+                        f"Entrega sin archivo descargable en {actividad.get('codigo')}: {alumno} ({estado or 'sin estado'})"
+                    )
+                self.registros_envios.append(registro_base)
                 continue
 
-            file_url = await enlace_archivo.get_attribute("href")
-            if not file_url:
-                continue
-
-            nombre_archivo = (await enlace_archivo.text_content() or "entrega").strip()
-            ext = Path(nombre_archivo).suffix or ".txt"
             alumno_limpio = self._sanitizar_nombre(alumno)
             actividad_codigo = actividad.get("codigo", DEFAULT_ACTIVIDAD_CODIGO)
             destino_dir = self.pendientes_dir / actividad_codigo
-            destino_dir.mkdir(parents=True, exist_ok=True)
-            destino = destino_dir / f"{alumno_limpio}{ext}"
+            if descargar:
+                destino_dir.mkdir(parents=True, exist_ok=True)
 
-            try:
-                resp = await page.context.request.get(file_url)
-                if resp.status != 200:
-                    logger.warning(f"No se pudo descargar envio de {alumno}: HTTP {resp.status}")
+            for idx, enlace_archivo in enumerate(enlaces_archivo, start=1):
+                file_url = await enlace_archivo.get_attribute("href")
+                if not file_url:
                     continue
-                body = await resp.body()
-                destino.write_bytes(body)
-                descargados.append(
-                    EnvioPendiente(
-                        alumno=alumno_limpio,
-                        archivo=destino,
-                        actividad_codigo=actividad_codigo,
-                        actividad_nombre=actividad.get("nombre", ""),
+
+                nombre_archivo = self._texto_limpio(await enlace_archivo.text_content() or "entrega")
+                ext = Path(nombre_archivo).suffix or ".txt"
+                sufijo = "" if len(enlaces_archivo) == 1 else f"_{idx:02d}"
+                destino = destino_dir / f"{alumno_limpio}{sufijo}{ext}"
+
+                if not descargar:
+                    registro_base["archivos"].append(
+                        {
+                            "nombre": nombre_archivo,
+                            "descargado": False,
+                            "motivo": "solo_listado",
+                        }
                     )
-                )
-                logger.info(f"Descargado envio de {alumno_limpio}: {destino}")
-            except Exception as e:
-                logger.warning(f"Error descargando envio de {alumno}: {e}")
+                    continue
+
+                try:
+                    resp = await page.context.request.get(file_url)
+                    if resp.status != 200:
+                        logger.warning(f"No se pudo descargar envio de {alumno}: HTTP {resp.status}")
+                        registro_base["archivos"].append(
+                            {
+                                "nombre": nombre_archivo,
+                                "descargado": False,
+                                "http_status": resp.status,
+                            }
+                        )
+                        continue
+                    body = await resp.body()
+                    destino.write_bytes(body)
+                    descargados.append(
+                        EnvioPendiente(
+                            alumno=alumno_limpio,
+                            archivo=destino,
+                            actividad_codigo=actividad_codigo,
+                            actividad_nombre=actividad.get("nombre", ""),
+                            actividad_enunciado=actividad.get("enunciado", ""),
+                            estado_entrega=estado,
+                            archivo_original_nombre=nombre_archivo,
+                        )
+                    )
+                    registro_base["archivos"].append(
+                        {
+                            "nombre": nombre_archivo,
+                            "descargado": True,
+                            "destino": str(destino),
+                        }
+                    )
+                    logger.info(f"Descargado envio de {alumno_limpio}: {destino}")
+                except Exception as e:
+                    registro_base["archivos"].append(
+                        {
+                            "nombre": nombre_archivo,
+                            "descargado": False,
+                            "error": str(e),
+                        }
+                    )
+                    logger.warning(f"Error descargando envio de {alumno}: {e}")
+
+            registro_base["resultado"] = (
+                "descargado"
+                if any(a.get("descargado") for a in registro_base["archivos"])
+                else ("pendiente_descarga" if not descargar else "error_descarga")
+            )
+            self.registros_envios.append(registro_base)
 
         return descargados
 
-    async def ejecutar(self) -> tuple[str, list[EnvioPendiente]]:
+    async def ejecutar(self, solo_listar: bool = False) -> tuple[str, list[EnvioPendiente]]:
         if async_playwright is None:
             raise RuntimeError(
                 "Playwright no esta disponible. Ejecuta: pip install -r requirements.txt y luego playwright install chromium"
@@ -572,13 +833,10 @@ class ExtractorCarm:
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=False)
-            page = await browser.new_page()
+            context = await browser.new_context()
+            page = await context.new_page()
             try:
-                await page.goto(CARM_LOGIN_URL, wait_until="networkidle")
-                await page.fill("input[name='username']", self.usuario)
-                await page.fill("input[name='password']", self.contrasena)
-                await page.click("button[type='submit']")
-                await page.wait_for_load_state("networkidle")
+                await self._login(page)
 
                 await page.goto(CARM_MY_URL, wait_until="networkidle")
                 await page.goto(CARM_COURSE_URL, wait_until="networkidle")
@@ -591,27 +849,122 @@ class ExtractorCarm:
                 todos_envios: list[EnvioPendiente] = []
                 for act in actividades:
                     logger.info(f"Procesando grading {act['codigo']}: {act['nombre']}")
-                    envios = await self._descargar_envios_actividad(page, act)
+                    act["enunciado"] = await self._extraer_enunciado_actividad(page, act["url"])
+                    envios = await self._descargar_envios_actividad(page, act, descargar=not solo_listar)
                     todos_envios.extend(envios)
 
-                with open(RESPUESTAS_DIR / "envios_descargados.json", "w", encoding="utf-8") as f:
-                    json.dump(
+                (RESPUESTAS_DIR / "envios_descargados.json").write_text(
+                    json.dumps(
                         [
                             {
                                 "alumno": e.alumno,
                                 "archivo": str(e.archivo),
                                 "actividad_codigo": e.actividad_codigo,
                                 "actividad_nombre": e.actividad_nombre,
+                                "estado_entrega": e.estado_entrega,
+                                "archivo_original_nombre": e.archivo_original_nombre,
                             }
                             for e in todos_envios
                         ],
-                        f,
                         indent=2,
                         ensure_ascii=False,
-                    )
+                    ),
+                    encoding="utf-8",
+                )
+                (RESPUESTAS_DIR / "envios_carm_registros.json").write_text(
+                    json.dumps(self.registros_envios, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
 
                 return contexto, todos_envios
             finally:
+                if self.mantener_navegador:
+                    logger.info("Navegador abierto. Pulsa Enter en la consola para cerrarlo.")
+                    await asyncio.to_thread(input)
+                try:
+                    await context.clear_cookies()
+                    await page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+                except Exception:
+                    pass
+                await context.close()
+                await browser.close()
+
+    async def diagnosticar(self, incluir_enlaces: bool = False) -> Path:
+        if async_playwright is None:
+            raise RuntimeError(
+                "Playwright no esta disponible. Ejecuta: pip install -r requirements.txt y luego playwright install chromium"
+            )
+
+        diagnostico_dir = LOG_DIR / "diagnostico_carm"
+        diagnostico_dir.mkdir(parents=True, exist_ok=True)
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=False)
+            context = await browser.new_context()
+            page = await context.new_page()
+            try:
+                await self._login(page)
+                if self.guardar_evidencias:
+                    await self._guardar_diagnostico_pagina(page, diagnostico_dir, "01_post_login")
+
+                await page.goto(CARM_MY_URL, wait_until="networkidle")
+                if self.guardar_evidencias:
+                    await self._guardar_diagnostico_pagina(page, diagnostico_dir, "02_my")
+
+                await page.goto(CARM_COURSE_URL, wait_until="networkidle")
+                if self.guardar_evidencias:
+                    await self._guardar_diagnostico_pagina(page, diagnostico_dir, "03_course")
+
+                enlaces_assign = await self._listar_enlaces_assign(page)
+                actividades = await self._obtener_actividades_obligatorias(page)
+                diagnostico = {
+                    "login_url": CARM_LOGIN_URL,
+                    "my_url": CARM_MY_URL,
+                    "course_url": CARM_COURSE_URL,
+                    "current_url": page.url,
+                    "title": await page.title(),
+                    "assign_links_count": len(enlaces_assign),
+                    "assign_links": enlaces_assign,
+                    "actividades_obligatorias_count": len(actividades),
+                    "actividades_obligatorias": actividades,
+                }
+
+                for actividad in actividades[:3]:
+                    try:
+                        actividad["enunciado"] = await self._extraer_enunciado_actividad(page, actividad["url"])
+                        await page.goto(actividad["url_grading"], wait_until="networkidle")
+                        if self.guardar_evidencias:
+                            await self._guardar_diagnostico_pagina(
+                                page,
+                                diagnostico_dir,
+                                f"04_grading_{actividad['codigo']}",
+                            )
+                        filas = await page.query_selector_all("table.generaltable tbody tr")
+                        actividad["filas_grading_detectadas"] = len(filas)
+                        actividad["columnas_grading"] = await self._mapear_columnas_grading(page)
+                    except Exception as e:
+                        actividad["error_grading"] = str(e)
+
+                diagnostico_path = diagnostico_dir / "diagnostico.json"
+                diagnostico_limpio = self._limpiar_diagnostico_json(
+                    diagnostico,
+                    incluir_enlaces=incluir_enlaces,
+                )
+                diagnostico_path.write_text(
+                    json.dumps(diagnostico_limpio, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                return diagnostico_path
+            finally:
+                if self.mantener_navegador:
+                    logger.info("Navegador abierto. Pulsa Enter en la consola para cerrarlo.")
+                    await asyncio.to_thread(input)
+                try:
+                    await context.clear_cookies()
+                    await page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+                except Exception:
+                    pass
+                await context.close()
                 await browser.close()
 
 
@@ -998,6 +1351,124 @@ class GeneradorSalidas:
         revision_path.write_text("\n".join(lineas), encoding="utf-8-sig")
         return revision_path
 
+    def escribir_prompts_codex(
+        self,
+        pendientes_por_actividad: dict[str, list[EnvioPendiente]],
+        contexto_unidad: str,
+        prompts_path: str | Path | None = None,
+    ) -> list[Path]:
+        prompts_dir = self.temporal_dir / "prompts_codex"
+        prompts_dir.mkdir(parents=True, exist_ok=True)
+
+        gestor_prompts = GestorPrompts(prompts_path)
+        rutas: list[Path] = []
+        manifiesto: list[dict] = []
+
+        for actividad_codigo, envios in sorted(pendientes_por_actividad.items()):
+            entregas: list[dict] = []
+            revision_manual: list[dict] = []
+            enunciado = next((e.actividad_enunciado for e in envios if e.actividad_enunciado), "")
+
+            for idx, envio in enumerate(envios):
+                lectura = self.leer_entrega(envio.archivo)
+                item_base = {
+                    "id": str(idx),
+                    "alumno": envio.alumno,
+                    "actividad": actividad_codigo,
+                    "archivo": str(envio.archivo),
+                    "archivo_original": envio.archivo_original_nombre,
+                    "estado_entrega": envio.estado_entrega,
+                }
+
+                if lectura.requiere_revision_manual:
+                    revision_manual.append({**item_base, "motivo": lectura.motivo})
+                else:
+                    entregas.append({**item_base, "respuesta": lectura.texto})
+
+                manifiesto.append(
+                    {
+                        **item_base,
+                        "requiere_revision_manual": lectura.requiere_revision_manual,
+                        "motivo": lectura.motivo,
+                    }
+                )
+
+            prompt_cfg = gestor_prompts.obtener(actividad_codigo)
+            prompt_path = prompts_dir / f"prompt_{actividad_codigo}.md"
+            lineas = [
+                f"# Prompt para Codex - {actividad_codigo}",
+                "",
+                "Copia todo este archivo en Codex/ChatGPT y pide la corrección.",
+                "No hace falta usar la API de OpenAI para este paso.",
+                "",
+                "## Instrucciones de sistema",
+                "",
+                prompt_cfg["sistema"],
+                "",
+                "## Rúbrica y enunciado",
+                "",
+                prompt_cfg["criterios"],
+                "",
+                "## Enunciado extraído de CARM",
+                "",
+                enunciado or "No se pudo extraer un enunciado específico de CARM para esta actividad.",
+                "",
+                "## Contexto de unidad",
+                "",
+                contexto_unidad,
+                "",
+                "## Tarea",
+                "",
+                "Corrige todas las entregas legibles. Evalúa solo lo que el alumno ha escrito, sin inventar méritos.",
+                "Devuelve únicamente JSON válido, sin Markdown, con este formato exacto:",
+                "",
+                "```json",
+                "{",
+                f'  "actividad": "{actividad_codigo}",',
+                '  "correcciones": [',
+                "    {",
+                '      "id": "0",',
+                '      "alumno": "Nombre del alumno",',
+                '      "nota": 0,',
+                '      "criterios": [',
+                '        {"nombre": "Presentación del trabajo", "maximo": 3, "puntuacion": 0, "comentario": "..."},',
+                '        {"nombre": "Protección de datos", "maximo": 4, "puntuacion": 0, "comentario": "..."},',
+                '        {"nombre": "Buenas prácticas y aplicación", "maximo": 3, "puntuacion": 0, "comentario": "..."}',
+                "      ],",
+                '      "retroalimentacion": "Feedback final para el alumno"',
+                "    }",
+                "  ]",
+                "}",
+                "```",
+                "",
+                "No incluyas en `correcciones` las entregas marcadas como revisión manual.",
+                "",
+                "## Entregas legibles",
+                "",
+                "```json",
+                json.dumps(entregas, ensure_ascii=False, indent=2),
+                "```",
+                "",
+                "## Entregas que requieren revisión manual",
+                "",
+                "Estas no se deben corregir automáticamente:",
+                "",
+                "```json",
+                json.dumps(revision_manual, ensure_ascii=False, indent=2),
+                "```",
+                "",
+            ]
+            prompt_path.write_text("\n".join(lineas), encoding="utf-8")
+            rutas.append(prompt_path)
+
+        manifiesto_path = prompts_dir / "manifiesto_entregas.json"
+        manifiesto_path.write_text(
+            json.dumps(manifiesto, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        rutas.append(manifiesto_path)
+        return rutas
+
 
 async def ejecutar_flujo(args) -> None:
     pendientes_dir = Path(args.pendientes)
@@ -1014,17 +1485,35 @@ async def ejecutar_flujo(args) -> None:
         else:
             logger.warning(f"No se encontró el archivo de contexto: {contexto_path}")
 
-    if args.extraer_carm:
+    if args.extraer_carm or getattr(args, "diagnosticar_carm", False) or getattr(args, "solo_listar_carm", False):
         usuario = os.getenv("CARM_USUARIO", "")
         contrasena = os.getenv("CARM_CONTRASENA", "")
         if not usuario or not contrasena:
             logger.error("Faltan CARM_USUARIO/CARM_CONTRASENA en .env para extraer desde CARM")
             return
 
-        extractor = ExtractorCarm(usuario, contrasena, pendientes_dir)
+        extractor = ExtractorCarm(
+            usuario,
+            contrasena,
+            pendientes_dir,
+            mantener_navegador=getattr(args, "mantener_navegador", False),
+            guardar_evidencias=getattr(args, "guardar_evidencias", False),
+        )
         try:
+            if getattr(args, "diagnosticar_carm", False):
+                diagnostico_path = await extractor.diagnosticar(
+                    incluir_enlaces=getattr(args, "incluir_enlaces_diagnostico", False),
+                )
+                logger.info(f"Diagnóstico CARM generado en: {diagnostico_path}")
+                return
+
             logger.info("Iniciando extraccion en CARM (login -> my -> curso -> grading)")
-            contexto_unidad, pendientes_extraidos = await extractor.ejecutar()
+            contexto_unidad, pendientes_extraidos = await extractor.ejecutar(
+                solo_listar=getattr(args, "solo_listar_carm", False),
+            )
+            if getattr(args, "solo_listar_carm", False):
+                logger.info("Listado CARM generado sin descargar archivos ni corregir.")
+                return
         except Exception as e:
             logger.error(f"No se pudo completar extraccion CARM: {e}")
             return
@@ -1042,14 +1531,25 @@ async def ejecutar_flujo(args) -> None:
         logger.warning(f"No hay archivos pendientes en {pendientes_dir}")
         return
 
+    pendientes_por_actividad: dict[str, list[EnvioPendiente]] = {}
+    for envio in pendientes:
+        pendientes_por_actividad.setdefault(envio.actividad_codigo, []).append(envio)
+
+    if getattr(args, "preparar_prompts_codex", False):
+        rutas_prompts = salida.escribir_prompts_codex(
+            pendientes_por_actividad,
+            contexto_unidad,
+            prompts_path=args.prompts,
+        )
+        logger.info("Prompts para Codex generados sin llamar a la API:")
+        for ruta in rutas_prompts:
+            logger.info(f"- {ruta}")
+        return
+
     corrector = CorrectorIA(usar_ia=not args.sin_ia, prompts_path=args.prompts)
 
     resultados: list[dict] = []
     trazas: list[dict] = []
-
-    pendientes_por_actividad: dict[str, list[EnvioPendiente]] = {}
-    for envio in pendientes:
-        pendientes_por_actividad.setdefault(envio.actividad_codigo, []).append(envio)
 
     for actividad_codigo, envios_actividad in sorted(pendientes_por_actividad.items()):
         logger.info(
@@ -1121,6 +1621,31 @@ def parse_args() -> argparse.Namespace:
         help="Activa extraccion de envios desde CARM antes de corregir.",
     )
     parser.add_argument(
+        "--diagnosticar-carm",
+        action="store_true",
+        help="Entra en CARM, guarda un diagnóstico limpio y sale sin descargar ni corregir.",
+    )
+    parser.add_argument(
+        "--guardar-evidencias",
+        action="store_true",
+        help="Con --diagnosticar-carm, guarda HTML y capturas redactadas. Por defecto no se guardan.",
+    )
+    parser.add_argument(
+        "--incluir-enlaces-diagnostico",
+        action="store_true",
+        help="Incluye URLs redactadas en diagnostico.json. Por defecto se omiten.",
+    )
+    parser.add_argument(
+        "--solo-listar-carm",
+        action="store_true",
+        help="Entra en CARM y lista entregas que requieren calificación sin descargar archivos ni corregir.",
+    )
+    parser.add_argument(
+        "--mantener-navegador",
+        action="store_true",
+        help="Deja Chromium abierto al terminar hasta pulsar Enter. Útil para revisar CARM en pruebas.",
+    )
+    parser.add_argument(
         "--pendientes",
         default=str(DEFAULT_PENDIENTES_DIR),
         help="Carpeta de archivos pendientes.",
@@ -1149,6 +1674,11 @@ def parse_args() -> argparse.Namespace:
         "--sin-ia",
         action="store_true",
         help="Ejecuta el flujo con corrección de respaldo, sin llamar a OpenAI. Útil para probar carpetas y salidas.",
+    )
+    parser.add_argument(
+        "--preparar-prompts-codex",
+        action="store_true",
+        help="Lee o extrae entregas y genera prompts para pegar en Codex/ChatGPT, sin llamar a la API.",
     )
     parser.add_argument(
         "--conservar-pendientes",
