@@ -187,13 +187,23 @@ python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-po
 
 Esto abre Playwright una sola vez, entra en CARM, actualiza la cache del curso, registra las filas que requieren calificación, descarga los archivos, extrae el contenido imprimible de `ud01` y divide las entregas en lotes de hasta 6 por prompt. No usa API.
 
-Para que, justo después de crear los prompts, se envíen automáticamente a Codex CLI y se importen las correcciones:
+## 9. Dos comandos principales
+
+Primero prepara las correcciones sin publicar en CARM:
 
 ```powershell
-python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 6 --corregir-con-codex --importar-tras-codex
+python corrector_agente.py --flujo-correccion-carm --unidad ud01 --max-entregas-por-prompt 6
 ```
 
-Las respuestas de Codex quedan en `C:\temp\vscodec\temporal\prompts_codex\correcciones_codex\`. Este flujo usa tu sesión de Codex CLI, no `OPENAI_API_KEY`.
+Esto entra en CARM, descarga entregas, genera prompts, corrige con Codex CLI e importa las salidas locales. No publica en CARM. El JSON combinado queda en `C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json`.
+
+Después, cuando hayas revisado, publica en CARM:
+
+```powershell
+python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json --publicar-carm
+```
+
+Las respuestas de Codex quedan en `C:\temp\vscodec\temporal\prompts_codex\`. Este flujo usa tu sesión de Codex CLI, no `OPENAI_API_KEY`.
 
 Si un lote sale demasiado grande, baja el lote a 3 o 4:
 
@@ -211,7 +221,7 @@ python corrector_agente.py --importar-correcciones-codex C:\ruta\correcciones_ud
 
 El importador acepta una lista JSON directa o un objeto con clave `correcciones`. También entiende respuestas pegadas dentro de un bloque de código `json`. Campos mínimos por entrega: `alumno`, `actividad`, `nota` y `retroalimentacion` o `comentario`.
 
-## 9. Previsualizar o subir a CARM
+## 10. Previsualizar o subir a CARM
 
 Primero prueba en modo previsualización. Este modo abre CARM, busca el alumno y la actividad, rellena nota y retroalimentación, pero no pulsa guardar:
 
@@ -226,6 +236,8 @@ Cuando hayas comprobado que el formulario se rellena bien, publica de verdad con
 ```powershell
 python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json --publicar-carm
 ```
+
+Con varias correcciones de la misma actividad, se intenta usar `Guardar cambios y mostrar siguiente` entre alumnos. En la última corrección del lote usa `Guardar cambios` para no avanzar de más.
 
 Cada intento deja registro en `respuestas_extraidas\subida_carm_previsualizacion.json` o `respuestas_extraidas\subida_carm_publicada.json`.
 

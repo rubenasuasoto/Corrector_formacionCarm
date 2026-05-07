@@ -1331,8 +1331,17 @@ class ExtractorCarm:
         except Exception:
             return []
 
-    async def _guardar_calificacion(self, page) -> str:
-        for selector in (
+    async def _guardar_calificacion(self, page, mostrar_siguiente: bool = False) -> str:
+        selectores_siguiente = (
+            "#id_saveandshownext",
+            "button[name='saveandshownext']",
+            "input[name='saveandshownext']",
+            "button:has-text('Guardar cambios y mostrar siguiente')",
+            "input[value='Guardar cambios y mostrar siguiente']",
+            "button:has-text('Guardar y mostrar siguiente')",
+            "input[value='Guardar y mostrar siguiente']",
+        )
+        selectores_guardar = (
             "#id_savegrade",
             "button[name='savechanges']",
             "input[name='savechanges']",
@@ -1340,7 +1349,10 @@ class ExtractorCarm:
             "input[value='Guardar cambios']",
             "button:has-text('Guardar')",
             "input[value='Guardar']",
-        ):
+        )
+
+        selectores = selectores_siguiente + selectores_guardar if mostrar_siguiente else selectores_guardar
+        for selector in selectores:
             locator = page.locator(selector).first
             try:
                 if await locator.count():
@@ -1351,7 +1363,14 @@ class ExtractorCarm:
                 continue
         raise RuntimeError("No se encontrÃ³ botÃ³n de guardado en el formulario de calificaciÃ³n.")
 
-    async def _subir_correccion_actividad(self, page, actividad: dict, correccion: dict, publicar: bool) -> dict:
+    async def _subir_correccion_actividad(
+        self,
+        page,
+        actividad: dict,
+        correccion: dict,
+        publicar: bool,
+        mostrar_siguiente: bool = False,
+    ) -> dict:
         alumno = str(correccion.get("alumno", "")).strip()
         actividad_codigo = str(correccion.get("actividad") or correccion.get("actividad_codigo") or "").strip().lower()
         nota = str(correccion.get("nota", "")).replace(",", ".")
@@ -1387,6 +1406,7 @@ class ExtractorCarm:
             "campo_nota": grade_selector,
             "campo_feedback": feedback_selector,
             "diagnostico_feedback": await self._diagnosticar_campos_feedback(page),
+            "guardar_y_mostrar_siguiente": bool(mostrar_siguiente),
             "estado": "previsualizado",
         }
 
@@ -1400,7 +1420,7 @@ class ExtractorCarm:
             return resultado
 
         if publicar:
-            boton = await self._guardar_calificacion(page)
+            boton = await self._guardar_calificacion(page, mostrar_siguiente=mostrar_siguiente)
             resultado["boton_guardado"] = boton
             resultado["estado"] = "publicado"
 
@@ -1426,10 +1446,19 @@ class ExtractorCarm:
                     for codigo, act in list(actividades_por_codigo.items()):
                         actividades_por_codigo[codigo] = self.cache.enriquecer_actividad(act)
 
-                for correccion in correcciones:
+                total = len(correcciones)
+                for indice, correccion in enumerate(correcciones):
                     actividad_codigo = str(
                         correccion.get("actividad") or correccion.get("actividad_codigo") or ""
                     ).strip().lower()
+                    siguiente_codigo = ""
+                    if indice + 1 < total:
+                        siguiente_codigo = str(
+                            correcciones[indice + 1].get("actividad")
+                            or correcciones[indice + 1].get("actividad_codigo")
+                            or ""
+                        ).strip().lower()
+                    mostrar_siguiente = publicar and bool(siguiente_codigo) and siguiente_codigo == actividad_codigo
                     actividad = actividades_por_codigo.get(actividad_codigo)
                     if not actividad:
                         resultados.append(
@@ -1442,14 +1471,14 @@ class ExtractorCarm:
                         )
                         continue
 
-                    logger.info(
-                        "%s calificaciÃ³n %s - %s",
-                        "Publicando" if publicar else "Previsualizando",
-                        actividad_codigo,
-                        correccion.get("alumno", ""),
-                    )
                     resultados.append(
-                        await self._subir_correccion_actividad(page, actividad, correccion, publicar=publicar)
+                        await self._subir_correccion_actividad(
+                            page,
+                            actividad,
+                            correccion,
+                            publicar=publicar,
+                            mostrar_siguiente=mostrar_siguiente,
+                        )
                     )
 
                 return resultados
@@ -2320,7 +2349,7 @@ class GeneradorSalidas:
         if not prompts:
             raise ValueError("No hay prompts .md para enviar a Codex.")
 
-        output_dir = output_dir or (self.temporal_dir / "prompts_codex" / "correcciones_codex")
+        output_dir = output_dir or (self.temporal_dir / "prompts_codex")
         output_dir.mkdir(parents=True, exist_ok=True)
 
         rutas_correcciones: list[Path] = []
@@ -2384,6 +2413,11 @@ class GeneradorSalidas:
 async def ejecutar_flujo(args) -> None:
     pendientes_dir = Path(args.pendientes)
     temporal_dir = Path(args.temporal)
+    flujo_correccion_carm = getattr(args, "flujo_correccion_carm", False)
+    if flujo_correccion_carm:
+        args.preparar_carm_codex = True
+        args.corregir_con_codex = True
+        args.importar_tras_codex = True
     preparar_carm_codex = getattr(args, "preparar_carm_codex", False)
     unidades_filtro = {
         ExtractorCarm._normalizar_codigo_unidad(valor)
@@ -2773,6 +2807,11 @@ def parse_args() -> argparse.Namespace:
         help="Flujo unico: entra en CARM una vez, actualiza cache, registra entregas, descarga archivos y genera prompts Codex sin API.",
     )
     parser.add_argument(
+        "--flujo-correccion-carm",
+        action="store_true",
+        help="Atajo recomendado: prepara CARM, genera prompts, corrige con Codex CLI e importa salidas sin publicar en CARM.",
+    )
+    parser.add_argument(
         "--corregir-con-codex",
         action="store_true",
         help="Tras generar prompts, los envia a Codex CLI con codex exec y guarda las correcciones JSON.",
@@ -2785,7 +2824,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--codex-output-dir",
         default="",
-        help="Carpeta donde guardar las respuestas JSON de Codex CLI. Por defecto temporal/prompts_codex/correcciones_codex.",
+        help="Carpeta donde guardar las respuestas JSON de Codex CLI. Por defecto temporal/prompts_codex.",
     )
     parser.add_argument(
         "--codex-timeout",
