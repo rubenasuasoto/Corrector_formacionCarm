@@ -175,6 +175,16 @@ python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\pr
 
 Las respuestas de Codex se guardan en `C:\temp\vscodec\temporal\prompts_codex\`. Este flujo usa la sesión de Codex CLI, no la API de OpenAI.
 
+## Interfaz local
+
+Para usar la aplicación desde navegador:
+
+```powershell
+python interfaz_app.py
+```
+
+Abre `http://127.0.0.1:8765`. La interfaz ejecuta solo los flujos permitidos: preparar correcciones, previsualizar subida y publicar en CARM.
+
 Después de pegar el prompt en Codex/ChatGPT, guarda el JSON de respuesta e impórtalo:
 
 ```powershell

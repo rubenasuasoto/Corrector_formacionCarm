@@ -205,6 +205,14 @@ python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\pr
 
 Las respuestas de Codex quedan en `C:\temp\vscodec\temporal\prompts_codex\`. Este flujo usa tu sesión de Codex CLI, no `OPENAI_API_KEY`.
 
+También puedes abrir la interfaz local:
+
+```powershell
+python interfaz_app.py
+```
+
+La aplicación queda en `http://127.0.0.1:8765` y permite preparar, previsualizar y publicar desde una pantalla única.
+
 Si un lote sale demasiado grande, baja el lote a 3 o 4:
 
 ```powershell
