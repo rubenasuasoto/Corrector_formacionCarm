@@ -193,3 +193,4 @@
 2026-05-07 09:35:35,648 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
 2026-05-07 09:35:35,648 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
 2026-05-07 09:35:35,648 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-07 09:39:32,314 - INFO - Diagnóstico CARM generado en: logs_correcciones\diagnostico_carm\diagnostico.json
