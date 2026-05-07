@@ -203,6 +203,24 @@ python corrector_agente.py --importar-correcciones-codex C:\ruta\correcciones_ud
 
 El importador acepta una lista JSON directa o un objeto con clave `correcciones`. También entiende respuestas pegadas dentro de un bloque de código `json`. Campos mínimos por entrega: `alumno`, `actividad`, `nota` y `retroalimentacion` o `comentario`.
 
+## 9. Previsualizar o subir a CARM
+
+Primero prueba en modo previsualización. Este modo abre CARM, busca el alumno y la actividad, rellena nota y retroalimentación, pero no pulsa guardar:
+
+```powershell
+python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json
+```
+
+El navegador queda abierto para revisar el formulario. Pulsa Enter en la consola para cerrar.
+
+Cuando hayas comprobado que el formulario se rellena bien, publica de verdad con:
+
+```powershell
+python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json --publicar-carm
+```
+
+Cada intento deja registro en `respuestas_extraidas\subida_carm_previsualizacion.json` o `respuestas_extraidas\subida_carm_publicada.json`.
+
 La extracción real deja auditoría en:
 
 - `respuestas_extraidas\envios_descargados.json`: archivos descargados y dueño de cada archivo.
