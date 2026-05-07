@@ -22,8 +22,10 @@ Lee estos archivos en este orden:
 
 1. `ESTADO_PROYECTO.md`: memoria viva del proyecto, decisiones tomadas y próximos pasos.
 2. `QUICKSTART.md`: comandos rápidos de instalación, prueba y uso.
-3. `prompts_correccion.json`: prompts editables por actividad.
-4. `corrector_agente.py`: flujo principal.
+3. `SEGURIDAD_ASVS.md`: controles OWASP ASVS aplicables a esta app.
+4. `SEGURIDAD_CVSS.md`: criterio de priorizaciÃ³n de riesgos basado en CVSS v4.0.
+5. `prompts_correccion.json`: prompts editables por actividad.
+6. `corrector_agente.py`: flujo principal.
 
 El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_PROYECTO.md`, manda `ESTADO_PROYECTO.md`.
 

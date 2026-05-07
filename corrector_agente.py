@@ -55,6 +55,11 @@ CARM_LOGIN_URL = "https://formacion.carm.es/login/index.php"
 CARM_MY_URL = "https://formacion.carm.es/my/index.php"
 CARM_COURSE_URL = os.getenv("CARM_COURSE_URL", "https://formacion.carm.es/course/view.php?id=1592")
 CARM_COURSE_END_DATE = os.getenv("CARM_COURSE_END_DATE", "").strip()
+CARM_HEADLESS = os.getenv("CARM_HEADLESS", "0").strip().lower() in {"1", "true", "yes"}
+try:
+    CARM_NAV_TIMEOUT_MS = int(os.getenv("CARM_NAV_TIMEOUT_MS", "90000"))
+except ValueError:
+    CARM_NAV_TIMEOUT_MS = 90000
 
 DEFAULT_PENDIENTES_DIR = Path(r"C:\temp\vscodec\pendientes")
 DEFAULT_TEMPORAL_DIR = Path(r"C:\temp\vscodec\temporal")
@@ -64,6 +69,8 @@ LOG_DIR = Path("logs_correcciones")
 RESPUESTAS_DIR = Path("respuestas_extraidas")
 CORRECCIONES_DIR = Path("correcciones_validadas")
 CACHE_DIR = Path("cache_carm")
+CARM_RECORDAR_CUENTA = os.getenv("CARM_RECORDAR_CUENTA", "1").strip().lower() not in {"0", "false", "no"}
+CARM_STORAGE_STATE = CACHE_DIR / "carm_storage_state.json"
 
 for d in (LOG_DIR, RESPUESTAS_DIR, CORRECCIONES_DIR, CACHE_DIR):
     d.mkdir(exist_ok=True)
@@ -630,6 +637,7 @@ class ExtractorCarm:
         actividades: set[str] | None = None,
         cache: CacheCursoCarm | None = None,
         usar_cache: bool = False,
+        recordar_cuenta: bool = CARM_RECORDAR_CUENTA,
     ):
         self.usuario = usuario
         self.contrasena = contrasena
@@ -640,6 +648,7 @@ class ExtractorCarm:
         self.actividades = actividades or set()
         self.cache = cache
         self.usar_cache = usar_cache
+        self.recordar_cuenta = recordar_cuenta
         self.registros_envios: list[dict] = []
 
     @staticmethod
@@ -793,6 +802,31 @@ class ExtractorCarm:
         return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
 
     @staticmethod
+    def _url_grading_requiere_calificacion(url: str) -> str:
+        p = urlparse(url)
+        q = dict(parse_qsl(p.query))
+        q["action"] = "grading"
+        q["filter"] = "require_grading"
+        for clave in (
+            "page",
+            "tifirst",
+            "tilast",
+            "tfirst",
+            "tlast",
+            "ifirst",
+            "ilast",
+            "sifirst",
+            "silast",
+            "firstname",
+            "lastname",
+            "firstinitial",
+            "lastinitial",
+            "initial",
+        ):
+            q.pop(clave, None)
+        return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
+
+    @staticmethod
     def _url_vista_actividad(url: str) -> str:
         p = urlparse(url)
         q = dict(parse_qsl(p.query))
@@ -803,14 +837,72 @@ class ExtractorCarm:
         return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
 
     async def _login(self, page) -> None:
+        await page.goto(CARM_MY_URL, wait_until="domcontentloaded")
+        if not await page.locator("input[name='username'], #username").count():
+            return
+
         await page.goto(CARM_LOGIN_URL, wait_until="networkidle")
         await page.fill("input[name='username'], #username", self.usuario)
         await page.fill("input[name='password'], #password", self.contrasena)
+        if self.recordar_cuenta:
+            await self._marcar_recordar_cuenta(page)
         await page.click("button[type='submit'], input[type='submit']")
         await page.wait_for_load_state("networkidle")
 
         if await page.locator("input[name='username'], #username").count():
             raise RuntimeError("El login parece seguir mostrando el formulario. Revisa credenciales o flujo de acceso.")
+        if self.recordar_cuenta:
+            await page.context.storage_state(path=str(CARM_STORAGE_STATE))
+
+    @staticmethod
+    async def _marcar_recordar_cuenta(page) -> None:
+        try:
+            await page.evaluate(
+                """() => {
+                    const normalizar = (txt) => (txt || '').toLowerCase()
+                      .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+                    const checks = [...document.querySelectorAll('input[type="checkbox"]')];
+                    for (const check of checks) {
+                        const id = check.id || '';
+                        const name = check.name || '';
+                        const label = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
+                        const wrap = check.closest('label');
+                        const text = normalizar(`${id} ${name} ${label ? label.textContent : ''} ${wrap ? wrap.textContent : ''}`);
+                        if (/(recordar|remember|mantener|sesion|session|cuenta|usuario)/.test(text)) {
+                            check.checked = true;
+                            check.dispatchEvent(new Event('change', {bubbles: true}));
+                        }
+                    }
+                }"""
+            )
+        except Exception:
+            pass
+
+    async def _crear_contexto(self, browser):
+        if self.recordar_cuenta and CARM_STORAGE_STATE.exists():
+            try:
+                return await browser.new_context(storage_state=str(CARM_STORAGE_STATE))
+            except Exception as exc:
+                logger.warning(f"No se pudo reutilizar sesión CARM guardada: {exc}")
+        return await browser.new_context()
+
+    @staticmethod
+    def _configurar_page(page) -> None:
+        page.set_default_timeout(CARM_NAV_TIMEOUT_MS)
+        page.set_default_navigation_timeout(CARM_NAV_TIMEOUT_MS)
+
+    async def _cerrar_contexto(self, context, page) -> None:
+        if self.recordar_cuenta:
+            try:
+                await context.storage_state(path=str(CARM_STORAGE_STATE))
+            except Exception:
+                pass
+            return
+        try:
+            await context.clear_cookies()
+            await page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+        except Exception:
+            pass
 
     @staticmethod
     async def _guardar_diagnostico_pagina(page, destino_dir: Path, nombre: str) -> None:
@@ -856,7 +948,7 @@ class ExtractorCarm:
 
         for href, unidad_codigo, nombre in urls_contexto:
             try:
-                await page.goto(href, wait_until="networkidle")
+                await page.goto(href, wait_until="domcontentloaded")
                 body = await page.text_content("body")
                 if body and body.strip():
                     contexto_partes.append(body.strip())
@@ -868,7 +960,7 @@ class ExtractorCarm:
                         )
             except Exception as e:
                 logger.warning(f"No se pudo leer contenido imprimible {href}: {e}")
-        await page.goto(CARM_COURSE_URL, wait_until="networkidle")
+        await page.goto(CARM_COURSE_URL, wait_until="domcontentloaded")
         return "\n\n".join(contexto_partes)
 
     async def _extraer_enunciado_actividad(self, page, actividad_url: str) -> str:
@@ -942,8 +1034,10 @@ class ExtractorCarm:
                     "codigo": codigo,
                     "tipo": "obligatorio",
                     "url": vista_url,
-                    "url_grading": href_require_grading or self._agregar_action_grading(vista_url),
-                    "filtro": "require_grading" if href_require_grading else "grading",
+                    "url_grading": self._url_grading_requiere_calificacion(
+                        href_require_grading or self._agregar_action_grading(vista_url)
+                    ),
+                    "filtro": "require_grading",
                 }
             )
         return actividades
@@ -990,9 +1084,67 @@ class ExtractorCarm:
                 return self._texto_limpio(texto)
         return self._texto_limpio(await celda.text_content() or "")
 
+    async def _asegurar_filtros_grading(self, page, actividad: dict) -> None:
+        url_normalizada = self._url_grading_requiere_calificacion(actividad["url_grading"])
+        if page.url != url_normalizada:
+            await page.goto(url_normalizada, wait_until="domcontentloaded")
+        actividad["url_grading"] = url_normalizada
+
+        try:
+            selects = await page.query_selector_all("select")
+            for select in selects:
+                name = (await select.get_attribute("name") or "").lower()
+                option_texts = [
+                    self._normalizar(await option.text_content() or "")
+                    for option in await select.query_selector_all("option")
+                ]
+                if "filter" in name or any("requiere calificacion" in text for text in option_texts):
+                    try:
+                        await select.select_option("require_grading")
+                        await page.wait_for_load_state("domcontentloaded", timeout=5000)
+                    except Exception:
+                        pass
+                    break
+        except Exception as exc:
+            logger.warning(f"No se pudo verificar selector de filtro en {actividad.get('codigo')}: {exc}")
+
+        url_actual = self._url_grading_requiere_calificacion(page.url)
+        if page.url != url_actual:
+            await page.goto(url_actual, wait_until="domcontentloaded")
+
+        parsed = dict(parse_qsl(urlparse(page.url).query))
+        filtro = parsed.get("filter", "")
+        filtros_letra = {
+            clave: valor
+            for clave, valor in parsed.items()
+            if clave.lower()
+            in {
+                "tifirst",
+                "tilast",
+                "tfirst",
+                "tlast",
+                "ifirst",
+                "ilast",
+                "sifirst",
+                "silast",
+                "firstname",
+                "lastname",
+                "firstinitial",
+                "lastinitial",
+                "initial",
+            }
+        }
+        if filtro != "require_grading" or filtros_letra:
+            raise RuntimeError(
+                f"Filtros de grading no seguros en {actividad.get('codigo')}: "
+                f"filter={filtro or 'vacio'}, iniciales={filtros_letra or 'todos'}"
+            )
+
     async def _descargar_envios_actividad(self, page, actividad: dict, descargar: bool = True) -> list[EnvioPendiente]:
         descargados: list[EnvioPendiente] = []
-        await page.goto(actividad["url_grading"], wait_until="networkidle")
+        actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
+        await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
+        await self._asegurar_filtros_grading(page, actividad)
 
         columnas = await self._mapear_columnas_grading(page)
         if "alumno" not in columnas:
@@ -1122,7 +1274,9 @@ class ExtractorCarm:
         return descargados
 
     async def _buscar_url_calificador(self, page, actividad: dict, alumno: str) -> str:
-        await page.goto(actividad["url_grading"], wait_until="networkidle")
+        actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
+        await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
+        await self._asegurar_filtros_grading(page, actividad)
         alumno_norm = self._normalizar(alumno)
         filas = await page.query_selector_all("table.generaltable tbody tr")
         for fila in filas:
@@ -1433,13 +1587,14 @@ class ExtractorCarm:
             )
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
-            context = await browser.new_context()
+            browser = await p.chromium.launch(headless=CARM_HEADLESS)
+            context = await self._crear_contexto(browser)
             page = await context.new_page()
+            self._configurar_page(page)
             resultados: list[dict] = []
             try:
                 await self._login(page)
-                await page.goto(CARM_COURSE_URL, wait_until="networkidle")
+                await page.goto(CARM_COURSE_URL, wait_until="domcontentloaded")
                 actividades = await self._obtener_actividades_obligatorias(page)
                 actividades_por_codigo = {act["codigo"]: act for act in actividades}
                 if self.cache:
@@ -1486,11 +1641,7 @@ class ExtractorCarm:
                 if self.mantener_navegador:
                     logger.info("Navegador abierto. Revisa la previsualizaciÃ³n y pulsa Enter en la consola para cerrarlo.")
                     await asyncio.to_thread(input)
-                try:
-                    await context.clear_cookies()
-                    await page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
-                except Exception:
-                    pass
+                await self._cerrar_contexto(context, page)
                 await context.close()
                 await browser.close()
 
@@ -1503,14 +1654,15 @@ class ExtractorCarm:
         self.pendientes_dir.mkdir(parents=True, exist_ok=True)
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
-            context = await browser.new_context()
+            browser = await p.chromium.launch(headless=CARM_HEADLESS)
+            context = await self._crear_contexto(browser)
             page = await context.new_page()
+            self._configurar_page(page)
             try:
                 await self._login(page)
 
-                await page.goto(CARM_MY_URL, wait_until="networkidle")
-                await page.goto(CARM_COURSE_URL, wait_until="networkidle")
+                await page.goto(CARM_MY_URL, wait_until="domcontentloaded")
+                await page.goto(CARM_COURSE_URL, wait_until="domcontentloaded")
                 if self.cache:
                     self.cache.guardar_curso(await page.title())
 
@@ -1559,11 +1711,67 @@ class ExtractorCarm:
                 if self.mantener_navegador:
                     logger.info("Navegador abierto. Pulsa Enter en la consola para cerrarlo.")
                     await asyncio.to_thread(input)
-                try:
-                    await context.clear_cookies()
-                    await page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
-                except Exception:
-                    pass
+                await self._cerrar_contexto(context, page)
+                await context.close()
+                await browser.close()
+
+    async def cachear_curso(self) -> tuple[str, list[dict]]:
+        if async_playwright is None:
+            raise RuntimeError(
+                "Playwright no esta disponible. Ejecuta: pip install -r requirements.txt y luego playwright install chromium"
+            )
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=CARM_HEADLESS)
+            context = await self._crear_contexto(browser)
+            page = await context.new_page()
+            self._configurar_page(page)
+            try:
+                await self._login(page)
+                await page.goto(CARM_MY_URL, wait_until="domcontentloaded")
+                await page.goto(CARM_COURSE_URL, wait_until="domcontentloaded")
+                if self.cache:
+                    self.cache.guardar_curso(await page.title())
+
+                actividades = await self._obtener_actividades_obligatorias(page)
+                contexto = await self._extraer_contexto_imprimible(page)
+                logger.info(f"Actividades prioritarias encontradas: {len(actividades)}")
+
+                for act in actividades:
+                    logger.info(f"Cacheando actividad {act['codigo']}: {act['nombre']}")
+                    if not act.get("enunciado"):
+                        act["enunciado"] = await self._extraer_enunciado_actividad(page, act["url"])
+                    if self.cache:
+                        self.cache.guardar_actividad(act)
+
+                return contexto, actividades
+            finally:
+                if self.mantener_navegador:
+                    logger.info("Navegador abierto. Pulsa Enter en la consola para cerrarlo.")
+                    await asyncio.to_thread(input)
+                await self._cerrar_contexto(context, page)
+                await context.close()
+                await browser.close()
+
+    async def comprobar_login(self) -> None:
+        if async_playwright is None:
+            raise RuntimeError(
+                "Playwright no esta disponible. Ejecuta: pip install -r requirements.txt y luego playwright install chromium"
+            )
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await self._crear_contexto(browser)
+            page = await context.new_page()
+            self._configurar_page(page)
+            try:
+                await self._login(page)
+                await page.goto(CARM_COURSE_URL, wait_until="domcontentloaded")
+                if await page.locator("input[name='username'], #username").count():
+                    raise RuntimeError("CARM volvió a mostrar el formulario de login.")
+                logger.info("Credenciales CARM verificadas correctamente.")
+            finally:
+                await self._cerrar_contexto(context, page)
                 await context.close()
                 await browser.close()
 
@@ -1577,19 +1785,20 @@ class ExtractorCarm:
         diagnostico_dir.mkdir(parents=True, exist_ok=True)
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
-            context = await browser.new_context()
+            browser = await p.chromium.launch(headless=CARM_HEADLESS)
+            context = await self._crear_contexto(browser)
             page = await context.new_page()
+            self._configurar_page(page)
             try:
                 await self._login(page)
                 if self.guardar_evidencias:
                     await self._guardar_diagnostico_pagina(page, diagnostico_dir, "01_post_login")
 
-                await page.goto(CARM_MY_URL, wait_until="networkidle")
+                await page.goto(CARM_MY_URL, wait_until="domcontentloaded")
                 if self.guardar_evidencias:
                     await self._guardar_diagnostico_pagina(page, diagnostico_dir, "02_my")
 
-                await page.goto(CARM_COURSE_URL, wait_until="networkidle")
+                await page.goto(CARM_COURSE_URL, wait_until="domcontentloaded")
                 if self.cache:
                     self.cache.guardar_curso(await page.title())
                 if self.guardar_evidencias:
@@ -1614,7 +1823,9 @@ class ExtractorCarm:
                         actividad["enunciado"] = await self._extraer_enunciado_actividad(page, actividad["url"])
                         if self.cache:
                             self.cache.guardar_actividad(actividad)
-                        await page.goto(actividad["url_grading"], wait_until="networkidle")
+                        actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
+                        await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
+                        await self._asegurar_filtros_grading(page, actividad)
                         if self.guardar_evidencias:
                             await self._guardar_diagnostico_pagina(
                                 page,
@@ -1641,11 +1852,7 @@ class ExtractorCarm:
                 if self.mantener_navegador:
                     logger.info("Navegador abierto. Pulsa Enter en la consola para cerrarlo.")
                     await asyncio.to_thread(input)
-                try:
-                    await context.clear_cookies()
-                    await page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
-                except Exception:
-                    pass
+                await self._cerrar_contexto(context, page)
                 await context.close()
                 await browser.close()
 
@@ -2442,6 +2649,23 @@ async def ejecutar_flujo(args) -> None:
             logger.info(f"No existía cache del curso en: {cache_curso.path}")
         return
 
+    if getattr(args, "comprobar_login_carm", False):
+        usuario = os.getenv("CARM_USUARIO", "")
+        contrasena = os.getenv("CARM_CONTRASENA", "")
+        if not usuario or not contrasena:
+            logger.error("Faltan CARM_USUARIO/CARM_CONTRASENA para comprobar login CARM")
+            return
+        extractor = ExtractorCarm(
+            usuario,
+            contrasena,
+            pendientes_dir,
+            mantener_navegador=False,
+            cache=cache_curso,
+            usar_cache=True,
+        )
+        await extractor.comprobar_login()
+        return
+
     if getattr(args, "importar_correcciones_codex", ""):
         salida = GeneradorSalidas(pendientes_dir, temporal_dir, actividad_codigo=args.actividad_codigo)
         correcciones_path = Path(args.importar_correcciones_codex)
@@ -2550,7 +2774,7 @@ async def ejecutar_flujo(args) -> None:
         try:
             if getattr(args, "cachear_curso", False) and not (args.extraer_carm or preparar_carm_codex):
                 logger.info("Cacheando recursos estables del curso CARM.")
-                await extractor.ejecutar(solo_listar=True)
+                await extractor.cachear_curso()
                 logger.info(f"Cache del curso actualizada en: {cache_curso.path}")
                 return
 
@@ -2710,6 +2934,11 @@ def parse_args() -> argparse.Namespace:
         "--diagnosticar-carm",
         action="store_true",
         help="Entra en CARM, guarda un diagnóstico limpio y sale sin descargar ni corregir.",
+    )
+    parser.add_argument(
+        "--comprobar-login-carm",
+        action="store_true",
+        help="Comprueba credenciales CARM, guarda sesion recordada y sale.",
     )
     parser.add_argument(
         "--guardar-evidencias",

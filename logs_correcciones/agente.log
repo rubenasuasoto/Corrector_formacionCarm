@@ -449,3 +449,227 @@ waiting for locator(":scope")
 2026-05-07 14:22:16,672 - INFO - Publicando calificaciÃ³n ud01cp01 - Elisabet Lopez Ros
 2026-05-07 14:22:25,425 - INFO - ud01cp01 Elisabet Lopez Ros 9.0: publicado
 2026-05-07 14:22:25,426 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_publicada.json
+2026-05-07 18:24:56,835 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 18:24:56,848 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-07 18:24:56,881 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-07 18:24:56,882 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-07 18:24:56,882 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 18:24:56,886 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-07 18:24:56,888 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-07 18:24:56,892 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-07 18:24:56,896 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-07 18:24:56,901 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-07 18:24:56,932 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-07 18:24:56,932 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 18:24:56,936 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-07 18:24:56,940 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-07 18:24:56,963 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-07 18:24:56,963 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-07 18:24:56,964 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-07 18:24:56,964 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-07 18:24:56,964 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-07 18:33:05,317 - ERROR - Faltan CARM_USUARIO/CARM_CONTRASENA en .env para extraer desde CARM
+2026-05-07 18:33:38,111 - ERROR - Faltan CARM_USUARIO/CARM_CONTRASENA en .env para extraer desde CARM
+2026-05-07 18:33:44,206 - ERROR - Faltan CARM_USUARIO/CARM_CONTRASENA en .env para extraer desde CARM
+2026-05-07 18:33:45,443 - ERROR - Faltan CARM_USUARIO/CARM_CONTRASENA en .env para extraer desde CARM
+2026-05-07 18:38:09,539 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-07 18:38:41,681 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 18:38:41,684 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-07 18:38:41,699 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-07 18:38:41,699 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-07 18:38:41,700 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 18:38:41,703 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-07 18:38:41,705 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-07 18:38:41,708 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-07 18:38:41,711 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-07 18:38:41,715 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-07 18:38:41,742 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-07 18:38:41,742 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 18:38:41,745 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-07 18:38:41,748 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-07 18:38:41,757 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-07 18:38:41,757 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-07 18:38:41,757 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-07 18:38:41,758 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-07 18:38:41,758 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-07 18:52:50,143 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-07 18:53:17,102 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-07 18:58:02,467 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 18:58:40,752 - ERROR - No se pudo completar extraccion CARM: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://formacion.carm.es/course/view.php?id=1592", waiting until "networkidle"
+
+2026-05-07 19:00:18,926 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 19:00:55,654 - ERROR - No se pudo completar extraccion CARM: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://formacion.carm.es/course/view.php?id=1592", waiting until "networkidle"
+
+2026-05-07 19:05:21,050 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 19:06:00,606 - ERROR - No se pudo completar extraccion CARM: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://formacion.carm.es/course/view.php?id=1592", waiting until "networkidle"
+
+2026-05-07 19:11:43,221 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 19:13:38,160 - ERROR - No se pudo completar extraccion CARM: Page.goto: Timeout 90000ms exceeded.
+Call log:
+  - navigating to "https://formacion.carm.es/course/view.php?id=1592", waiting until "networkidle"
+
+2026-05-07 19:15:45,469 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 19:15:55,024 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-07 19:15:55,024 - INFO - Actividades prioritarias encontradas: 18
+2026-05-07 19:15:55,024 - INFO - Procesando grading ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:16:01,003 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-07 19:16:06,049 - WARNING - Entrega sin archivo descargable en ud01cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:16:06,282 - INFO - Procesando grading ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:16:11,425 - WARNING - Entrega sin archivo descargable en ud02cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:16:11,629 - INFO - Procesando grading ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:16:16,741 - WARNING - Entrega sin archivo descargable en ud02cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:16:16,900 - INFO - Procesando grading ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:16:21,927 - WARNING - Entrega sin archivo descargable en ud03cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:16:22,121 - INFO - Procesando grading ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:16:27,146 - WARNING - Entrega sin archivo descargable en ud03cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:16:27,306 - INFO - Procesando grading ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:16:32,386 - WARNING - Entrega sin archivo descargable en ud04cp01: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:16:32,430 - WARNING - Entrega sin archivo descargable en ud04cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:16:32,539 - INFO - Procesando grading ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:16:37,625 - WARNING - Entrega sin archivo descargable en ud04cp02: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:16:37,668 - WARNING - Entrega sin archivo descargable en ud04cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:16:37,761 - INFO - Procesando grading ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:16:42,757 - WARNING - Entrega sin archivo descargable en ud05cp01: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:16:42,791 - WARNING - Entrega sin archivo descargable en ud05cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:16:42,875 - INFO - Procesando grading ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:16:47,887 - WARNING - Entrega sin archivo descargable en ud05cp02: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:16:47,924 - WARNING - Entrega sin archivo descargable en ud05cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:16:48,018 - INFO - Procesando grading ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:21:20,328 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 19:21:27,141 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-07 19:21:27,142 - INFO - Actividades prioritarias encontradas: 18
+2026-05-07 19:21:27,142 - INFO - Procesando grading ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:21:28,860 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-07 19:21:30,028 - WARNING - Entrega sin archivo descargable en ud01cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:30,243 - INFO - Procesando grading ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:21:31,393 - WARNING - Entrega sin archivo descargable en ud02cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:31,565 - INFO - Procesando grading ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:21:32,766 - WARNING - Entrega sin archivo descargable en ud02cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:32,942 - INFO - Procesando grading ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:21:34,100 - WARNING - Entrega sin archivo descargable en ud03cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:34,260 - INFO - Procesando grading ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:21:35,375 - WARNING - Entrega sin archivo descargable en ud03cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:35,546 - INFO - Procesando grading ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:21:36,654 - WARNING - Entrega sin archivo descargable en ud04cp01: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:21:36,699 - WARNING - Entrega sin archivo descargable en ud04cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:36,804 - INFO - Procesando grading ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:21:38,030 - WARNING - Entrega sin archivo descargable en ud04cp02: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:21:38,072 - WARNING - Entrega sin archivo descargable en ud04cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:38,167 - INFO - Procesando grading ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:21:39,289 - WARNING - Entrega sin archivo descargable en ud05cp01: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:21:39,329 - WARNING - Entrega sin archivo descargable en ud05cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:39,431 - INFO - Procesando grading ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:21:40,506 - WARNING - Entrega sin archivo descargable en ud05cp02: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:21:40,548 - WARNING - Entrega sin archivo descargable en ud05cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:40,647 - INFO - Procesando grading ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:21:45,768 - WARNING - Entrega sin archivo descargable en ud06cp01: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:21:45,819 - WARNING - Entrega sin archivo descargable en ud06cp01: Erick Veloz Pinoargote (Sin entrega)
+2026-05-07 19:21:45,874 - WARNING - Entrega sin archivo descargable en ud06cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:45,926 - INFO - Procesando grading ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:21:50,934 - WARNING - Entrega sin archivo descargable en ud06cp02: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:21:50,974 - WARNING - Entrega sin archivo descargable en ud06cp02: Erick Veloz Pinoargote (Sin entrega)
+2026-05-07 19:21:51,013 - WARNING - Entrega sin archivo descargable en ud06cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:51,044 - INFO - Procesando grading ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:21:56,097 - WARNING - Entrega sin archivo descargable en ud07cp01: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:21:56,140 - WARNING - Entrega sin archivo descargable en ud07cp01: Erick Veloz Pinoargote (Sin entrega)
+2026-05-07 19:21:56,191 - WARNING - Entrega sin archivo descargable en ud07cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:21:56,237 - INFO - Procesando grading ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:22:01,371 - WARNING - Entrega sin archivo descargable en ud07cp02: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:22:01,406 - WARNING - Entrega sin archivo descargable en ud07cp02: Erick Veloz Pinoargote (Sin entrega)
+2026-05-07 19:22:01,443 - WARNING - Entrega sin archivo descargable en ud07cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:22:01,477 - INFO - Procesando grading ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:22:06,642 - WARNING - Entrega sin archivo descargable en ud08cp01: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:22:06,690 - WARNING - Entrega sin archivo descargable en ud08cp01: Erick Veloz Pinoargote (Sin entrega)
+2026-05-07 19:22:06,741 - WARNING - Entrega sin archivo descargable en ud08cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:22:06,782 - INFO - Procesando grading ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:22:11,758 - WARNING - Entrega sin archivo descargable en ud08cp02: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:22:11,800 - WARNING - Entrega sin archivo descargable en ud08cp02: Erick Veloz Pinoargote (Sin entrega)
+2026-05-07 19:22:11,840 - WARNING - Entrega sin archivo descargable en ud08cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:22:11,875 - INFO - Procesando grading ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:22:16,875 - WARNING - Entrega sin archivo descargable en ud09cp01: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:22:16,924 - WARNING - Entrega sin archivo descargable en ud09cp01: Erick Veloz Pinoargote (Sin entrega)
+2026-05-07 19:22:16,973 - WARNING - Entrega sin archivo descargable en ud09cp01: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:22:17,006 - INFO - Procesando grading ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:22:22,045 - WARNING - Entrega sin archivo descargable en ud09cp02: Elisabet Lopez Ros (Sin entrega)
+2026-05-07 19:22:22,087 - WARNING - Entrega sin archivo descargable en ud09cp02: Erick Veloz Pinoargote (Sin entrega)
+2026-05-07 19:22:22,128 - WARNING - Entrega sin archivo descargable en ud09cp02: Eva Borrachero Anca (Sin entrega)
+2026-05-07 19:22:22,342 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-07 19:29:37,871 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 19:29:47,644 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-07 19:29:47,644 - INFO - Actividades prioritarias encontradas: 18
+2026-05-07 19:29:47,644 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:29:51,571 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-07 19:29:55,541 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:29:59,546 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:30:03,493 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:30:07,551 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:30:11,519 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:30:15,430 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:30:19,345 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:30:23,255 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:30:27,154 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:30:31,059 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:30:34,950 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:30:38,844 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:30:42,761 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:30:46,753 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:30:50,753 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:30:54,673 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:30:58,756 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-07 19:31:09,432 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-07 19:31:18,547 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-07 19:31:18,547 - INFO - Actividades prioritarias encontradas: 1
+2026-05-07 19:31:18,547 - INFO - Procesando grading ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:32:50,343 - WARNING - Entrega sin archivo descargable en ud01cp01: Sergio Grazini Sánchez (Enviado para calificar)
+2026-05-07 19:32:50,623 - INFO - Listado CARM generado sin descargar archivos ni corregir.
+2026-05-07 19:33:33,688 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 19:33:43,268 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-07 19:33:43,268 - INFO - Actividades prioritarias encontradas: 18
+2026-05-07 19:33:43,268 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:33:47,244 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-07 19:33:51,147 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:33:55,082 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:33:59,012 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:34:02,916 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:34:06,806 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:34:10,709 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:34:14,625 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:34:18,583 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:34:22,471 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:34:26,376 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:34:30,286 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:34:34,162 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:34:38,120 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:34:42,039 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:34:45,957 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:34:49,884 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:34:53,959 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-07 19:37:27,917 - INFO - Credenciales CARM verificadas correctamente.
+2026-05-07 19:38:10,933 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 19:38:21,478 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-07 19:38:21,478 - INFO - Actividades prioritarias encontradas: 18
+2026-05-07 19:38:21,479 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:38:25,541 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-07 19:38:29,532 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:38:33,501 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:38:37,500 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:38:41,420 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:38:45,435 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:38:49,374 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:38:53,323 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:38:57,275 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:39:01,210 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:39:05,210 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:39:09,167 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:39:13,104 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:39:17,064 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:39:21,935 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:39:25,977 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 19:39:29,969 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 19:39:34,117 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
