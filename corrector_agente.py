@@ -18,6 +18,7 @@ import os
 import re
 import shutil
 import sqlite3
+import subprocess
 import unicodedata
 import zipfile
 from dataclasses import dataclass
@@ -2056,7 +2057,15 @@ class GeneradorSalidas:
         if isinstance(datos, dict):
             for clave in ("correcciones", "resultados", "entregas"):
                 if isinstance(datos.get(clave), list):
-                    datos = datos[clave]
+                    actividad_global = datos.get("actividad") or datos.get("actividad_codigo")
+                    datos = [
+                        {
+                            **item,
+                            **({"actividad": actividad_global} if actividad_global and not item.get("actividad") else {}),
+                        }
+                        for item in datos[clave]
+                        if isinstance(item, dict)
+                    ]
                     break
             else:
                 datos = [datos]
@@ -2297,6 +2306,80 @@ class GeneradorSalidas:
         rutas.append(manifiesto_path)
         return rutas
 
+    def corregir_prompts_con_codex(
+        self,
+        rutas_prompts: list[Path],
+        output_dir: Path | None = None,
+        importar: bool = False,
+        timeout_segundos: int = 0,
+    ) -> tuple[list[Path], Path | None]:
+        prompts = [
+            ruta for ruta in rutas_prompts
+            if ruta.suffix.lower() == ".md" and ruta.name.startswith("prompt_")
+        ]
+        if not prompts:
+            raise ValueError("No hay prompts .md para enviar a Codex.")
+
+        output_dir = output_dir or (self.temporal_dir / "prompts_codex" / "correcciones_codex")
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        rutas_correcciones: list[Path] = []
+        timeout = timeout_segundos if timeout_segundos and timeout_segundos > 0 else None
+        for prompt_path in prompts:
+            salida_path = output_dir / f"{prompt_path.stem}_correccion.json"
+            prompt_texto = prompt_path.read_text(encoding="utf-8")
+            instruccion = (
+                f"{prompt_texto}\n\n"
+                "IMPORTANTE: responde solo con JSON valido, sin markdown, sin explicaciones fuera del JSON. "
+                "Usa una lista JSON de correcciones."
+            )
+            logger.info(f"Enviando prompt a Codex CLI: {prompt_path}")
+            try:
+                resultado = subprocess.run(
+                    [
+                        "codex",
+                        "exec",
+                        "-C",
+                        str(Path.cwd()),
+                        "-s",
+                        "read-only",
+                        "--output-last-message",
+                        str(salida_path),
+                        "-",
+                    ],
+                    input=instruccion,
+                    text=True,
+                    capture_output=True,
+                    timeout=timeout,
+                    check=False,
+                )
+            except FileNotFoundError as e:
+                raise RuntimeError("No se encontro el comando 'codex'. Abre Codex/VS Code o revisa PATH.") from e
+
+            if resultado.returncode != 0:
+                stderr = (resultado.stderr or resultado.stdout or "").strip()
+                raise RuntimeError(f"Codex CLI fallo con {prompt_path.name}: {stderr[:2000]}")
+            if not salida_path.exists() or not salida_path.read_text(encoding="utf-8").strip():
+                salida_path.write_text(resultado.stdout or "", encoding="utf-8")
+            rutas_correcciones.append(salida_path)
+            logger.info(f"Correccion Codex guardada en: {salida_path}")
+
+        combinado_path = output_dir / "correcciones_codex_combinadas.json"
+        correcciones_combinadas: list[dict] = []
+        for ruta in rutas_correcciones:
+            correcciones_combinadas.extend(self._leer_correcciones_codex(ruta))
+        combinado_path.write_text(
+            json.dumps(correcciones_combinadas, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        rutas_correcciones.append(combinado_path)
+
+        revision_path: Path | None = None
+        if importar:
+            _, revision_path, _ = self.importar_correcciones_codex(combinado_path)
+
+        return rutas_correcciones, revision_path
+
 
 async def ejecutar_flujo(args) -> None:
     pendientes_dir = Path(args.pendientes)
@@ -2497,6 +2580,22 @@ async def ejecutar_flujo(args) -> None:
         logger.info("Prompts para Codex generados sin llamar a la API:")
         for ruta in rutas_prompts:
             logger.info(f"- {ruta}")
+        if getattr(args, "corregir_con_codex", False):
+            try:
+                rutas_correcciones, revision_path = salida.corregir_prompts_con_codex(
+                    rutas_prompts,
+                    output_dir=Path(args.codex_output_dir) if getattr(args, "codex_output_dir", "") else None,
+                    importar=getattr(args, "importar_tras_codex", False),
+                    timeout_segundos=getattr(args, "codex_timeout", 0),
+                )
+            except Exception as e:
+                logger.error(f"No se pudo corregir con Codex CLI: {e}")
+                return
+            logger.info("Correcciones generadas por Codex CLI:")
+            for ruta in rutas_correcciones:
+                logger.info(f"- {ruta}")
+            if revision_path:
+                logger.info(f"Correcciones importadas. Hoja de revision: {revision_path}")
         return
 
     corrector = CorrectorIA(usar_ia=not args.sin_ia, prompts_path=args.prompts)
@@ -2672,6 +2771,27 @@ def parse_args() -> argparse.Namespace:
         "--preparar-carm-codex",
         action="store_true",
         help="Flujo unico: entra en CARM una vez, actualiza cache, registra entregas, descarga archivos y genera prompts Codex sin API.",
+    )
+    parser.add_argument(
+        "--corregir-con-codex",
+        action="store_true",
+        help="Tras generar prompts, los envia a Codex CLI con codex exec y guarda las correcciones JSON.",
+    )
+    parser.add_argument(
+        "--importar-tras-codex",
+        action="store_true",
+        help="Con --corregir-con-codex, importa automaticamente el JSON combinado a temporal.",
+    )
+    parser.add_argument(
+        "--codex-output-dir",
+        default="",
+        help="Carpeta donde guardar las respuestas JSON de Codex CLI. Por defecto temporal/prompts_codex/correcciones_codex.",
+    )
+    parser.add_argument(
+        "--codex-timeout",
+        type=int,
+        default=0,
+        help="Tiempo maximo por prompt al llamar a Codex CLI, en segundos. 0 sin limite.",
     )
     parser.add_argument(
         "--importar-correcciones-codex",
