@@ -673,3 +673,49 @@ Call log:
 2026-05-07 19:39:25,977 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
 2026-05-07 19:39:29,969 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
 2026-05-07 19:39:34,117 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-07 20:13:35,908 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 20:13:44,109 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-07 20:13:44,109 - INFO - Actividades prioritarias encontradas: 18
+2026-05-07 20:13:44,109 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 20:13:48,073 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-07 20:15:26,708 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 20:15:34,650 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-07 20:15:34,650 - INFO - Actividades prioritarias encontradas: 18
+2026-05-07 20:15:34,650 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 20:15:38,557 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-07 20:15:42,473 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 20:15:46,419 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 20:15:50,303 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 20:15:54,245 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 20:15:58,144 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 20:16:02,065 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 20:16:05,990 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 20:16:09,922 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 20:16:13,859 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 20:16:17,788 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 20:16:23,201 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 20:16:27,116 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 20:16:31,014 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 20:16:34,983 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 20:16:39,871 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 20:16:43,789 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-07 20:16:47,935 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-07 20:19:06,662 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 20:19:06,665 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-07 20:19:06,688 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-07 20:19:06,689 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-07 20:19:06,689 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 20:19:06,692 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-07 20:19:06,696 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-07 20:19:06,700 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-07 20:19:06,704 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-07 20:19:06,710 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-07 20:19:06,739 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-07 20:19:06,739 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 20:19:06,742 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-07 20:19:06,745 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-07 20:19:06,756 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-07 20:19:06,756 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-07 20:19:06,756 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-07 20:19:06,756 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-07 20:19:06,757 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json

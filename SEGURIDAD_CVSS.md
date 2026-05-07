@@ -64,11 +64,14 @@ Estado:
 
 ## Cola Inicial de Riesgos
 
-- [ ] Proteger endpoints locales con token de sesion local.
-- [ ] Guardar credenciales CARM con Windows DPAPI.
-- [ ] Endurecer lectura de ZIP y archivos de alumnos.
-- [ ] Bloquear publicacion si existen errores o revision manual.
+- [x] Proteger endpoints locales con token de sesion local.
+- [x] Endurecer lectura de ZIP y archivos de alumnos.
+- [x] Bloquear publicacion si existen errores o revision manual.
 - [ ] Revisar redaccion/retencion de logs con datos personales.
+
+No priorizado ahora:
+
+- [ ] Guardar credenciales CARM con Windows DPAPI. Riesgo aceptado temporalmente por modelo de app local y equipo de confianza.
 
 ## Regla Para Cambios Futuros
 

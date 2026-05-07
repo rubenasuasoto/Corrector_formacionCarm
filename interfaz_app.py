@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import os
 import json
 import re
+import secrets
 import sqlite3
 import subprocess
 import sys
@@ -49,6 +51,7 @@ ACTIVITY_RE = re.compile(r"^ud\d{2}cp\d{2}$")
 TRAY_ICON = None
 AUTO_CORRECT_AFTER_SCAN = False
 AUTO_CORRECT_ARGS = ["--flujo-correccion-carm", "--max-entregas-por-prompt", "6"]
+API_TOKEN = secrets.token_urlsafe(32)
 
 
 def notify(title: str, message: str) -> None:
@@ -177,6 +180,38 @@ def logout_carm() -> None:
     write_env_values({"CARM_USUARIO": None, "CARM_CONTRASENA": None})
     if CARM_STORAGE_STATE.exists():
         CARM_STORAGE_STATE.unlink()
+
+
+def revisar_publicacion_segura() -> None:
+    if not REVISION_CSV.exists():
+        raise ValueError("No existe revision_pendiente.csv. Prepara e importa correcciones antes de publicar.")
+
+    with REVISION_CSV.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle, delimiter=";"))
+
+    if not rows:
+        raise ValueError("revision_pendiente.csv no contiene filas revisables.")
+
+    estados_bloqueantes = {
+        "revision_manual_necesaria",
+        "error",
+        "error_descarga",
+        "sin_archivo_detectado",
+        "sin_entrega",
+    }
+    bloqueadas = [
+        row
+        for row in rows
+        if (row.get("estado") or "").strip().lower() in estados_bloqueantes
+    ]
+    if bloqueadas:
+        muestra = ", ".join(
+            f"{row.get('alumno', 'alumno')}:{row.get('actividad', '')}:{row.get('estado', '')}"
+            for row in bloqueadas[:5]
+        )
+        raise ValueError(
+            f"Publicacion bloqueada: hay {len(bloqueadas)} fila(s) con revision manual o error. {muestra}"
+        )
 
 
 class TaskRunner:
@@ -309,6 +344,17 @@ def send_json(handler: BaseHTTPRequestHandler, payload: dict, status: int = 200)
     handler.send_header("Content-Length", str(len(data)))
     handler.end_headers()
     handler.wfile.write(data)
+
+
+def valid_api_token(handler: BaseHTTPRequestHandler) -> bool:
+    return secrets.compare_digest(handler.headers.get("X-Corrector-Token", ""), API_TOKEN)
+
+
+def require_api_token(handler: BaseHTTPRequestHandler) -> bool:
+    if valid_api_token(handler):
+        return True
+    send_json(handler, {"ok": False, "message": "Token local no valido."}, HTTPStatus.FORBIDDEN)
+    return False
 
 
 def file_info(path: Path) -> dict:
@@ -824,6 +870,7 @@ HTML = r"""<!doctype html>
 
   <script>
     const $ = (id) => document.getElementById(id);
+    const API_TOKEN = "__LOCAL_API_TOKEN__";
     const advancedHints = {
       diagnose: 'Entra en CARM, genera diagnostico limpio y no descarga entregas.',
       diagnose_evidence: 'Guarda HTML/capturas redactadas para depurar selectores. Usalo solo si necesitas evidencias.',
@@ -853,7 +900,7 @@ HTML = r"""<!doctype html>
 
     async function api(path, options = {}) {
       const res = await fetch(path, {
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'X-Corrector-Token': API_TOKEN},
         ...options
       });
       return await res.json();
@@ -1051,7 +1098,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/":
-            data = HTML.encode("utf-8")
+            data = HTML.replace("__LOCAL_API_TOKEN__", API_TOKEN).encode("utf-8")
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(data)))
@@ -1074,6 +1121,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if not require_api_token(self):
+            return
         if parsed.path == "/api/stop":
             send_json(self, {"ok": RUNNER.stop()})
             return
@@ -1130,6 +1179,7 @@ def build_args(action: str, body: dict) -> list[str]:
         json_path = require_allowed(str(body.get("json_path") or COMBINED_JSON), ALLOWED_JSON_PATHS, "JSON")
         args = ["--subir-correcciones-carm", str(json_path)]
         if action == "publish":
+            revisar_publicacion_segura()
             args.append("--publicar-carm")
         return args
 
