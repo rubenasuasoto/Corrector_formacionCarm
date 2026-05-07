@@ -194,3 +194,184 @@
 2026-05-07 09:35:35,648 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
 2026-05-07 09:35:35,648 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
 2026-05-07 09:39:32,314 - INFO - Diagnóstico CARM generado en: logs_correcciones\diagnostico_carm\diagnostico.json
+2026-05-07 11:49:20,693 - INFO - Diagnóstico CARM generado en: logs_correcciones\diagnostico_carm\diagnostico.json
+2026-05-07 12:14:07,774 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 12:14:07,777 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-07 12:14:07,792 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-07 12:14:07,793 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-07 12:14:07,793 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:14:07,796 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-07 12:14:07,800 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-07 12:14:07,802 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-07 12:14:07,805 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-07 12:14:07,808 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-07 12:14:07,832 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-07 12:14:07,832 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:14:07,835 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-07 12:14:07,838 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-07 12:14:07,845 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-07 12:14:07,845 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-07 12:14:07,845 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-07 12:14:07,845 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-07 12:14:07,845 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-07 12:14:33,245 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 12:14:33,248 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-07 12:14:33,263 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-07 12:14:33,264 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-07 12:14:33,264 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:14:33,267 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-07 12:14:33,271 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-07 12:14:33,273 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-07 12:14:33,275 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-07 12:14:33,278 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-07 12:14:33,296 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-07 12:14:33,296 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:14:33,298 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-07 12:14:33,300 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-07 12:14:33,307 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-07 12:14:33,307 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-07 12:14:33,307 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-07 12:14:33,307 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-07 12:14:33,308 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-07 12:27:17,282 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 12:27:17,285 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-07 12:27:17,299 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-07 12:27:17,300 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-07 12:27:17,300 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:27:17,303 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-07 12:27:17,307 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-07 12:27:17,309 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-07 12:27:17,312 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-07 12:27:17,315 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-07 12:27:17,333 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-07 12:27:17,333 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:27:17,337 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-07 12:27:17,340 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-07 12:27:17,348 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-07 12:27:17,348 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-07 12:27:17,348 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-07 12:27:17,348 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-07 12:27:17,348 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-07 12:27:26,886 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 12:27:26,905 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-07 12:27:26,906 - INFO - - tmp_prueba\temporal\prompts_codex\prompt_ud01cp01_lote01.md
+2026-05-07 12:27:26,906 - INFO - - tmp_prueba\temporal\prompts_codex\prompt_ud01cp01_lote02.md
+2026-05-07 12:27:26,906 - INFO - - tmp_prueba\temporal\prompts_codex\manifiesto_entregas.json
+2026-05-07 12:28:53,402 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 12:28:53,405 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-07 12:28:53,420 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-07 12:28:53,421 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-07 12:28:53,421 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:28:53,424 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-07 12:28:53,427 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-07 12:28:53,430 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-07 12:28:53,432 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-07 12:28:53,436 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-07 12:28:53,454 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-07 12:28:53,454 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:28:53,456 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-07 12:28:53,459 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-07 12:28:53,466 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-07 12:28:53,466 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-07 12:28:53,466 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-07 12:28:53,466 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-07 12:28:53,466 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-07 12:28:59,158 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 12:28:59,180 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-07 12:28:59,181 - INFO - - tmp_prueba\temporal\prompts_codex\prompt_ud01cp01_lote01.md
+2026-05-07 12:28:59,181 - INFO - - tmp_prueba\temporal\prompts_codex\prompt_ud01cp01_lote02.md
+2026-05-07 12:28:59,181 - INFO - - tmp_prueba\temporal\prompts_codex\manifiesto_entregas.json
+2026-05-07 12:30:35,728 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-07 12:30:56,869 - ERROR - No se pudo completar extraccion CARM: ElementHandle.text_content: Execution context was destroyed, most likely because of a navigation
+Call log:
+waiting for locator(":scope")
+
+2026-05-07 12:32:03,158 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 12:32:03,162 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-07 12:32:03,176 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-07 12:32:03,177 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-07 12:32:03,177 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:32:03,180 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-07 12:32:03,184 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-07 12:32:03,186 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-07 12:32:03,188 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-07 12:32:03,192 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-07 12:32:03,210 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-07 12:32:03,211 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:32:03,213 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-07 12:32:03,215 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-07 12:32:03,222 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-07 12:32:03,222 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-07 12:32:03,222 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-07 12:32:03,222 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-07 12:32:03,222 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-07 12:43:04,478 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 12:43:04,480 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-07 12:43:04,496 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-07 12:43:04,497 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-07 12:43:04,497 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:43:04,500 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-07 12:43:04,501 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-07 12:43:04,504 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-07 12:43:04,506 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-07 12:43:04,510 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-07 12:43:04,530 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-07 12:43:04,530 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:43:04,532 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-07 12:43:04,535 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-07 12:43:04,549 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-07 12:43:04,550 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-07 12:43:04,550 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-07 12:43:04,550 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-07 12:43:04,550 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-07 12:47:44,354 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-07 12:47:44,356 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-07 12:47:44,372 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-07 12:47:44,373 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-07 12:47:44,374 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:47:44,377 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-07 12:47:44,379 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-07 12:47:44,381 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-07 12:47:44,383 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-07 12:47:44,386 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-07 12:47:44,406 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-07 12:47:44,406 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-07 12:47:44,408 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-07 12:47:44,411 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-07 12:47:44,419 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-07 12:47:44,419 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-07 12:47:44,419 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-07 12:47:44,419 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-07 12:47:44,419 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-07 12:57:14,921 - ERROR - Faltan CARM_USUARIO/CARM_CONTRASENA en .env para extraer desde CARM
+2026-05-07 12:57:53,086 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-07 12:58:16,276 - INFO - Actividades prioritarias encontradas: 2
+2026-05-07 12:58:16,276 - INFO - Procesando grading ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 12:58:21,943 - WARNING - Entrega sin archivo descargable en ud01cp01: Sergio Grazini Sánchez (Enviado para calificar)
+2026-05-07 12:58:22,090 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-07 12:58:28,273 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-07 12:58:51,305 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-07 12:59:06,629 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-07 12:59:06,629 - INFO - Actividades prioritarias encontradas: 2
+2026-05-07 12:59:06,629 - INFO - Procesando grading ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 12:59:08,216 - WARNING - Entrega sin archivo descargable en ud01cp01: Sergio Grazini Sánchez (Enviado para calificar)
+2026-05-07 12:59:08,378 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-07 12:59:10,606 - INFO - Listado CARM generado sin descargar archivos ni corregir.
+2026-05-07 12:59:30,733 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-07 12:59:48,310 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-07 12:59:48,310 - INFO - Actividades prioritarias encontradas: 2
+2026-05-07 12:59:48,310 - INFO - Procesando grading ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-07 12:59:50,007 - WARNING - Entrega sin archivo descargable en ud01cp01: Sergio Grazini Sánchez (Enviado para calificar)
+2026-05-07 12:59:50,342 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud01cp01\Elisabet Lopez Ros.pdf
+2026-05-07 12:59:50,423 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-07 12:59:52,027 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud01cp02\Elisabet Lopez Ros.pdf
+2026-05-07 12:59:52,346 - INFO - Descargado envio de Carolina Villa Marin: C:\temp\vscodec\pendientes\ud01cp02\Carolina Villa Marin.docx
+2026-05-07 12:59:53,653 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-07 12:59:53,653 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01.md
+2026-05-07 12:59:53,654 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp02.md
+2026-05-07 12:59:53,654 - INFO - - C:\temp\vscodec\temporal\prompts_codex\manifiesto_entregas.json
+2026-05-07 13:05:27,472 - INFO - Correcciones importadas: 1
+2026-05-07 13:05:27,473 - INFO - - tmp_prueba\temporal_import\resumen.txt
+2026-05-07 13:05:27,473 - INFO - - tmp_prueba\temporal_import\resumen_ud01cp01.txt
+2026-05-07 13:05:27,473 - INFO - - correcciones_validadas\correcciones_importadas_codex.json
+2026-05-07 13:05:27,473 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal_import\revision_pendiente.csv

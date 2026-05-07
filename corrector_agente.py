@@ -17,9 +17,11 @@ import logging
 import os
 import re
 import shutil
+import sqlite3
 import unicodedata
 import zipfile
 from dataclasses import dataclass
+from datetime import datetime
 from html import unescape
 from pathlib import Path
 from xml.etree import ElementTree
@@ -51,6 +53,7 @@ load_dotenv()
 CARM_LOGIN_URL = "https://formacion.carm.es/login/index.php"
 CARM_MY_URL = "https://formacion.carm.es/my/index.php"
 CARM_COURSE_URL = os.getenv("CARM_COURSE_URL", "https://formacion.carm.es/course/view.php?id=1592")
+CARM_COURSE_END_DATE = os.getenv("CARM_COURSE_END_DATE", "").strip()
 
 DEFAULT_PENDIENTES_DIR = Path(r"C:\temp\vscodec\pendientes")
 DEFAULT_TEMPORAL_DIR = Path(r"C:\temp\vscodec\temporal")
@@ -59,8 +62,9 @@ DEFAULT_ACTIVIDAD_CODIGO = "ud01cp01"
 LOG_DIR = Path("logs_correcciones")
 RESPUESTAS_DIR = Path("respuestas_extraidas")
 CORRECCIONES_DIR = Path("correcciones_validadas")
+CACHE_DIR = Path("cache_carm")
 
-for d in (LOG_DIR, RESPUESTAS_DIR, CORRECCIONES_DIR):
+for d in (LOG_DIR, RESPUESTAS_DIR, CORRECCIONES_DIR, CACHE_DIR):
     d.mkdir(exist_ok=True)
 
 logging.basicConfig(
@@ -81,22 +85,16 @@ PROMPT_SISTEMA = (
 )
 
 PROMPT_CRITERIOS = """
-Te paso un archivo con un manual sobre inteligencia artificial aplicada al sector turístico de Murcia como contexto para corregir un ejercicio práctico.
-
-Corrige este ejercicio en una escala del 0 al 10, asignando 3 puntos a la presentación del trabajo:
-Un técnico introduce en una herramienta gratuita datos completos de reservas con información personal identificable para que el sistema genere un análisis de comportamiento del visitante.
-
-¿Qué actuación debería realizar para ajustar el uso de la herramienta a principios de protección de datos y buenas prácticas?
-
-Devuelve JSON con este formato exacto:
+Corrige la entrega del alumno usando el enunciado extraído de CARM, el contexto de unidad y la rúbrica disponible.
+Evalúa en escala de 0 a 10. Devuelve JSON con este formato exacto:
 {
   "nota": 0-10,
   "criterios": [
     {"nombre": "Presentación del trabajo", "maximo": 3, "puntuacion": 0-3, "comentario": "..."},
-    {"nombre": "Protección de datos", "maximo": 4, "puntuacion": 0-4, "comentario": "..."},
-    {"nombre": "Buenas prácticas y aplicación", "maximo": 3, "puntuacion": 0-3, "comentario": "..."}
+    {"nombre": "Adecuación al enunciado", "maximo": 4, "puntuacion": 0-4, "comentario": "..."},
+    {"nombre": "Aplicación práctica", "maximo": 3, "puntuacion": 0-3, "comentario": "..."}
   ],
-  "retroalimentacion": "Feedback final, coloquial pero formal, adaptado al caso y la unidad"
+  "retroalimentacion": "Feedback final, coloquial pero formal, adaptado al caso, al enunciado y a la unidad"
 }
 """.strip()
 
@@ -117,6 +115,223 @@ class LecturaEntrega:
     texto: str
     requiere_revision_manual: bool = False
     motivo: str = ""
+
+
+class CacheCursoCarm:
+    def __init__(
+        self,
+        path: Path | None = None,
+        course_url: str = CARM_COURSE_URL,
+        fecha_fin: str = CARM_COURSE_END_DATE,
+    ):
+        self.course_url = course_url
+        self.course_id = self._extraer_course_id(course_url)
+        self.fecha_fin = (fecha_fin or "").strip()
+        self.path = path or CACHE_DIR / f"curso_{self.course_id or 'carm'}.sqlite"
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._inicializar()
+
+    @staticmethod
+    def _extraer_course_id(url: str) -> str:
+        query = dict(parse_qsl(urlparse(url).query))
+        return query.get("id", "carm")
+
+    @staticmethod
+    def _ahora() -> str:
+        return datetime.now().isoformat(timespec="seconds")
+
+    def _conectar(self):
+        return sqlite3.connect(self.path)
+
+    def _inicializar(self) -> None:
+        with self._conectar() as con:
+            con.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS curso (
+                    course_id TEXT PRIMARY KEY,
+                    url TEXT NOT NULL,
+                    titulo TEXT,
+                    fecha_fin TEXT,
+                    actualizado_en TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS unidad (
+                    course_id TEXT NOT NULL,
+                    codigo TEXT NOT NULL,
+                    nombre TEXT,
+                    contenido_imprimible TEXT,
+                    actualizado_en TEXT NOT NULL,
+                    PRIMARY KEY (course_id, codigo)
+                );
+
+                CREATE TABLE IF NOT EXISTS actividad (
+                    course_id TEXT NOT NULL,
+                    codigo TEXT NOT NULL,
+                    unidad_codigo TEXT,
+                    nombre TEXT,
+                    tipo TEXT,
+                    url TEXT,
+                    url_grading TEXT,
+                    filtro TEXT,
+                    enunciado TEXT,
+                    actualizado_en TEXT NOT NULL,
+                    PRIMARY KEY (course_id, codigo)
+                );
+                """
+            )
+            columnas = {
+                row[1]
+                for row in con.execute("PRAGMA table_info(curso)").fetchall()
+            }
+            if "fecha_fin" not in columnas:
+                con.execute("ALTER TABLE curso ADD COLUMN fecha_fin TEXT")
+
+    def guardar_curso(self, titulo: str = "") -> None:
+        with self._conectar() as con:
+            con.execute(
+                """
+                INSERT INTO curso (course_id, url, titulo, fecha_fin, actualizado_en)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(course_id) DO UPDATE SET
+                    url=excluded.url,
+                    titulo=excluded.titulo,
+                    fecha_fin=excluded.fecha_fin,
+                    actualizado_en=excluded.actualizado_en
+                """,
+                (self.course_id, self.course_url, titulo, self.fecha_fin, self._ahora()),
+            )
+
+    def curso_expirado(self) -> bool:
+        if not self.fecha_fin:
+            return False
+        try:
+            fecha_fin = datetime.strptime(self.fecha_fin, "%Y-%m-%d").date()
+        except ValueError:
+            logger.warning(
+                "CARM_COURSE_END_DATE no tiene formato YYYY-MM-DD; no se purga cache automáticamente."
+            )
+            return False
+        return datetime.now().date() > fecha_fin
+
+    def purgar_si_expirada(self) -> bool:
+        if self.curso_expirado() and self.path.exists():
+            self.path.unlink()
+            self._inicializar()
+            logger.info(f"Cache del curso expirada y borrada automáticamente: {self.path}")
+            return True
+        return False
+
+    def guardar_unidad(self, codigo: str, nombre: str = "", contenido_imprimible: str = "") -> None:
+        if not codigo:
+            return
+        with self._conectar() as con:
+            con.execute(
+                """
+                INSERT INTO unidad (course_id, codigo, nombre, contenido_imprimible, actualizado_en)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(course_id, codigo) DO UPDATE SET
+                    nombre=COALESCE(NULLIF(excluded.nombre, ''), unidad.nombre),
+                    contenido_imprimible=COALESCE(NULLIF(excluded.contenido_imprimible, ''), unidad.contenido_imprimible),
+                    actualizado_en=excluded.actualizado_en
+                """,
+                (self.course_id, codigo, nombre, contenido_imprimible, self._ahora()),
+            )
+
+    def guardar_actividad(self, actividad: dict) -> None:
+        codigo = actividad.get("codigo", "")
+        if not codigo:
+            return
+        with self._conectar() as con:
+            con.execute(
+                """
+                INSERT INTO actividad (
+                    course_id, codigo, unidad_codigo, nombre, tipo, url, url_grading,
+                    filtro, enunciado, actualizado_en
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(course_id, codigo) DO UPDATE SET
+                    unidad_codigo=excluded.unidad_codigo,
+                    nombre=excluded.nombre,
+                    tipo=excluded.tipo,
+                    url=excluded.url,
+                    url_grading=excluded.url_grading,
+                    filtro=excluded.filtro,
+                    enunciado=COALESCE(NULLIF(excluded.enunciado, ''), actividad.enunciado),
+                    actualizado_en=excluded.actualizado_en
+                """,
+                (
+                    self.course_id,
+                    codigo,
+                    actividad.get("unidad_codigo", ""),
+                    actividad.get("nombre", ""),
+                    actividad.get("tipo", ""),
+                    actividad.get("url", ""),
+                    actividad.get("url_grading", ""),
+                    actividad.get("filtro", ""),
+                    actividad.get("enunciado", ""),
+                    self._ahora(),
+                ),
+            )
+
+    def obtener_contexto_unidades(self, unidades: set[str] | None = None) -> str:
+        unidades = unidades or set()
+        with self._conectar() as con:
+            if unidades:
+                placeholders = ",".join("?" for _ in unidades)
+                rows = con.execute(
+                    f"""
+                    SELECT codigo, nombre, contenido_imprimible
+                    FROM unidad
+                    WHERE course_id = ? AND codigo IN ({placeholders})
+                    ORDER BY codigo
+                    """,
+                    (self.course_id, *sorted(unidades)),
+                ).fetchall()
+            else:
+                rows = con.execute(
+                    """
+                    SELECT codigo, nombre, contenido_imprimible
+                    FROM unidad
+                    WHERE course_id = ?
+                    ORDER BY codigo
+                    """,
+                    (self.course_id,),
+                ).fetchall()
+        partes = []
+        for codigo, nombre, contenido in rows:
+            if contenido:
+                partes.append(f"## {codigo.upper()} - {nombre or 'Contenido imprimible'}\n{contenido}")
+        return "\n\n".join(partes)
+
+    def enriquecer_actividad(self, actividad: dict) -> dict:
+        codigo = actividad.get("codigo", "")
+        if not codigo:
+            return actividad
+        with self._conectar() as con:
+            row = con.execute(
+                """
+                SELECT unidad_codigo, nombre, url, url_grading, filtro, enunciado
+                FROM actividad
+                WHERE course_id = ? AND codigo = ?
+                """,
+                (self.course_id, codigo),
+            ).fetchone()
+        if not row:
+            return actividad
+        unidad_codigo, nombre, url, url_grading, filtro, enunciado = row
+        actividad.setdefault("unidad_codigo", unidad_codigo or "")
+        actividad.setdefault("nombre", nombre or "")
+        actividad.setdefault("url", url or "")
+        actividad["url_grading"] = actividad.get("url_grading") or url_grading or ""
+        actividad["filtro"] = actividad.get("filtro") or filtro or ""
+        actividad["enunciado"] = actividad.get("enunciado") or enunciado or ""
+        return actividad
+
+    def borrar(self) -> bool:
+        if self.path.exists():
+            self.path.unlink()
+            return True
+        return False
 
 
 class GestorPrompts:
@@ -164,7 +379,13 @@ class CorrectorIA:
         self.cliente = OpenAI(api_key=self.api_key) if (usar_ia and OpenAI and self.api_key) else None
         self.prompts = GestorPrompts(prompts_path)
 
-    def corregir(self, respuesta: str, contexto_unidad: str) -> dict:
+    def corregir(
+        self,
+        respuesta: str,
+        contexto_unidad: str,
+        actividad_codigo: str = DEFAULT_ACTIVIDAD_CODIGO,
+        enunciado_actividad: str = "",
+    ) -> dict:
         if not respuesta.strip():
             return self._correccion_vacia()
 
@@ -172,9 +393,11 @@ class CorrectorIA:
             logger.warning("OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo")
             return self._correccion_respaldo()
 
-        prompt_cfg = self.prompts.obtener(DEFAULT_ACTIVIDAD_CODIGO)
+        prompt_cfg = self.prompts.obtener(actividad_codigo)
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
+            f"ACTIVIDAD: {actividad_codigo}\n\n"
+            f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_actividad or 'No disponible'}\n\n"
             f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_unidad}\n\n"
             f"RESPUESTA DEL ALUMNO A EVALUAR:\n{respuesta}"
         )
@@ -230,11 +453,13 @@ class CorrectorIA:
             }
             for idx, (envio, respuesta) in enumerate(entregas)
         ]
+        enunciado_actividad = next((envio.actividad_enunciado for envio, _ in entregas if envio.actividad_enunciado), "")
 
         prompt_cfg = self.prompts.obtener(actividad_codigo)
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
             f"ACTIVIDAD: {actividad_codigo}\n\n"
+            f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_actividad or 'No disponible'}\n\n"
             f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_unidad}\n\n"
             "Corrige todas las entregas siguientes en una sola respuesta. "
             "Devuelve JSON con este formato exacto:\n"
@@ -246,8 +471,8 @@ class CorrectorIA:
             '      "nota": 0-10,\n'
             '      "criterios": [\n'
             '        {"nombre": "Presentación del trabajo", "maximo": 3, "puntuacion": 0-3, "comentario": "..."},\n'
-            '        {"nombre": "Protección de datos", "maximo": 4, "puntuacion": 0-4, "comentario": "..."},\n'
-            '        {"nombre": "Buenas prácticas y aplicación", "maximo": 3, "puntuacion": 0-3, "comentario": "..."}\n'
+            '        {"nombre": "Adecuación al enunciado", "maximo": 4, "puntuacion": 0-4, "comentario": "..."},\n'
+            '        {"nombre": "Aplicación práctica", "maximo": 3, "puntuacion": 0-3, "comentario": "..."}\n'
             "      ],\n"
             '      "retroalimentacion": "Feedback final, coloquial pero formal, adaptado al caso y la unidad"\n'
             "    }\n"
@@ -281,7 +506,15 @@ class CorrectorIA:
             ]
         except Exception as e:
             logger.error(f"Error corrigiendo lote {actividad_codigo} con IA: {e}")
-            return [self.corregir(respuesta, contexto_unidad) for _, respuesta in entregas]
+            return [
+                self.corregir(
+                    respuesta,
+                    contexto_unidad,
+                    actividad_codigo=actividad_codigo,
+                    enunciado_actividad=envio.actividad_enunciado,
+                )
+                for envio, respuesta in entregas
+            ]
 
     @staticmethod
     def _normalizar_nota(valor) -> float:
@@ -314,16 +547,16 @@ class CorrectorIA:
                     "comentario": "No se pudo evaluar la presentación por falta de contenido.",
                 },
                 {
-                    "nombre": "Protección de datos",
+                    "nombre": "Adecuación al enunciado",
                     "maximo": 4,
                     "puntuacion": 0,
-                    "comentario": "No hay desarrollo sobre tratamiento de datos personales.",
+                    "comentario": "No hay desarrollo suficiente para responder a lo pedido en el enunciado.",
                 },
                 {
-                    "nombre": "Buenas prácticas y aplicación",
+                    "nombre": "Aplicación práctica",
                     "maximo": 3,
                     "puntuacion": 0,
-                    "comentario": "No se aportan medidas aplicables al caso.",
+                    "comentario": "No se aportan ideas aplicables al caso.",
                 },
             ],
             "retroalimentacion": "No he podido corregir este ejercicio porque el archivo aparece vacío o ilegible.",
@@ -341,19 +574,19 @@ class CorrectorIA:
                     "comentario": "La presentación es correcta, aunque se puede ordenar mejor la estructura.",
                 },
                 {
-                    "nombre": "Protección de datos",
+                    "nombre": "Adecuación al enunciado",
                     "maximo": 4,
                     "puntuacion": 2.8,
-                    "comentario": "Identifica riesgos de datos personales, pero faltan medidas concretas de minimización y anonimizado.",
+                    "comentario": "Responde a una parte importante del enunciado, aunque faltan detalles o precisión.",
                 },
                 {
-                    "nombre": "Buenas prácticas y aplicación",
+                    "nombre": "Aplicación práctica",
                     "maximo": 3,
                     "puntuacion": 2.0,
-                    "comentario": "Aplica ideas útiles, aunque conviene aterrizarlas mejor al entorno turístico de Murcia.",
+                    "comentario": "Aplica ideas útiles, aunque conviene aterrizarlas mejor al contexto práctico.",
                 },
             ],
-            "retroalimentacion": "Buen trabajo general. Vas en la línea correcta, pero te recomiendo reforzar la parte de cumplimiento y proponer acciones más concretas para el caso.",
+            "retroalimentacion": "Buen trabajo general. Vas en la línea correcta, pero te recomiendo ajustar mejor la respuesta al enunciado y proponer acciones más concretas para el caso.",
         }
 
     @staticmethod
@@ -392,12 +625,20 @@ class ExtractorCarm:
         pendientes_dir: Path,
         mantener_navegador: bool = False,
         guardar_evidencias: bool = False,
+        unidades: set[str] | None = None,
+        actividades: set[str] | None = None,
+        cache: CacheCursoCarm | None = None,
+        usar_cache: bool = False,
     ):
         self.usuario = usuario
         self.contrasena = contrasena
         self.pendientes_dir = pendientes_dir
         self.mantener_navegador = mantener_navegador
         self.guardar_evidencias = guardar_evidencias
+        self.unidades = unidades or set()
+        self.actividades = actividades or set()
+        self.cache = cache
+        self.usar_cache = usar_cache
         self.registros_envios: list[dict] = []
 
     @staticmethod
@@ -414,6 +655,28 @@ class ExtractorCarm:
     @staticmethod
     def _texto_limpio(texto: str) -> str:
         return re.sub(r"\s+", " ", (texto or "")).strip()
+
+    @staticmethod
+    def _normalizar_codigo_unidad(valor: str) -> str:
+        texto = (valor or "").strip().lower()
+        m = re.search(r"(?:ud|unidad)?\s*0*(\d{1,2})", texto)
+        if not m:
+            return texto
+        return f"ud{int(m.group(1)):02d}"
+
+    @staticmethod
+    def _unidad_desde_codigo_actividad(codigo: str) -> str:
+        m = re.match(r"^(ud\d{2})cp\d{2}$", (codigo or "").lower())
+        return m.group(1) if m else ""
+
+    @classmethod
+    def _actividad_permitida(cls, codigo: str, unidades: set[str], actividades: set[str]) -> bool:
+        codigo = (codigo or "").lower()
+        if actividades and codigo not in actividades:
+            return False
+        if unidades and cls._unidad_desde_codigo_actividad(codigo) not in unidades:
+            return False
+        return True
 
     @staticmethod
     def _redactar_texto_sensible(texto: str) -> str:
@@ -559,23 +822,52 @@ class ExtractorCarm:
             logger.warning(f"No se pudo guardar captura de diagnóstico {nombre}: {e}")
 
     async def _extraer_contexto_imprimible(self, page) -> str:
+        if self.usar_cache and self.cache:
+            contexto_cache = self.cache.obtener_contexto_unidades(self.unidades)
+            if contexto_cache.strip():
+                logger.info("Contexto imprimible cargado desde cache local.")
+                return contexto_cache
+
         contexto_partes: list[str] = []
         enlaces = await page.query_selector_all("a")
+        urls_contexto: list[tuple[str, str, str]] = []
         for a in enlaces:
-            txt = (await a.text_content() or "").strip().lower()
-            if "contenido imprimible" not in txt:
+            try:
+                txt = (await a.text_content() or "").strip().lower()
+                txt_normalizado = self._normalizar(txt)
+                if "contenido imprimible" not in txt_normalizado:
+                    continue
+                m = re.search(r"\bud\s*0*(\d{1,2})\b", txt_normalizado)
+                unidad_enlace = f"ud{int(m.group(1)):02d}" if m else ""
+                unidades_actividades = {
+                    self._unidad_desde_codigo_actividad(codigo)
+                    for codigo in self.actividades
+                }
+                unidades_permitidas = self.unidades or unidades_actividades
+                if unidades_permitidas and unidad_enlace not in unidades_permitidas:
+                    continue
+                href = await a.get_attribute("href")
+                if href:
+                    urls_contexto.append((href, unidad_enlace, txt))
+            except Exception as e:
+                logger.warning(f"No se pudo leer enlace de contenido imprimible: {e}")
                 continue
-            href = await a.get_attribute("href")
-            if not href:
-                continue
+
+        for href, unidad_codigo, nombre in urls_contexto:
             try:
                 await page.goto(href, wait_until="networkidle")
                 body = await page.text_content("body")
                 if body and body.strip():
                     contexto_partes.append(body.strip())
-                await page.goto(CARM_COURSE_URL, wait_until="networkidle")
+                    if self.cache and unidad_codigo:
+                        self.cache.guardar_unidad(
+                            unidad_codigo,
+                            nombre=nombre,
+                            contenido_imprimible=body.strip(),
+                        )
             except Exception as e:
                 logger.warning(f"No se pudo leer contenido imprimible {href}: {e}")
+        await page.goto(CARM_COURSE_URL, wait_until="networkidle")
         return "\n\n".join(contexto_partes)
 
     async def _extraer_enunciado_actividad(self, page, actividad_url: str) -> str:
@@ -638,11 +930,16 @@ class ExtractorCarm:
             )
             unidad = await self._obtener_nombre_unidad(enlace_actividad)
             codigo = self._inferir_codigo_actividad(nombre, unidad)
+            if not self._actividad_permitida(codigo, self.unidades, self.actividades):
+                continue
+            unidad_codigo = self._unidad_desde_codigo_actividad(codigo)
             actividades.append(
                 {
                     "nombre": nombre,
                     "unidad": unidad,
+                    "unidad_codigo": unidad_codigo,
                     "codigo": codigo,
+                    "tipo": "obligatorio",
                     "url": vista_url,
                     "url_grading": href_require_grading or self._agregar_action_grading(vista_url),
                     "filtro": "require_grading" if href_require_grading else "grading",
@@ -840,16 +1137,23 @@ class ExtractorCarm:
 
                 await page.goto(CARM_MY_URL, wait_until="networkidle")
                 await page.goto(CARM_COURSE_URL, wait_until="networkidle")
+                if self.cache:
+                    self.cache.guardar_curso(await page.title())
 
-                contexto = await self._extraer_contexto_imprimible(page)
                 actividades = await self._obtener_actividades_obligatorias(page)
+                contexto = await self._extraer_contexto_imprimible(page)
 
                 logger.info(f"Actividades prioritarias encontradas: {len(actividades)}")
 
                 todos_envios: list[EnvioPendiente] = []
                 for act in actividades:
                     logger.info(f"Procesando grading {act['codigo']}: {act['nombre']}")
-                    act["enunciado"] = await self._extraer_enunciado_actividad(page, act["url"])
+                    if self.usar_cache and self.cache:
+                        act = self.cache.enriquecer_actividad(act)
+                    if not act.get("enunciado"):
+                        act["enunciado"] = await self._extraer_enunciado_actividad(page, act["url"])
+                    if self.cache:
+                        self.cache.guardar_actividad(act)
                     envios = await self._descargar_envios_actividad(page, act, descargar=not solo_listar)
                     todos_envios.extend(envios)
 
@@ -912,6 +1216,8 @@ class ExtractorCarm:
                     await self._guardar_diagnostico_pagina(page, diagnostico_dir, "02_my")
 
                 await page.goto(CARM_COURSE_URL, wait_until="networkidle")
+                if self.cache:
+                    self.cache.guardar_curso(await page.title())
                 if self.guardar_evidencias:
                     await self._guardar_diagnostico_pagina(page, diagnostico_dir, "03_course")
 
@@ -932,6 +1238,8 @@ class ExtractorCarm:
                 for actividad in actividades[:3]:
                     try:
                         actividad["enunciado"] = await self._extraer_enunciado_actividad(page, actividad["url"])
+                        if self.cache:
+                            self.cache.guardar_actividad(actividad)
                         await page.goto(actividad["url_grading"], wait_until="networkidle")
                         if self.guardar_evidencias:
                             await self._guardar_diagnostico_pagina(
@@ -1244,7 +1552,7 @@ class GeneradorSalidas:
             "actividad": actividad_codigo,
             "actividad_nombre": envio.actividad_nombre,
             "nota": float(correccion.get("nota", 0)),
-            "retroalimentacion": str(correccion.get("retroalimentacion", "")),
+            "retroalimentacion": self._texto_feedback(correccion),
             "archivo_original": str(envio.archivo),
             "archivo_copiado": str(copia_entrega),
             "archivo_correccion": str(archivo_correccion),
@@ -1256,6 +1564,14 @@ class GeneradorSalidas:
         if extension.lower() == ".txt":
             return f"{actividad_codigo}_respuesta.txt"
         return f"{actividad_codigo}{extension}"
+
+    @staticmethod
+    def _texto_feedback(correccion: dict) -> str:
+        for clave in ("retroalimentacion", "comentario", "feedback", "observaciones"):
+            valor = correccion.get(clave)
+            if valor:
+                return str(valor)
+        return ""
 
     def eliminar_pendiente_calificado(self, envio: EnvioPendiente) -> None:
         try:
@@ -1278,21 +1594,166 @@ class GeneradorSalidas:
         lineas.append("")
         lineas.append(f"Nota final: {correccion.get('nota', 0)}/10")
         lineas.append("")
-        lineas.append("Detalle por criterios:")
+        criterios = correccion.get("criterios", [])
+        if criterios:
+            lineas.append("Detalle por criterios:")
 
-        for crit in correccion.get("criterios", []):
+        for crit in criterios:
             nombre = crit.get("nombre", "Criterio")
             p = crit.get("puntuacion", 0)
             m = crit.get("maximo", "?")
             c = crit.get("comentario", "")
             lineas.append(f"- {nombre}: {p}/{m}. {c}")
 
-        lineas.append("")
+        if criterios:
+            lineas.append("")
         lineas.append("Retroalimentación:")
-        lineas.append(str(correccion.get("retroalimentacion", "")))
+        lineas.append(GeneradorSalidas._texto_feedback(correccion))
         lineas.append("")
 
         return "\n".join(lineas)
+
+    def importar_correcciones_codex(self, correcciones_path: Path) -> tuple[list[dict], Path, list[Path]]:
+        correcciones = self._leer_correcciones_codex(correcciones_path)
+        manifiesto = self._leer_manifiesto_codex()
+        resultados: list[dict] = []
+
+        for correccion in correcciones:
+            alumno = self._sanitizar(str(correccion.get("alumno", "")).strip())
+            actividad = str(
+                correccion.get("actividad")
+                or correccion.get("actividad_codigo")
+                or self.actividad_codigo
+            ).strip().lower()
+            if not alumno:
+                logger.warning(f"Corrección omitida sin alumno: {correccion}")
+                continue
+
+            correccion_normalizada = self._normalizar_correccion_importada(correccion)
+            alumno_dir = self.temporal_dir / alumno
+            alumno_dir.mkdir(parents=True, exist_ok=True)
+
+            entrada = self._buscar_entrega_en_manifiesto(
+                manifiesto,
+                alumno=alumno,
+                actividad=actividad,
+                correccion=correccion,
+            )
+            archivo_copiado = ""
+            archivo_original = ""
+            actividad_nombre = actividad
+            if entrada:
+                archivo_original = str(entrada.get("archivo", ""))
+                actividad_nombre = str(entrada.get("actividad_nombre") or actividad)
+                origen = Path(str(entrada.get("archivo", "")))
+                if origen.exists() and origen.is_file():
+                    ext = origen.suffix or ".txt"
+                    copia_entrega = alumno_dir / self._nombre_copia_entrega(actividad, ext)
+                    shutil.copy2(origen, copia_entrega)
+                    archivo_copiado = str(copia_entrega)
+
+            archivo_correccion = alumno_dir / f"{actividad}.txt"
+            archivo_correccion.write_text(
+                self._formatear_correccion(correccion_normalizada, actividad),
+                encoding="utf-8",
+            )
+
+            resultados.append(
+                {
+                    "alumno": alumno,
+                    "actividad": actividad,
+                    "actividad_nombre": actividad_nombre,
+                    "nota": float(correccion_normalizada.get("nota", 0)),
+                    "retroalimentacion": self._texto_feedback(correccion_normalizada),
+                    "archivo_original": archivo_original,
+                    "archivo_copiado": archivo_copiado,
+                    "archivo_correccion": str(archivo_correccion),
+                    "estado": correccion_normalizada.get("estado", "borrador_pendiente_de_revision"),
+                }
+            )
+
+        if not resultados:
+            raise ValueError("No se encontró ninguna corrección importable en el JSON.")
+
+        resumen_path = self.escribir_resumen(resultados)
+        resumenes_actividad = self.escribir_resumenes_por_actividad(resultados)
+        revision_path = self.escribir_revision_pendiente(resultados)
+
+        traza_path = CORRECCIONES_DIR / "correcciones_importadas_codex.json"
+        traza_path.write_text(json.dumps(resultados, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        return resultados, revision_path, [resumen_path, *resumenes_actividad, traza_path]
+
+    @staticmethod
+    def _normalizar_correccion_importada(correccion: dict) -> dict:
+        normalizada = dict(correccion)
+        normalizada["retroalimentacion"] = GeneradorSalidas._texto_feedback(correccion)
+        estado = str(normalizada.get("estado") or normalizada.get("resultado") or "").strip().lower()
+        if not estado:
+            estado = "borrador_pendiente_de_revision"
+        elif estado in {"apta", "apto", "aprobada", "aprobado"}:
+            estado = "borrador_pendiente_de_revision"
+        elif estado in {"revision", "revisión", "revision manual", "revision_manual"}:
+            estado = "revision_manual_necesaria"
+        normalizada["estado"] = estado
+        normalizada["nota"] = float(normalizada.get("nota", 0) or 0)
+        return normalizada
+
+    def _leer_correcciones_codex(self, correcciones_path: Path) -> list[dict]:
+        texto = self._leer_archivo_texto(correcciones_path).strip()
+        if not texto:
+            raise ValueError(f"No se pudo leer el archivo de correcciones: {correcciones_path}")
+
+        match = re.search(r"```(?:json)?\s*(.*?)```", texto, flags=re.S | re.I)
+        if match:
+            texto = match.group(1).strip()
+
+        datos = json.loads(texto)
+        if isinstance(datos, dict):
+            for clave in ("correcciones", "resultados", "entregas"):
+                if isinstance(datos.get(clave), list):
+                    datos = datos[clave]
+                    break
+            else:
+                datos = [datos]
+
+        if not isinstance(datos, list):
+            raise ValueError("El JSON debe ser una lista de correcciones o un objeto con clave 'correcciones'.")
+
+        return [item for item in datos if isinstance(item, dict)]
+
+    def _leer_manifiesto_codex(self) -> list[dict]:
+        manifiesto_path = self.temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
+        if not manifiesto_path.exists():
+            return []
+        try:
+            datos = json.loads(manifiesto_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.warning(f"No se pudo leer manifiesto de entregas: {e}")
+            return []
+        return datos if isinstance(datos, list) else []
+
+    @staticmethod
+    def _buscar_entrega_en_manifiesto(
+        manifiesto: list[dict],
+        alumno: str,
+        actividad: str,
+        correccion: dict,
+    ) -> dict | None:
+        alumno_norm = GeneradorSalidas._sanitizar(alumno).lower()
+        actividad_norm = actividad.lower()
+        id_correccion = str(correccion.get("id", "")).strip()
+
+        candidatos = [
+            item for item in manifiesto
+            if GeneradorSalidas._sanitizar(str(item.get("alumno", ""))).lower() == alumno_norm
+            and str(item.get("actividad", "")).lower() == actividad_norm
+        ]
+        if id_correccion:
+            for item in candidatos:
+                if str(item.get("id", "")).strip() == id_correccion:
+                    return item
+        return candidatos[0] if candidatos else None
 
     def escribir_resumen(self, resultados: list[dict]) -> Path:
         self.temporal_dir.mkdir(parents=True, exist_ok=True)
@@ -1356,6 +1817,8 @@ class GeneradorSalidas:
         pendientes_por_actividad: dict[str, list[EnvioPendiente]],
         contexto_unidad: str,
         prompts_path: str | Path | None = None,
+        max_entregas_por_prompt: int = 8,
+        max_caracteres_entrega: int = 0,
     ) -> list[Path]:
         prompts_dir = self.temporal_dir / "prompts_codex"
         prompts_dir.mkdir(parents=True, exist_ok=True)
@@ -1371,6 +1834,11 @@ class GeneradorSalidas:
 
             for idx, envio in enumerate(envios):
                 lectura = self.leer_entrega(envio.archivo)
+                texto_entrega = lectura.texto
+                entrega_truncada = False
+                if max_caracteres_entrega > 0 and len(texto_entrega) > max_caracteres_entrega:
+                    texto_entrega = texto_entrega[:max_caracteres_entrega]
+                    entrega_truncada = True
                 item_base = {
                     "id": str(idx),
                     "alumno": envio.alumno,
@@ -1383,7 +1851,13 @@ class GeneradorSalidas:
                 if lectura.requiere_revision_manual:
                     revision_manual.append({**item_base, "motivo": lectura.motivo})
                 else:
-                    entregas.append({**item_base, "respuesta": lectura.texto})
+                    entregas.append(
+                        {
+                            **item_base,
+                            "respuesta": texto_entrega,
+                            **({"respuesta_truncada": True} if entrega_truncada else {}),
+                        }
+                    )
 
                 manifiesto.append(
                     {
@@ -1394,9 +1868,19 @@ class GeneradorSalidas:
                 )
 
             prompt_cfg = gestor_prompts.obtener(actividad_codigo)
-            prompt_path = prompts_dir / f"prompt_{actividad_codigo}.md"
-            lineas = [
+            tamano_lote = max(1, int(max_entregas_por_prompt or 1))
+            lotes = [
+                entregas[i:i + tamano_lote]
+                for i in range(0, len(entregas), tamano_lote)
+            ] or [[]]
+
+            for numero_lote, entregas_lote in enumerate(lotes, start=1):
+                sufijo_lote = f"_lote{numero_lote:02d}" if len(lotes) > 1 else ""
+                prompt_path = prompts_dir / f"prompt_{actividad_codigo}{sufijo_lote}.md"
+                lineas = [
                 f"# Prompt para Codex - {actividad_codigo}",
+                "",
+                f"Lote {numero_lote} de {len(lotes)}. Entregas en este lote: {len(entregas_lote)}.",
                 "",
                 "Copia todo este archivo en Codex/ChatGPT y pide la corrección.",
                 "No hace falta usar la API de OpenAI para este paso.",
@@ -1432,8 +1916,8 @@ class GeneradorSalidas:
                 '      "nota": 0,',
                 '      "criterios": [',
                 '        {"nombre": "Presentación del trabajo", "maximo": 3, "puntuacion": 0, "comentario": "..."},',
-                '        {"nombre": "Protección de datos", "maximo": 4, "puntuacion": 0, "comentario": "..."},',
-                '        {"nombre": "Buenas prácticas y aplicación", "maximo": 3, "puntuacion": 0, "comentario": "..."}',
+                '        {"nombre": "Adecuación al enunciado", "maximo": 4, "puntuacion": 0, "comentario": "..."},',
+                '        {"nombre": "Aplicación práctica", "maximo": 3, "puntuacion": 0, "comentario": "..."}',
                 "      ],",
                 '      "retroalimentacion": "Feedback final para el alumno"',
                 "    }",
@@ -1446,7 +1930,7 @@ class GeneradorSalidas:
                 "## Entregas legibles",
                 "",
                 "```json",
-                json.dumps(entregas, ensure_ascii=False, indent=2),
+                json.dumps(entregas_lote, ensure_ascii=False, indent=2),
                 "```",
                 "",
                 "## Entregas que requieren revisión manual",
@@ -1457,9 +1941,9 @@ class GeneradorSalidas:
                 json.dumps(revision_manual, ensure_ascii=False, indent=2),
                 "```",
                 "",
-            ]
-            prompt_path.write_text("\n".join(lineas), encoding="utf-8")
-            rutas.append(prompt_path)
+                ]
+                prompt_path.write_text("\n".join(lineas), encoding="utf-8")
+                rutas.append(prompt_path)
 
         manifiesto_path = prompts_dir / "manifiesto_entregas.json"
         manifiesto_path.write_text(
@@ -1473,9 +1957,49 @@ class GeneradorSalidas:
 async def ejecutar_flujo(args) -> None:
     pendientes_dir = Path(args.pendientes)
     temporal_dir = Path(args.temporal)
+    preparar_carm_codex = getattr(args, "preparar_carm_codex", False)
+    unidades_filtro = {
+        ExtractorCarm._normalizar_codigo_unidad(valor)
+        for valor in re.split(r"[,;\s]+", getattr(args, "unidad", "") or "")
+        if valor.strip()
+    }
+    actividades_filtro = {
+        valor.strip().lower()
+        for valor in re.split(r"[,;\s]+", getattr(args, "actividad", "") or "")
+        if valor.strip()
+    }
 
     contexto_unidad = ""
     pendientes_extraidos: list[EnvioPendiente] = []
+    cache_curso = CacheCursoCarm()
+    cache_curso.purgar_si_expirada()
+
+    if getattr(args, "borrar_cache_curso", False):
+        if cache_curso.borrar():
+            logger.info(f"Cache del curso borrada: {cache_curso.path}")
+        else:
+            logger.info(f"No existía cache del curso en: {cache_curso.path}")
+        return
+
+    if getattr(args, "importar_correcciones_codex", ""):
+        salida = GeneradorSalidas(pendientes_dir, temporal_dir, actividad_codigo=args.actividad_codigo)
+        correcciones_path = Path(args.importar_correcciones_codex)
+        try:
+            resultados, revision_path, rutas_extra = salida.importar_correcciones_codex(correcciones_path)
+        except Exception as e:
+            logger.error(f"No se pudieron importar correcciones Codex: {e}")
+            return
+
+        logger.info(f"Correcciones importadas: {len(resultados)}")
+        for ruta in rutas_extra:
+            logger.info(f"- {ruta}")
+        logger.info(f"Hoja de revisión manual generada en: {revision_path}")
+        return
+
+    usar_cache = (
+        not getattr(args, "sin_cache", False)
+        and not getattr(args, "refrescar_cache", False)
+    )
 
     if args.contexto_unidad:
         contexto_path = Path(args.contexto_unidad)
@@ -1485,7 +2009,13 @@ async def ejecutar_flujo(args) -> None:
         else:
             logger.warning(f"No se encontró el archivo de contexto: {contexto_path}")
 
-    if args.extraer_carm or getattr(args, "diagnosticar_carm", False) or getattr(args, "solo_listar_carm", False):
+    if (
+        args.extraer_carm
+        or preparar_carm_codex
+        or getattr(args, "diagnosticar_carm", False)
+        or getattr(args, "solo_listar_carm", False)
+        or getattr(args, "cachear_curso", False)
+    ):
         usuario = os.getenv("CARM_USUARIO", "")
         contrasena = os.getenv("CARM_CONTRASENA", "")
         if not usuario or not contrasena:
@@ -1498,8 +2028,18 @@ async def ejecutar_flujo(args) -> None:
             pendientes_dir,
             mantener_navegador=getattr(args, "mantener_navegador", False),
             guardar_evidencias=getattr(args, "guardar_evidencias", False),
+            unidades=unidades_filtro,
+            actividades=actividades_filtro,
+            cache=cache_curso,
+            usar_cache=usar_cache,
         )
         try:
+            if getattr(args, "cachear_curso", False) and not (args.extraer_carm or preparar_carm_codex):
+                logger.info("Cacheando recursos estables del curso CARM.")
+                await extractor.ejecutar(solo_listar=True)
+                logger.info(f"Cache del curso actualizada en: {cache_curso.path}")
+                return
+
             if getattr(args, "diagnosticar_carm", False):
                 diagnostico_path = await extractor.diagnosticar(
                     incluir_enlaces=getattr(args, "incluir_enlaces_diagnostico", False),
@@ -1509,9 +2049,11 @@ async def ejecutar_flujo(args) -> None:
 
             logger.info("Iniciando extraccion en CARM (login -> my -> curso -> grading)")
             contexto_unidad, pendientes_extraidos = await extractor.ejecutar(
-                solo_listar=getattr(args, "solo_listar_carm", False),
+                solo_listar=getattr(args, "solo_listar_carm", False) and not preparar_carm_codex,
             )
-            if getattr(args, "solo_listar_carm", False):
+            if getattr(args, "cachear_curso", False) or preparar_carm_codex:
+                logger.info(f"Cache del curso actualizada en: {cache_curso.path}")
+            if getattr(args, "solo_listar_carm", False) and not preparar_carm_codex:
                 logger.info("Listado CARM generado sin descargar archivos ni corregir.")
                 return
         except Exception as e:
@@ -1519,13 +2061,25 @@ async def ejecutar_flujo(args) -> None:
             return
 
     if not contexto_unidad:
-        contexto_unidad = (
-            "No se pudo extraer automáticamente el contenido imprimible. "
-            "Aplica igualmente criterios de protección de datos y buenas prácticas del caso."
-        )
+        if usar_cache:
+            contexto_unidad = cache_curso.obtener_contexto_unidades(unidades_filtro)
+        if not contexto_unidad:
+            contexto_unidad = (
+                "No se pudo extraer automáticamente el contenido imprimible. "
+                "Aplica igualmente criterios de protección de datos y buenas prácticas del caso."
+            )
 
     salida = GeneradorSalidas(pendientes_dir, temporal_dir, actividad_codigo=args.actividad_codigo)
     pendientes = pendientes_extraidos or salida.obtener_pendientes()
+    if unidades_filtro or actividades_filtro:
+        pendientes = [
+            envio for envio in pendientes
+            if ExtractorCarm._actividad_permitida(
+                envio.actividad_codigo,
+                unidades_filtro,
+                actividades_filtro,
+            )
+        ]
 
     if not pendientes:
         logger.warning(f"No hay archivos pendientes en {pendientes_dir}")
@@ -1535,11 +2089,13 @@ async def ejecutar_flujo(args) -> None:
     for envio in pendientes:
         pendientes_por_actividad.setdefault(envio.actividad_codigo, []).append(envio)
 
-    if getattr(args, "preparar_prompts_codex", False):
+    if getattr(args, "preparar_prompts_codex", False) or preparar_carm_codex:
         rutas_prompts = salida.escribir_prompts_codex(
             pendientes_por_actividad,
             contexto_unidad,
             prompts_path=args.prompts,
+            max_entregas_por_prompt=getattr(args, "max_entregas_por_prompt", 8),
+            max_caracteres_entrega=getattr(args, "max_caracteres_entrega", 0),
         )
         logger.info("Prompts para Codex generados sin llamar a la API:")
         for ruta in rutas_prompts:
@@ -1641,6 +2197,31 @@ def parse_args() -> argparse.Namespace:
         help="Entra en CARM y lista entregas que requieren calificación sin descargar archivos ni corregir.",
     )
     parser.add_argument(
+        "--cachear-curso",
+        action="store_true",
+        help="Recopila recursos estables del curso en cache SQLite local sin descargar entregas.",
+    )
+    parser.add_argument(
+        "--usar-cache",
+        action="store_true",
+        help="Compatibilidad: la cache ya se usa por defecto salvo que indiques --sin-cache.",
+    )
+    parser.add_argument(
+        "--sin-cache",
+        action="store_true",
+        help="No lee recursos estables desde cache local en esta ejecución.",
+    )
+    parser.add_argument(
+        "--refrescar-cache",
+        action="store_true",
+        help="Ignora la lectura de cache y actualiza los recursos estables durante la ejecución.",
+    )
+    parser.add_argument(
+        "--borrar-cache-curso",
+        action="store_true",
+        help="Borra la cache SQLite local del curso y sale.",
+    )
+    parser.add_argument(
         "--mantener-navegador",
         action="store_true",
         help="Deja Chromium abierto al terminar hasta pulsar Enter. Útil para revisar CARM en pruebas.",
@@ -1671,6 +2252,16 @@ def parse_args() -> argparse.Namespace:
         help="Nombre base de los archivos generados para la actividad.",
     )
     parser.add_argument(
+        "--unidad",
+        default="",
+        help="Filtra por unidad, por ejemplo ud01 o 1. Acepta varias separadas por coma.",
+    )
+    parser.add_argument(
+        "--actividad",
+        default="",
+        help="Filtra por actividad concreta, por ejemplo ud01cp01. Acepta varias separadas por coma.",
+    )
+    parser.add_argument(
         "--sin-ia",
         action="store_true",
         help="Ejecuta el flujo con corrección de respaldo, sin llamar a OpenAI. Útil para probar carpetas y salidas.",
@@ -1679,6 +2270,28 @@ def parse_args() -> argparse.Namespace:
         "--preparar-prompts-codex",
         action="store_true",
         help="Lee o extrae entregas y genera prompts para pegar en Codex/ChatGPT, sin llamar a la API.",
+    )
+    parser.add_argument(
+        "--preparar-carm-codex",
+        action="store_true",
+        help="Flujo unico: entra en CARM una vez, actualiza cache, registra entregas, descarga archivos y genera prompts Codex sin API.",
+    )
+    parser.add_argument(
+        "--importar-correcciones-codex",
+        default="",
+        help="Importa un JSON de correcciones devuelto por Codex/ChatGPT y genera salidas .txt por alumno.",
+    )
+    parser.add_argument(
+        "--max-entregas-por-prompt",
+        type=int,
+        default=8,
+        help="Divide los prompts de Codex en lotes de este tamaño. Por defecto 8.",
+    )
+    parser.add_argument(
+        "--max-caracteres-entrega",
+        type=int,
+        default=0,
+        help="Recorta cada respuesta a este número de caracteres en prompts Codex. 0 no recorta.",
     )
     parser.add_argument(
         "--conservar-pendientes",
