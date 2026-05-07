@@ -1,219 +1,153 @@
-# 🤖 Agente de Corrección Automática - CARM Formación
+# Agente corrector CARM
 
-Agente inteligente para corregir ejercicios prácticos del curso **"Inteligencia Artificial aplicada al sector turístico"** en la plataforma CARM Formación, usando Playwright para navegación y OpenAI/Codex para evaluación.
+Agente local para corregir casos prácticos descargados desde CARM Formación/Moodle, usando un modelo de OpenAI y dejando siempre una revisión manual antes de publicar notas o retroalimentación.
 
-## 🎯 Características
+## Estado corto
 
-- ✅ **Extracción automática**: Lee actividades directamente del sitio Moodle
-- 📋 **Corrección con IA**: Usa prompts programados según tipo de actividad
-- ✔️ **Validación**: Verifica que las correcciones sean coherentes
-- 📊 **Trazabilidad completa**: Guarda logs, respuestas originales, correcciones y timestamps
-- 🔐 **Revisión obligatoria**: Todo comienza en estado "borrador" para aprobación manual
-- 📝 **Prompts personalizables**: Diferentes evaluaciones para ejercicios, autoevaluaciones, foros
+El flujo principal ya está implementado en `corrector_agente.py`:
 
-## 📋 Requisitos
+- Corrige entregas locales colocadas en `C:\temp\vscodec\pendientes`.
+- Agrupa las entregas por actividad, por ejemplo `ud01cp01` o `ud02cp03`.
+- Hace corrección por lote para reducir llamadas a la IA.
+- Crea una carpeta por alumno en `C:\temp\vscodec\temporal`.
+- Copia la entrega original, genera la corrección y escribe resúmenes.
+- Genera `revision_pendiente.csv` para revisar notas y feedback antes de subir nada.
+- Marca como `revision_manual_necesaria` los archivos que no pueda leer con fiabilidad.
 
-- Python 3.9+
-- API Key de OpenAI/Codex
-- Credenciales de acceso a CARM Formación
-- Conexión a internet
+La extracción directa desde CARM con `--extraer-carm` está preparada, pero falta probarla en la plataforma real y ajustar selectores si Moodle muestra las entregas de otra forma.
 
-## 🚀 Instalación
+## Documentos importantes
 
-### 1. Clonar/descargar el proyecto
-```bash
-cd C:\Users\ruben\Desktop\agente
-```
+Lee estos archivos en este orden:
 
-### 2. Crear entorno virtual (recomendado)
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
+1. `ESTADO_PROYECTO.md`: memoria viva del proyecto, decisiones tomadas y próximos pasos.
+2. `QUICKSTART.md`: comandos rápidos de instalación, prueba y uso.
+3. `prompts_correccion.json`: prompts editables por actividad.
+4. `corrector_agente.py`: flujo principal.
 
-### 3. Instalar dependencias
-```bash
+El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_PROYECTO.md`, manda `ESTADO_PROYECTO.md`.
+
+## Instalación
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-### 4. Configurar credenciales
-Copia `.env.example` a `.env` y rellena con tus datos:
-```bash
-cp .env.example .env
-```
-
-Abre `.env` y configura:
-```
-CARM_USUARIO=tu_usuario
-CARM_CONTRASENA=tu_contrasena
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4.1-mini
-```
-
-### 5. Instalar navegadores Playwright
-```bash
 playwright install chromium
 ```
 
-## ▶️ Uso
+Dependencias opcionales para leer PDF, PPTX, XLSX, ZIP e imágenes con OCR:
 
-### Ejecución básica (modo demostración)
-```bash
-python corrector_agente.py
+```powershell
+pip install -r requirements-extraccion.txt
 ```
 
-Esto:
-1. Usa datos de prueba (no accede al sitio real)
-2. Corrige usando OpenAI/Codex
-3. Genera trazabilidad en `correcciones_validadas/`
-4. Muestra logs en consola y en `logs_correcciones/`
+Para OCR de JPG/PNG también hace falta Tesseract OCR instalado en Windows y disponible en el `PATH`.
 
-### Ejecución con sitio real
-En `corrector_agente.py`, línea ~200, descomenta:
-```python
-actividades = await extractor.ejecutar()
+## Configuración
+
+Copia `.env.example` a `.env` y rellena credenciales:
+
+```env
+CARM_USUARIO=tu_usuario_carm
+CARM_CONTRASENA=tu_contrasena_carm
+OPENAI_API_KEY=tu_api_key_aqui
+OPENAI_MODEL=gpt-4.1-mini
+CARM_COURSE_URL=https://formacion.carm.es/course/view.php?id=1592
 ```
 
-Y comenta la línea siguiente que usa datos de prueba.
+No subas `.env` al repositorio.
 
-## 📁 Estructura de carpetas
+## Prueba offline
 
-```
-corrector_agente.py          # Script principal
-requirements.txt             # Dependencias
-.env.example                 # Ejemplo de configuración
-.env                         # TUS credenciales (no commitear)
-│
-├── logs_correcciones/       # Logs de ejecución
-├── respuestas_extraidas/    # Respuestas originales (JSON)
-└── correcciones_validadas/  # Correcciones + trazabilidad (JSON)
+Sin CARM y sin IA real:
+
+```powershell
+python prueba_correcciones.py
 ```
 
-## 🏗️ Arquitectura
+Esto crea entregas ficticias en `tmp_prueba\pendientes`, genera correcciones de respaldo y deja resultados en `tmp_prueba\temporal`.
 
-### 1. **Extractor (ExtractorCarm)**
-- Inicia sesión en CARM Formación
-- Navega el curso y extrae actividades
-- Obtiene enunciado y respuesta de cada alumno
-- Guarda metadatos en JSON
+## Uso sin API
 
-### 2. **Corrector (CorrectorIA)**
-- Usa prompts predefinidos según tipo de actividad
-- Envía respuesta + enunciado a OpenAI/Codex
-- Recibe evaluación estructurada (JSON)
-- Tipos de prompt: `ejercicio_practico`, `autoevaluacion`, `discusion`
+Para aprovechar Codex/ChatGPT manualmente sin pagar llamadas de API:
 
-### 3. **Validador (ValidadorTrazabilidad)**
-- Verifica estructura de la corrección
-- Comprueba que nota, justificación, etc. estén presentes
-- Guarda registro completo para auditoría
-
-### 4. **Orquestador (main)**
-- Coordina flujo completo
-- Genera resumen de ejecución
-- Mantiene trazabilidad de principio a fin
-
-## 📊 Formato de salida
-
-Cada corrección se guarda en `correcciones_validadas/` como JSON:
-
-```json
-{
-  "timestamp": "2026-05-05T14:30:00.123456",
-  "alumno": "alumno_001",
-  "actividad": "Ejercicio IA en turismo",
-  "respuesta_original": "La IA puede usarse para...",
-  "correccion_generada": {
-    "nota": 8.5,
-    "justificacion": "Respuesta clara y bien estructurada...",
-    "fortalezas": ["Aplicación concreta al turismo", "Argumentación sólida"],
-    "mejoras": ["Incluir más ejemplos de Murcia"],
-    "feedback": "Excelente trabajo. Para mejorar..."
-  },
-  "prompt_tipo": "ejercicio_practico",
-  "estado": "borrador"
-}
+```powershell
+python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --preparar-prompts-codex
 ```
 
-## 🔄 Flujo de publicación
+El agente lee las entregas, las agrupa por actividad y genera archivos en `C:\temp\vscodec\temporal\prompts_codex`. Copia el `.md` de la actividad en Codex/ChatGPT y pide que devuelva el JSON de correcciones.
 
-1. **Borrador** (automático): Se genera la corrección
-2. **Validación manual**: Tú revises el JSON en `correcciones_validadas/`
-3. **Publicado** (manual): Cambias `"estado"` a `"validado"` o `"publicado"` en el JSON
-4. **Sincronización**: Script posterior que sube correcciones validadas a Moodle
+## Uso con entregas locales
 
-## 🛠️ Personalización
+Coloca las entregas en `C:\temp\vscodec\pendientes` y ejecuta:
 
-### Cambiar prompts
-En `corrector_agente.py`, edita el diccionario `PROMPTS`:
-```python
-PROMPTS = {
-    "tu_tipo": """
-    Eres un experto en...
-    Evalúa según estos criterios...
-    Responde en JSON con formato: {...}
-    """
-}
+```powershell
+python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt
 ```
 
-### Cambiar modelo LLM
-En `CorrectorIA.corregir()`, modifica:
-```python
-respuesta = self.cliente.chat.completions.create(
-  model="gpt-4.1-mini",  # ← Cambia aquí
-    ...
-)
+Forzando una actividad concreta:
+
+```powershell
+python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --actividad-codigo ud02cp03
 ```
 
-### Cambiar selectores HTML
-Si la estructura de Moodle cambia, actualiza en `ExtractorCarm.extraer_actividades()`:
-```python
-bloques = await page.query_selector_all(".activity")  # Ajusta selectores
+Conservando los archivos en pendientes durante pruebas:
+
+```powershell
+python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --conservar-pendientes
 ```
 
-## ⚠️ Seguridad
+## Extracción desde CARM
 
-- **No comitees `.env`** con credenciales reales
-- Usa variables de entorno en producción
-- Mantén logs en carpeta segura (contienen respuestas de alumnos)
-- La trazabilidad es obligatoria para auditoría
+Primero conviene diagnosticar la navegación real:
 
-## 📝 Logs
-
-Accede a logs en `logs_correcciones/`:
-```bash
-# Ver último log
-type logs_correcciones\agente_*.log | tail -50
+```powershell
+python corrector_agente.py --diagnosticar-carm
 ```
 
-## 🔗 Próximos pasos
+El diagnóstico guarda un `diagnostico.json` limpio en `logs_correcciones\diagnostico_carm`, sin descargar ni corregir entregas. Por defecto no guarda HTML ni capturas.
 
-1. **Sincronizador Moodle**: Script que sube correcciones desde JSON a Moodle (LMS API)
-2. **Dashboard web**: Panel para validar correcciones antes de publicar
-3. **Métricas**: Estadísticas de notas, tasa de acierto, tiempos
-4. **Feedback iterativo**: El agente aprende de correcciones rechazadas
+Para depurar selectores con evidencias redactadas:
 
-## ❓ FAQ
+```powershell
+python corrector_agente.py --diagnosticar-carm --guardar-evidencias
+```
 
-**¿Puedo usar otro modelo LLM en lugar de OpenAI/Codex?**
-Sí. Cambia `OPENAI_MODEL` en `.env` o reemplaza el cliente por otro compatible. Los prompts son agnósticos.
+Para listar entregas que requieren calificación sin descargar archivos:
 
-**¿Qué pasa si falla el login en CARM?**
-El agente lo logea y se detiene. Verifica credenciales en `.env` y que tengas permisos en el curso.
+```powershell
+python corrector_agente.py --solo-listar-carm
+```
 
-**¿Puedo automatizar publicación sin revisión?**
-No recomendado sin validación legal/académica. El sistema está diseñado para revisión obligatoria.
+```powershell
+python corrector_agente.py --extraer-carm
+```
 
-**¿Los prompts se pueden entrenar/mejorar?**
-Sí. Guarda ejemplos de correcciones validadas y ajusta los prompts iterativamente.
+Este modo descarga entregas desde CARM a `C:\temp\vscodec\pendientes\<actividad>\` y después corrige por lotes. Es el siguiente punto importante a validar en real.
 
-## 📞 Soporte
+Para descargar desde CARM y generar solo prompts para Codex, sin API:
 
-Para errores:
-1. Revisa `logs_correcciones/agente_*.log`
-2. Verifica credenciales en `.env`
-3. Comprueba que Playwright pueda acceder a CARM
+```powershell
+python corrector_agente.py --extraer-carm --preparar-prompts-codex
+```
 
----
+## Salidas
 
-**Creado para cursos CARM | Desarrollo de Agentes de IA en Educación 🎓**
+En `C:\temp\vscodec\temporal`:
+
+- `<alumno>\<actividad>.ext`: copia de la entrega.
+- `<alumno>\<actividad>.txt`: corrección generada.
+- `resumen.txt`: resumen global.
+- `resumen_<actividad>.txt`: resumen por actividad.
+- `revision_pendiente.csv`: hoja para revisar antes de publicar.
+
+Todo queda en estado `borrador_pendiente_de_revision` salvo los casos que necesitan revisión manual.
+
+## Próximos pasos
+
+- Probar `--extraer-carm` contra CARM real.
+- Instalar y probar dependencias opcionales de extracción.
+- Decidir si merece la pena añadir OCR con Tesseract.
+- Crear una validación más cómoda que el CSV.
+- Diseñar la subida a Moodle solo cuando el flujo manual esté validado.
