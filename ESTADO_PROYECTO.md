@@ -112,6 +112,10 @@ En `temporal\<alumno>\`:
 
 Los prompts viven en `prompts_correccion.json`.
 
+El código mantiene `PROMPT_SISTEMA` y `PROMPT_CRITERIOS` solo como fallback genérico si falta o falla el JSON. La fuente normal de prompts es `prompts_correccion.json`.
+
+El prompt `default` debe ser general, porque el enunciado real se extrae de CARM y se añade aparte al prompt de corrección. No conviene meter en `default` el enunciado de un caso concreto.
+
 Estructura:
 
 ```json
@@ -121,7 +125,7 @@ Estructura:
       "sistema": "...",
       "criterios": "..."
     },
-    "ud02cp03": {
+    "_ejemplo_ud02cp03": {
       "sistema": "...",
       "criterios": "..."
     }
@@ -129,7 +133,7 @@ Estructura:
 }
 ```
 
-Si existe una clave concreta para la actividad, se usa esa. Si no existe, se usa `default`.
+Si existe una clave concreta para la actividad, se usa esa. Si no existe, se usa `default`. Las claves de ejemplo deben llevar prefijo `_ejemplo_` para que no se apliquen accidentalmente a una actividad real.
 
 También se puede usar otro archivo:
 
@@ -193,6 +197,32 @@ python corrector_agente.py --solo-listar-carm
 
 Este modo entra en CARM y genera `respuestas_extraidas\envios_carm_registros.json` con el mínimo necesario por fila, sin descargar archivos ni corregir.
 
+Para preparar una ejecución real limitada a la unidad 1:
+
+```powershell
+python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 6
+```
+
+Este comando hace en una sola sesión de Playwright lo que antes requería cachear, listar y extraer por separado: actualiza cache, registra filas CARM, descarga archivos y genera prompts. El filtro `--unidad ud01` limita actividades y contexto imprimible a la unidad 1. `--max-entregas-por-prompt` divide los prompts en lotes para no consumir el límite de uso de Codex en una sola petición demasiado grande. Por defecto no se recortan respuestas.
+
+Para cerrar el ciclo sin API, el JSON devuelto por Codex/ChatGPT se importa con:
+
+```powershell
+python corrector_agente.py --importar-correcciones-codex C:\ruta\correcciones_ud01.json
+```
+
+El importador genera `C:\temp\vscodec\temporal\<alumno>\<actividad>.txt`, los resúmenes y `revision_pendiente.csv`. Si existe `prompts_codex\manifiesto_entregas.json`, copia también la entrega original al directorio del alumno.
+
+La cache local vive en `cache_carm\curso_1592.sqlite`. Guarda solo recursos estables del curso: contenido imprimible, actividades, URLs de grading y enunciados. No guarda entregas, archivos de alumnos, emails, cookies ni capturas.
+
+La cache se usa automáticamente cuando existe. Se puede desactivar en una ejecución con `--sin-cache` o refrescar con `--refrescar-cache`.
+
+Si `.env` define `CARM_COURSE_END_DATE=YYYY-MM-DD` y la fecha ya pasó, la cache se borra automáticamente al iniciar. También puede borrarse manualmente con:
+
+```powershell
+python corrector_agente.py --borrar-cache-curso
+```
+
 Tras la primera prueba real de CARM se ajustó la lógica para:
 
 - Deduplicar actividades, porque el curso muestra enlaces repetidos desde el bloque de estado/finalización.
@@ -202,7 +232,7 @@ Tras la primera prueba real de CARM se ajustó la lógica para:
 - Leer solo las columnas necesarias: alumno, estado y archivos enviados.
 - Registrar filas sin archivo diferenciando `sin_entrega`, `sin_archivo_detectado` y `error_descarga`.
 - Extraer el enunciado de cada caso práctico desde la vista de la actividad antes de entrar al grading.
-- Guardar `respuestas_extraidas\envios_carm_registros.json` como auditoría completa por alumno/fila.
+- Guardar `respuestas_extraidas\envios_carm_registros.json` como auditoría mínima por alumno/fila.
 - Usar contexto temporal de Playwright y limpiar cookies/localStorage/sessionStorage al cerrar.
 - No guardar HTML/capturas por defecto en diagnóstico; solo con `--guardar-evidencias`.
 - Añadir redacción básica de emails, `sesskey` y secretos en HTML diagnóstico cuando se guardan evidencias.
@@ -240,9 +270,14 @@ python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --conservar
 - Se agrupa por actividad para reducir peticiones a la IA.
 - Se añade un modo `--preparar-prompts-codex` para trabajar sin API, usando Codex/ChatGPT manualmente.
 - Se añade un modo `--diagnosticar-carm` para probar navegación real sin tocar entregas.
+- Se añaden filtros `--unidad` y `--actividad` para limitar ejecuciones reales y reducir tokens.
+- Se añade `--max-entregas-por-prompt` para dividir prompts grandes sin recortar respuestas.
+- Se añade cache SQLite local para recursos estables del curso, borrable con `--borrar-cache-curso`.
+- La cache se usa por defecto y se purga automáticamente si `CARM_COURSE_END_DATE` ya pasó.
 - Se mantiene `resumen.txt` global y además `resumen_udXXcpYY.txt` por actividad.
 - Los prompts viven fuera del código para adaptar el agente a otros módulos.
 - `README.md` se mantiene como resumen de entrada y este archivo como fuente de verdad del estado.
+- `prompts_correccion.json` es la fuente de verdad de prompts; los prompts internos del código son solo respaldo.
 
 ## Verificación hecha
 

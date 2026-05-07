@@ -58,6 +58,8 @@ CARM_COURSE_URL=https://formacion.carm.es/course/view.php?id=1592
 
 No subas `.env` al repositorio.
 
+No guardes API keys, tokens o contraseñas en archivos `.txt`. Las claves locales deben vivir solo en `.env`.
+
 ## Prueba offline
 
 Sin CARM y sin IA real:
@@ -120,6 +122,21 @@ Para listar entregas que requieren calificación sin descargar archivos:
 python corrector_agente.py --solo-listar-carm
 ```
 
+Para la primera unidad:
+
+```powershell
+python corrector_agente.py --solo-listar-carm --unidad ud01
+```
+
+Para cachear contenido imprimible y enunciados de una unidad:
+
+```powershell
+python corrector_agente.py --cachear-curso --unidad ud01
+```
+
+La cache local vive en `cache_carm\curso_1592.sqlite` y no guarda entregas ni datos personales de alumnos.
+Se usa automáticamente cuando existe. Si `CARM_COURSE_END_DATE` ya pasó, se borra al iniciar.
+
 ```powershell
 python corrector_agente.py --extraer-carm
 ```
@@ -129,8 +146,24 @@ Este modo descarga entregas desde CARM a `C:\temp\vscodec\pendientes\<actividad>
 Para descargar desde CARM y generar solo prompts para Codex, sin API:
 
 ```powershell
-python corrector_agente.py --extraer-carm --preparar-prompts-codex
+python corrector_agente.py --preparar-carm-codex
 ```
+
+Primera ejecución recomendada, limitada a unidad 1 y con prompts por lotes, usando una sola sesión de Playwright:
+
+```powershell
+python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 6
+```
+
+Este comando actualiza cache, registra filas de CARM, descarga entregas y genera prompts sin cerrar y abrir Chromium entre pasos.
+
+Después de pegar el prompt en Codex/ChatGPT, guarda el JSON de respuesta e impórtalo:
+
+```powershell
+python corrector_agente.py --importar-correcciones-codex C:\ruta\correcciones_ud01.json
+```
+
+Esto genera los `.txt` por alumno, los resúmenes y `revision_pendiente.csv` sin llamar a la API.
 
 ## Salidas
 

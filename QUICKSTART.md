@@ -27,6 +27,8 @@ Importante: `.env` contiene usuario, contraseña y API key. No lo subas al repos
 
 Los prompts de corrección están en `prompts_correccion.json`. Puedes editar `default` para el criterio general o crear entradas por actividad, por ejemplo `ud02cp03`, para otros módulos o casos prácticos.
 
+No metas claves ni credenciales en archivos sueltos. Las credenciales locales van solo en `.env`, que no debe subirse al repositorio.
+
 ## 3. Probar sin CARM y sin IA
 
 ```powershell
@@ -113,7 +115,57 @@ python corrector_agente.py --solo-listar-carm
 
 Esto genera `respuestas_extraidas\envios_carm_registros.json` con alumno, actividad, estado y si hay archivo, pero sin descargar entregas ni corregir.
 
-## 7. Extraer desde CARM
+Para preparar la primera ejecución real solo con la unidad 1:
+
+```powershell
+python corrector_agente.py --solo-listar-carm --unidad ud01
+```
+
+## 7. Cachear recursos estables del curso
+
+Para no releer en cada ejecución el contenido imprimible y los enunciados:
+
+```powershell
+python corrector_agente.py --cachear-curso --unidad ud01
+```
+
+Esto guarda solo recursos didácticos y metadatos de actividades en:
+
+- `cache_carm\curso_1592.sqlite`
+
+No guarda respuestas de alumnos, archivos enviados, emails, cookies ni capturas.
+
+La cache se usa automáticamente en operaciones CARM cuando existe. Para preparar prompts en una sola sesión de Playwright:
+
+```powershell
+python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 6
+```
+
+Para forzar actualización:
+
+```powershell
+python corrector_agente.py --cachear-curso --unidad ud01 --refrescar-cache
+```
+
+Para borrar la cache al terminar el curso:
+
+```powershell
+python corrector_agente.py --borrar-cache-curso
+```
+
+También puedes poner en `.env`:
+
+```env
+CARM_COURSE_END_DATE=2026-06-02
+```
+
+Si esa fecha ya pasó, la cache se borra automáticamente al iniciar. Para ignorar la cache en una ejecución concreta:
+
+```powershell
+python corrector_agente.py --extraer-carm --preparar-prompts-codex --unidad ud01 --sin-cache
+```
+
+## 8. Extraer desde CARM
 
 ```powershell
 python corrector_agente.py --extraer-carm
@@ -124,8 +176,32 @@ En este modo descarga los archivos entregados desde CARM a `C:\temp\vscodec\pend
 Para extraer desde CARM y generar solo prompts para Codex, sin API:
 
 ```powershell
-python corrector_agente.py --extraer-carm --preparar-prompts-codex
+python corrector_agente.py --preparar-carm-codex
 ```
+
+Primera unidad, optimizando tamaño de prompts sin recortar respuestas:
+
+```powershell
+python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 6
+```
+
+Esto abre Playwright una sola vez, entra en CARM, actualiza la cache del curso, registra las filas que requieren calificación, descarga los archivos, extrae el contenido imprimible de `ud01` y divide las entregas en lotes de hasta 6 por prompt. No usa API.
+
+Si un lote sale demasiado grande, baja el lote a 3 o 4:
+
+```powershell
+python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 4
+```
+
+Evita usar `--max-caracteres-entrega` salvo que sea imprescindible, porque recorta respuestas y puede empeorar la calidad.
+
+Cuando Codex/ChatGPT devuelva las correcciones en JSON, guárdalas en un archivo y conviértelas en salidas revisables:
+
+```powershell
+python corrector_agente.py --importar-correcciones-codex C:\ruta\correcciones_ud01.json
+```
+
+El importador acepta una lista JSON directa o un objeto con clave `correcciones`. También entiende respuestas pegadas dentro de un bloque de código `json`. Campos mínimos por entrega: `alumno`, `actividad`, `nota` y `retroalimentacion` o `comentario`.
 
 La extracción real deja auditoría en:
 

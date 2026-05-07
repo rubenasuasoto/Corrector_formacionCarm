@@ -1,4 +1,8 @@
 .env
+*.env
+*api*.txt
+*key*.txt
+*token*.txt
 __pycache__/
 *.py[cod]
 
@@ -6,3 +10,4 @@ logs_correcciones/
 respuestas_extraidas/
 correcciones_validadas/
 tmp_prueba/
+cache_carm/
