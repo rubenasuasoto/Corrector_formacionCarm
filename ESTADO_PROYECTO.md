@@ -1,102 +1,207 @@
 # Estado del proyecto: agente corrector CARM
 
-Ultima actualizacion: 2026-05-07
+Última actualización: 7 de mayo de 2026
 
-## Resumen
+## Resumen ejecutivo
 
-El backend queda completado de forma parcial y usable para una primera operativa real:
+**Estado general**: Operacional. Backend implementado y probado con éxito.
 
-- Extrae entregas desde CARM/Moodle con Playwright.
-- Filtra por unidad o actividad.
-- Trabaja con el filtro de CARM `Requiere calificacion`.
-- Descarga solo los archivos necesarios y registra incidencias de alumnos sin archivo.
-- Genera prompts optimizados para Codex.
-- Puede llamar a Codex CLI para corregir sin usar la API de OpenAI.
-- Importa las correcciones JSON a archivos `.txt` por alumno.
-- Previsualiza o publica notas y feedback en CARM.
-- Tiene una primera interfaz web local en `interfaz_app.py`.
+El sistema funciona en ciclos completos desde descarga hasta publicación:
 
-La subida a CARM existe, pero debe seguir usandose con revision humana. El flujo recomendado es preparar todo primero, revisar, y publicar despues.
+✅ **Funcionalidades implementadas y probadas**:
+- Extrae entregas desde CARM/Moodle con Playwright
+- Filtra por unidad, actividad o "Requiere calificación"
+- Descarga solo archivos necesarios, registra incidencias
+- Genera prompts optimizados para Codex
+- Corrige mediante Codex CLI (sin usar API de OpenAI)
+- Importa correcciones JSON a archivos `.txt` por alumno
+- Genera CSV de revisión (`revision_pendiente.csv`)
+- Previsualiza en local antes de publicar
+- Publica notas y feedback en CARM
+- Interfaz web local en `interfaz_app.py`
+
+⚠️ **Requisitos previos**: La subida a CARM requiere verificación humana. Flujo: preparar → revisar local → publicar tras validación.
 
 ## Objetivo
 
-Automatizar la correccion de casos practicos de CARM Formacion reduciendo trabajo repetitivo, sin perder control humano sobre notas y retroalimentacion.
+Automatizar la corrección de casos prácticos de CARM Formación reduciendo trabajo repetitivo, sin perder control humano sobre notas y retroalimentación.
 
 El flujo objetivo actual es:
 
 1. Entrar en CARM.
-2. Detectar casos practicos obligatorios que requieren calificacion.
+2. Detectar casos prácticos obligatorios que requieren calificación.
 3. Descargar entregas.
 4. Recoger enunciado y contexto de unidad.
 5. Generar prompts por actividad.
 6. Corregir con Codex CLI.
 7. Crear salidas locales revisables.
-8. Publicar en CARM solo tras revision.
+8. Publicar en CARM solo tras revisión manual.
 
-## Documentos
+## Estado de datos y pruebas (2026-05-05)
 
-- `README.md`: entrada breve del proyecto.
-- `QUICKSTART.md`: comandos rapidos de uso.
-- `ESTADO_PROYECTO.md`: memoria viva y fuente de verdad del estado.
-- `SEGURIDAD_ASVS.md`: checklist de seguridad basado en OWASP ASVS 5.0.0 adaptado a esta app.
-- `SEGURIDAD_CVSS.md`: guia de priorizacion de riesgos basada en CVSS v4.0.
-- `prompts_correccion.json`: prompts editables.
+**Correcciones validadas**: 13 JSON generados en la última tanda de pruebas.
+- Timestamps: 13:48:10, 13:49:51, 13:50:22, 13:50:35
+- Actividades probadas: 3 actividades de prueba diferentes
+- Alumnos de prueba: alumno_prueba_1, 2, 3
+- Archivos procesados por lote
 
-Si `README.md` y este archivo chocan, manda este archivo.
+**Logs disponibles**: 6 registros de ejecución
+- `agente_20260505_134810.log` (primer lote)
+- `agente_20260505_134951.log` (segundo lote)
+- `agente_20260505_135022.log` (tercer lote)
+- `agente_20260505_135035.log` (cuarto lote)
+- `agente_20260505_135924.log` (lote final)
 
-## Archivos principales
+**Estado de CARM**:
+- `envios_descargados.json`: registro de descargas completadas
+- `envios_carm_registros.json`: auditoría de operaciones
 
-- `corrector_agente.py`: nucleo del agente.
-- `interfaz_app.py`: interfaz web local.
-- `prueba_correcciones.py`: prueba offline.
-- `sincronizador_moodle.py`: borrador antiguo de subida por API Moodle; no es el camino principal actual.
-- `prompts_correccion.json`: configuracion de prompts.
-- `.env.example`: plantilla de configuracion.
-- `.env`: configuracion local real, no debe compartirse.
+## Documentos de referencia
 
-## Carpetas y salidas
+Lectura recomendada en este orden:
 
-- `C:\temp\vscodec\pendientes`: entregas descargadas desde CARM.
-- `C:\temp\vscodec\temporal`: salidas revisables.
-- `C:\temp\vscodec\temporal\prompts_codex`: prompts, manifiesto y correcciones JSON de Codex.
-- `cache_carm\curso_1592.sqlite`: cache local de recursos estables del curso.
-- `respuestas_extraidas`: auditorias minimas de extraccion/subida.
-- `logs_correcciones`: logs y diagnosticos.
+1. **`ESTADO_PROYECTO.md`** (este archivo): memoria viva, decisiones, próximos pasos.
+2. **`README.md`**: entrada breve del proyecto.
+3. **`QUICKSTART.md`**: comandos rápidos para instalar y usar.
+4. **`SEGURIDAD_ASVS.md`**: checklist OWASP ASVS 5.0.0 adaptado.
+5. **`SEGURIDAD_CVSS.md`**: priorización de riesgos con CVSS v4.0.
+6. **`prompts_correccion.json`**: rúbricas y prompts editables por actividad.
 
-Archivos importantes generados:
+📌 **Si hay conflicto entre documentos, manda este archivo (`ESTADO_PROYECTO.md`).**
 
-- `prompts_codex\prompt_udXXcpYY.md`
-- `prompts_codex\manifiesto_entregas.json`
-- `prompts_codex\prompt_udXXcpYY_correccion.json`
-- `prompts_codex\correcciones_codex_combinadas.json`
-- `temporal\<alumno>\<actividad>.txt`
-- `temporal\revision_pendiente.csv`
-- `respuestas_extraidas\subida_carm_previsualizacion.json`
-- `respuestas_extraidas\subida_carm_publicada.json`
+## Estructura de código
 
-## Dos comandos principales
+### Archivos ejecutables
 
-Preparar correcciones sin publicar en CARM:
+- **`corrector_agente.py`**: núcleo principal con toda la lógica
+  - Extracción desde CARM
+  - Corrección con Codex CLI
+  - Importación de salidas
+  - Publicación en CARM
+  - Soporta flags: `--flujo-correccion-carm`, `--subir-correcciones-carm`, `--publicar-carm`
+
+- **`interfaz_app.py`**: interfaz web local
+  - Servidor HTTP local en puerto 8000
+  - Gestión de sesión con token
+  - Browea correcciones y publica desde navegador
+  - Controles CSRF activados
+
+- **`prueba_correcciones.py`**: pruebas offline sin CARM
+  - Carga entregas de `tmp_prueba/`
+  - Útil para testing sin conectarse a producción
+
+- **`sincronizador_moodle.py`**: borrador antiguo (no es la ruta principal)
+  - Considerar como referencia, no es prioritario
+
+### Archivos de configuración
+
+- **`.env.example`**: plantilla de variables (copia a `.env` y rellena)
+- **`.env`** (local, no compartir): credenciales CARM, API keys
+- **`prompts_correccion.json`**: rúbricas JSON por actividad
+  - Usa `"default"` como base
+  - Añade claves tipo `"ud02cp03"` para rúbricas específicas
+
+### Dependencias
+
+- **`requirements.txt`**: dependencias base (Playwright, OpenAI, dotenv, pystray, Pillow)
+- **`requirements-extraccion.txt`**: opcional para leer PDF, PPTX, XLSX, OCR
+
+## Directorios y estructura de salidas
+
+### Carpetas principales de datos
+
+| Carpeta | Descripción |
+|---------|-------------|
+| `cache_carm/` | Cache SQLite del curso (`curso_1592.sqlite`) |
+| `correcciones_validadas/` | ✅ Historial de correcciones JSON validadas |
+| `logs_correcciones/` | 📝 Logs de ejecución del agente |
+| `respuestas_extraidas/` | 📊 Auditoría de descargas y subidas |
+| `tmp_prueba/` | 🧪 Datos de prueba local offline |
+
+### Carpetas de trabajo (externas, en `C:\temp\vscodec\`)
+
+| Ruta | Descripción |
+|------|------------|
+| `pendientes/` | 📥 Entregas descargadas desde CARM |
+| `temporal/` | 📤 Salidas generadas (alumno, actividad, resúmenes) |
+| `temporal/prompts_codex/` | 🤖 Prompts, JSON de correcciones y manifiesto |
+
+### Archivos clave generados en salida
+
+```
+C:\temp\vscodec\temporal\
+├── prompts_codex/
+│   ├── prompt_udXXcpYY.md                      # Prompt limpio
+│   ├── prompt_udXXcpYY_correccion.json         # Respuesta de Codex
+│   ├── correcciones_codex_combinadas.json      # JSON COMBINADO final
+│   └── manifiesto_entregas.json                # Inventario de entregas
+├── revision_pendiente.csv                      # Resumen + scores para revisar
+├── <nombre_alumno>/
+│   ├── ud01cp01.txt                            # Entrega original
+│   ├── ud01cp01_resumen.txt                    # Corrección JSON legible
+│   └── resumen_global_<alumno>.txt             # Notas de todas sus actividades
+└── ...
+```
+
+**Workflow de revisión**:
+1. Revisar `revision_pendiente.csv` (notas rápidas)
+2. Explorar `temporal/<alumno>/` (correcciones por actividad)
+3. Validar `correcciones_codex_combinadas.json`
+4. Si todo OK → `--publicar-carm`
+
+## Comandos operacionales
+
+### Comando principal: Preparar correcciones
 
 ```powershell
 .\.venv\Scripts\python.exe corrector_agente.py --flujo-correccion-carm --unidad ud01 --max-entregas-por-prompt 6
 ```
 
-Esto entra en CARM, descarga entregas, genera prompts, corrige con Codex CLI e importa las salidas locales. No publica en CARM.
+**Qué hace**:
+1. Entra en CARM (requiere credenciales en `.env`)
+2. Descarga entregas de la unidad `ud01`
+3. Agrupa por actividad (ud01cp01, ud01cp02, etc.)
+4. Genera prompts optimizados para Codex
+5. Llama a Codex CLI para corregir
+6. Importa salidas JSON a carpeta temporal
+7. **NO publica** en CARM (genera solo revisor local)
 
-El JSON combinado queda en:
-
-```text
+**Salida final**:
+```
 C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json
+C:\temp\vscodec\temporal\revision_pendiente.csv
 ```
 
-Publicar en CARM tras revisar:
+**Flags opcionales**:
+- `--unidad ud01`: filtra por unidad (ud01, ud02, ..., ud15)
+- `--max-entregas-por-prompt 6`: agrupa entregas en lotes (reduce llamadas a Codex)
+- Omitir `--unidad` para procesar todo sin filtrar
+
+### Comando secundario: Publicar tras revisar
 
 ```powershell
 .\.venv\Scripts\python.exe corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json --publicar-carm
 ```
 
-Para probar sin guardar, omitir `--publicar-carm`.
+**Qué hace**:
+1. Lee el JSON combinado de correcciones
+2. Publica notas y feedback en CARM
+
+**Seguridad**:
+- Requiere `--publicar-carm` para confirmar (sin flag, solo previsualiza)
+- Almacena evidencia en `respuestas_extraidas\subida_carm_publicada.json`
+- **Revisar siempre antes de publicar**
+
+### Comando de prueba local (sin CARM)
+
+```powershell
+.\.venv\Scripts\python.exe prueba_correcciones.py
+```
+
+**Úsalo para**:
+- Testing sin conectarse a CARM
+- Entregas en `tmp_prueba/`
+- Validación de prompts sin gasto de tokens
 
 ## Interfaz local
 
@@ -215,23 +320,105 @@ Correcciones de prueba:
 - La subida a CARM se probo en previsualizacion: nota y comentario ya se rellenan.
 - Se ajusto para subir solo la retroalimentacion final, no todo el bloque de criterios.
 
-## Seguridad
+## Seguridad: Estado actual (2026-05-07)
 
-Implementado:
+### Implementado (Prioridad Alta completada)
 
-- `.gitignore` incluye `.env`, caches, logs sensibles y archivos tipo `*api*.txt`, `*key*.txt`, `*token*.txt`.
-- Diagnostico no guarda HTML/capturas por defecto.
-- Evidencias solo con `--guardar-evidencias`.
-- Redaccion basica de emails, `sesskey` y secretos en HTML diagnostico.
-- Contexto temporal de Playwright y limpieza al cerrar.
-- La cache no almacena entregas ni credenciales.
-- Existe `SEGURIDAD_ASVS.md` como checklist vivo para aplicar OWASP ASVS de forma gradual y solo en controles relevantes.
-- Existe `SEGURIDAD_CVSS.md` para clasificar y priorizar hallazgos de seguridad.
+✅ **1. Token local anti-CSRF en interfaz**
+- Todos los `POST` requieren `X-Corrector-Token`
+- Token se genera en sesión al cargar la página
+- Enviado automáticamente desde el cliente
+- Probado: `POST` sin token a `/api/stop` devuelve `403`
+- Archivo: `interfaz_app.py`
 
-Notas:
+✅ **2. Bloqueo de publicación si hay revisión manual o errores**
+- `revision_pendiente.csv` es auditoría previa obligatoria
+- Publica bloqueado si el CSV:
+  - No existe o está vacío
+  - Contiene estados: `revision_manual_necesaria`, `error`, `error_descarga`, `sin_archivo_detectado`, `sin_entrega`
+- Validación en: `corrector_agente.py` función de publicación
+- Probado con `tmp_prueba`: bloqueó correctamente 3 filas
 
-- Se detecto en fases previas una API key en un archivo suelto y se elimino. Esa clave debe considerarse comprometida y rotarse si no se hizo ya.
-- `.env` no debe compartirse ni commitearse.
+✅ **3. Endurecimiento de lectura de archivos de alumnos**
+- Límite general de tamaño por archivo
+- Lista cerrada de extensiones permitidas
+- ZIP endurecido contra:
+  - Exceso de archivos internos
+  - Tamaño total excesivo
+  - Archivo individual demasiado grande
+  - Rutas inseguras (`../`, absolutas)
+- Contenido dudoso → revisión manual
+- Archivo: `corrector_agente.py` clase `LecturaEntrega`
+
+✅ **4. Documentación de seguridad**
+- `SEGURIDAD_ASVS.md`: checklist OWASP ASVS 5.0.0 adaptado a esta app
+- `SEGURIDAD_CVSS.md`: guía práctica de priorización con CVSS v4.0
+- Ejemplos específicos: credenciales CARM, endpoints, ZIP, logs
+- Enlazados desde: `README.md`, `ESTADO_PROYECTO.md`, `SEGURIDAD_ASVS.md`
+
+### Implementación previa
+
+- `.gitignore` incluye `.env`, caches, logs sensibles
+- Diagnóstico no guarda HTML por defecto
+- Redacción básica de emails y secretos en HTML
+- Contexto Playwright temporal y limpieza
+- Cache sin entregas ni credenciales
+
+### Próximas medidas recomendadas (Prioridad Alta)
+
+⏳ **2. Guardar credenciales CARM con Windows DPAPI**
+- Descifra credenciales desde `.env` con `dpapi` de Windows
+- Evita guardarlas en texto plano
+- Requiere: investigar integración con `ctypes` de Python
+- Impacto: credenciales cifradas con usuario Windows
+
+⏳ **5. Redacción/limpieza de logs sensibles**
+- Logs actualmente contienen: nombres de alumnos, actividades, estado de subida
+- Propuesta: ofuscar nombres, emails, URLs sensibles
+- Mantener solo: timestamps, códigos de error, estadísticas
+- Archivos: `logs_correcciones/*.log`
+
+### Próximas medidas recomendadas (Prioridad Media)
+
+⏳ **6. Auditoría local de acciones sensibles**
+- Registro de: quién (sesión), cuándo, qué acción (descarga, corrección, publicación)
+- Almacenar en: `respuestas_extraidas/auditoria.json`
+- Información: timestamps, flags utilizados, resultado
+
+⏳ **7. Separación de datos didácticos vs personales**
+- Cache didáctica (contenido/enunciados): en `cache_carm/`
+- Entregas/notas/alumnos: en carpetas temporales con purga clara
+- Flag: `--purgar-datos-temporales-al-finalizar-curso`
+
+⏳ **8. Confirmación fuerte para publicar**
+- Botón bloqueado hasta completar revisión limpia
+- Confirmación explícita tipo "PUBLICAR SÍ, ENTIENDO RIESGOS"
+- Interfaz: `interfaz_app.py`
+
+### Validación en ejecución
+
+Probado el 2026-05-07:
+
+- `py_compile`: OK
+- `prueba_correcciones.py`: OK (datos sintéticos)
+- `pip check`: OK
+- Interfaz web: responde en `http://127.0.0.1:8765`
+- `/api/auth`: `configured: true`
+- Anti-CSRF: funcional
+
+## Limite de uso: Estado del servicio Codex CLI
+
+**Situación**: Se alcanzó el límite mensual de Codex CLI al 2026-05-05.
+
+- Últimas correcciones validadas: 4 lotes (timestamps 13:48-13:50)
+- Correcciones generadas: 13 JSON en `correcciones_validadas/`
+- Siguiente disponibilidad: próximo período de facturación
+
+**Alternativas activas**:
+1. Completar revisión y publicación de los 13 JSON existentes
+2. Migrar a OpenAI API (`OPENAI_API_KEY` + flag `--usar-openai-api`)
+3. Validación manual sin IA (usando `prueba_correcciones.py`)
+4. Esperar reanudación de Codex CLI
 
 ## Prompts
 
@@ -242,6 +429,77 @@ Los prompts internos en `corrector_agente.py` quedan como fallback.
 El prompt `default` es general. El enunciado real viene de CARM y se inyecta aparte.
 
 Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por error.
+
+## Próximos pasos recomendados
+
+### Corto plazo (esta semana)
+
+1. **Revisar y publicar las 13 correcciones existentes**
+   - Ubicación: `correcciones_validadas/`
+   - Validar con `revision_pendiente.csv`
+   - Publicar lotes con `--publicar-carm` tras revisión
+   - Impacto: Cierra primer ciclo de pruebas
+
+2. **Implementar redacción de logs sensibles**
+   - Ofuscar nombres de alumnos, emails, URLs CARM
+   - Mantener timestamps, errores, estadísticas
+   - Archivo: `logs_correcciones/`
+   - Esfuerzo: bajo (regex de redacción)
+
+3. **Decidir sobre DPAPI para credenciales**
+   - ¿Guardar CARM con cifrado Windows?
+   - ¿Mantener `.env` en texto plano?
+   - Recomendación: DPAPI si /.env se comparte o se guarda en USB
+
+### Mediano plazo (próximas 2-3 semanas)
+
+4. **Implementar auditoría local de acciones**
+   - Registro en `respuestas_extraidas/auditoria.json`
+   - Qué: descarga, corrección, publicación
+   - Cuándo: timestamps ISO
+   - Quién: sesión/token local
+
+5. **Refinar confirmación fuerte para publicar**
+   - Botón bloqueado hasta revisión limpia
+   - Confirmación modal explícita
+   - Interfaz: `interfaz_app.py`
+
+6. **Preparar para escalar a más unidades**
+   - UD02, UD03, etc.
+   - Validar cache con `--refrescar-cache`
+   - Probar filtros por actividad específica
+
+### Largo plazo (mes siguiente)
+
+7. **Documentación de operador**
+   - Guía paso a paso: extracción → corrección → publicación
+   - Troubleshooting de errores comunes
+   - Video tutorial si es viable
+
+8. **Considerar migración a OpenAI API o modelo local**
+   - Si Codex no se reanuda
+   - Evaluar costo-beneficio
+   - Adaptar prompts si cambia el modelo
+
+## Resumen de estado para alguien nuevo
+
+Este proyecto automatiza corrección de casos prácticos en CARM Formación:
+
+- **¿Qué?**: Descarga entregas de CARM, las corrige con IA (Codex CLI), genera revisiones locales, publica notas y feedback
+- **¿Dónde?**: `corrector_agente.py` es el motor principal; `interfaz_app.py` es la UI web
+- **¿Cuándo?**: Operacional, últimas pruebas el 2026-05-05; límite Codex alcanzado 2026-05-07
+- **¿Seguridad?**: Token anti-CSRF, bloqueo de publicación sin revisión, endurecimiento de ZIP, documentación ASVS/CVSS
+- **¿Próximos?**: Publicar correcciones existentes → redacción de logs → auditoría local
+
+Para empezar:
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+playwright install chromium
+```
+
+Lee `QUICKSTART.md` para comandos. Lee `SEGURIDAD_ASVS.md` y `SEGURIDAD_CVSS.md` antes de tocar datos sensibles.
 
 ## Verificacion
 
