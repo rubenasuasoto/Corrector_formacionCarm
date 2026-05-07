@@ -187,6 +187,14 @@ python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-po
 
 Esto abre Playwright una sola vez, entra en CARM, actualiza la cache del curso, registra las filas que requieren calificación, descarga los archivos, extrae el contenido imprimible de `ud01` y divide las entregas en lotes de hasta 6 por prompt. No usa API.
 
+Para que, justo después de crear los prompts, se envíen automáticamente a Codex CLI y se importen las correcciones:
+
+```powershell
+python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 6 --corregir-con-codex --importar-tras-codex
+```
+
+Las respuestas de Codex quedan en `C:\temp\vscodec\temporal\prompts_codex\correcciones_codex\`. Este flujo usa tu sesión de Codex CLI, no `OPENAI_API_KEY`.
+
 Si un lote sale demasiado grande, baja el lote a 3 o 4:
 
 ```powershell

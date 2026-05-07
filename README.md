@@ -157,6 +157,14 @@ python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-po
 
 Este comando actualiza cache, registra filas de CARM, descarga entregas y genera prompts sin cerrar y abrir Chromium entre pasos.
 
+Para generar prompts, mandarlos a Codex CLI y dejar las correcciones importadas:
+
+```powershell
+python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 6 --corregir-con-codex --importar-tras-codex
+```
+
+Las respuestas se guardan en `C:\temp\vscodec\temporal\prompts_codex\correcciones_codex\`. Este flujo usa la sesión de Codex CLI, no la API de OpenAI.
+
 Después de pegar el prompt en Codex/ChatGPT, guarda el JSON de respuesta e impórtalo:
 
 ```powershell

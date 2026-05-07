@@ -436,3 +436,8 @@ waiting for locator(":scope")
 2026-05-07 13:52:00,279 - INFO - Publicando calificaciÃ³n ud01cp01 - Elisabet Lopez Ros
 2026-05-07 13:52:07,321 - INFO - ud01cp01 Elisabet Lopez Ros 9.0: publicado
 2026-05-07 13:52:07,321 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_publicada.json
+2026-05-07 14:07:10,894 - INFO - Correcciones importadas: 2
+2026-05-07 14:07:10,895 - INFO - - C:\temp\vscodec\temporal\resumen.txt
+2026-05-07 14:07:10,895 - INFO - - C:\temp\vscodec\temporal\resumen_ud01cp02.txt
+2026-05-07 14:07:10,895 - INFO - - correcciones_validadas\correcciones_importadas_codex.json
+2026-05-07 14:07:10,895 - INFO - Hoja de revisión manual generada en: C:\temp\vscodec\temporal\revision_pendiente.csv
