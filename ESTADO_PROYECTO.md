@@ -38,6 +38,8 @@ El flujo objetivo actual es:
 - `README.md`: entrada breve del proyecto.
 - `QUICKSTART.md`: comandos rapidos de uso.
 - `ESTADO_PROYECTO.md`: memoria viva y fuente de verdad del estado.
+- `SEGURIDAD_ASVS.md`: checklist de seguridad basado en OWASP ASVS 5.0.0 adaptado a esta app.
+- `SEGURIDAD_CVSS.md`: guia de priorizacion de riesgos basada en CVSS v4.0.
 - `prompts_correccion.json`: prompts editables.
 
 Si `README.md` y este archivo chocan, manda este archivo.
@@ -223,6 +225,8 @@ Implementado:
 - Redaccion basica de emails, `sesskey` y secretos en HTML diagnostico.
 - Contexto temporal de Playwright y limpieza al cerrar.
 - La cache no almacena entregas ni credenciales.
+- Existe `SEGURIDAD_ASVS.md` como checklist vivo para aplicar OWASP ASVS de forma gradual y solo en controles relevantes.
+- Existe `SEGURIDAD_CVSS.md` para clasificar y priorizar hallazgos de seguridad.
 
 Notas:
 
