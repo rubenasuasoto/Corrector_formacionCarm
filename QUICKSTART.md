@@ -23,7 +23,7 @@ Para OCR de imágenes (`.jpg`, `.png`) también hace falta tener instalado Tesse
 
 Copia `.env.example` a `.env` y rellena las credenciales.
 
-Importante: `.env` contiene usuario, contraseña y API key. No lo subas al repositorio y rota cualquier clave que se haya compartido por error.
+Importante: `.env` contiene usuario y contraseña de CARM. `OPENAI_API_KEY` solo hace falta si quieres usar la API de OpenAI; el flujo recomendado con Codex CLI no la necesita. No subas `.env` al repositorio y rota cualquier clave que se haya compartido por error.
 
 Los prompts de corrección están en `prompts_correccion.json`. Puedes editar `default` para el criterio general o crear entradas por actividad, por ejemplo `ud02cp03`, para otros módulos o casos prácticos.
 
@@ -258,4 +258,4 @@ Cuando una entrega ya ha sido copiada a `temporal` y tiene su corrección genera
 
 Los `.txt`, `.docx`, `.odt`, `.rtf`, `.csv`, `.html`, `.json`, `.xml` y similares se intentan leer automáticamente. Con las dependencias opcionales también se intentan leer `.pdf`, `.pptx`, `.xlsx`, `.zip`, `.jpg` y `.png`. Los multimedia, `.doc` antiguo, comprimidos no soportados o formatos no extraíbles quedan marcados en `revision_pendiente.csv` como `revision_manual_necesaria` y no se eliminan de `pendientes`.
 
-La subida automática queda para una fase posterior. En esta primera prueba, todo queda en estado `borrador_pendiente_de_revision`.
+El flujo normal deja todo revisable antes de publicar. Solo se guarda en CARM cuando ejecutas explícitamente `--publicar-carm`.

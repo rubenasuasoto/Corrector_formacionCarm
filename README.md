@@ -1,6 +1,6 @@
 # Agente corrector CARM
 
-Agente local para corregir casos prácticos descargados desde CARM Formación/Moodle, usando un modelo de OpenAI y dejando siempre una revisión manual antes de publicar notas o retroalimentación.
+Agente local para corregir casos prácticos descargados desde CARM Formación/Moodle, usando Codex CLI o la API de OpenAI, y dejando siempre una revisión manual antes de publicar notas o retroalimentación.
 
 ## Estado corto
 
@@ -14,7 +14,7 @@ El flujo principal ya está implementado en `corrector_agente.py`:
 - Genera `revision_pendiente.csv` para revisar notas y feedback antes de subir nada.
 - Marca como `revision_manual_necesaria` los archivos que no pueda leer con fiabilidad.
 
-La extracción directa desde CARM con `--extraer-carm` está preparada, pero falta probarla en la plataforma real y ajustar selectores si Moodle muestra las entregas de otra forma.
+La extracción directa desde CARM ya se ha probado con UD01. También existe previsualización y publicación de notas/retroalimentación, pero la publicación real debe hacerse solo tras revisar el JSON combinado y las salidas locales.
 
 ## Documentos importantes
 
@@ -58,7 +58,7 @@ CARM_COURSE_URL=https://formacion.carm.es/course/view.php?id=1592
 
 No subas `.env` al repositorio.
 
-No guardes API keys, tokens o contraseñas en archivos `.txt`. Las claves locales deben vivir solo en `.env`.
+`OPENAI_API_KEY` es opcional si corriges con Codex CLI. No guardes API keys, tokens o contraseñas en archivos `.txt`. Las claves locales deben vivir solo en `.env`.
 
 ## Prueba offline
 
@@ -221,8 +221,8 @@ Todo queda en estado `borrador_pendiente_de_revision` salvo los casos que necesi
 
 ## Próximos pasos
 
-- Probar `--extraer-carm` contra CARM real.
+- Probar una publicación real con `--publicar-carm` en un lote controlado.
+- Validar que `Guardar cambios y mostrar siguiente` funciona en un lote completo de la misma actividad.
+- Mejorar la interfaz local con una vista de revisión por alumno antes de publicar.
 - Instalar y probar dependencias opcionales de extracción.
 - Decidir si merece la pena añadir OCR con Tesseract.
-- Crear una validación más cómoda que el CSV.
-- Diseñar la subida a Moodle solo cuando el flujo manual esté validado.
