@@ -165,6 +165,18 @@ python corrector_agente.py --importar-correcciones-codex C:\ruta\correcciones_ud
 
 Esto genera los `.txt` por alumno, los resúmenes y `revision_pendiente.csv` sin llamar a la API.
 
+Para probar la subida a CARM sin publicar:
+
+```powershell
+python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json
+```
+
+Este modo rellena el formulario y deja el navegador abierto, pero no guarda. Para publicar de verdad hay que añadir el seguro explícito:
+
+```powershell
+python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json --publicar-carm
+```
+
 ## Salidas
 
 En `C:\temp\vscodec\temporal`:

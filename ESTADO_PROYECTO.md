@@ -213,6 +213,18 @@ python corrector_agente.py --importar-correcciones-codex C:\ruta\correcciones_ud
 
 El importador genera `C:\temp\vscodec\temporal\<alumno>\<actividad>.txt`, los resúmenes y `revision_pendiente.csv`. Si existe `prompts_codex\manifiesto_entregas.json`, copia también la entrega original al directorio del alumno.
 
+Para probar la subida a CARM sin guardar:
+
+```powershell
+python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json
+```
+
+Para publicar de verdad:
+
+```powershell
+python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json --publicar-carm
+```
+
 La cache local vive en `cache_carm\curso_1592.sqlite`. Guarda solo recursos estables del curso: contenido imprimible, actividades, URLs de grading y enunciados. No guarda entregas, archivos de alumnos, emails, cookies ni capturas.
 
 La cache se usa automáticamente cuando existe. Se puede desactivar en una ejecución con `--sin-cache` o refrescar con `--refrescar-cache`.

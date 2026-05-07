@@ -1120,6 +1120,350 @@ class ExtractorCarm:
 
         return descargados
 
+    async def _buscar_url_calificador(self, page, actividad: dict, alumno: str) -> str:
+        await page.goto(actividad["url_grading"], wait_until="networkidle")
+        alumno_norm = self._normalizar(alumno)
+        filas = await page.query_selector_all("table.generaltable tbody tr")
+        for fila in filas:
+            texto_fila = self._normalizar(await fila.text_content() or "")
+            if alumno_norm not in texto_fila:
+                continue
+            enlace = await fila.query_selector("a[href*='action=grader'][href*='userid=']")
+            if enlace is None:
+                enlace = await fila.query_selector("a[href*='action=grader']")
+            if enlace is None:
+                continue
+            href = await enlace.get_attribute("href")
+            if href:
+                return href
+        return ""
+
+    async def _rellenar_primero(self, page, selectores: list[str], valor: str) -> str:
+        for selector in selectores:
+            locator = page.locator(selector).first
+            try:
+                if await locator.count():
+                    await locator.fill(str(valor))
+                    await locator.dispatch_event("change")
+                    return selector
+            except Exception:
+                continue
+        return ""
+
+    async def _rellenar_feedback(self, page, feedback: str) -> str:
+        await page.wait_for_timeout(500)
+
+        selector_visible = await self._rellenar_feedback_visible(page, feedback)
+
+        selector_js = await page.evaluate(
+            """(value) => {
+                const html = value
+                    .split(/\\n+/)
+                    .map(line => line.trim())
+                    .filter(Boolean)
+                    .map(line => `<p>${line
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')}</p>`)
+                    .join('');
+
+                const textareas = Array.from(document.querySelectorAll('textarea')).filter(el => {
+                    const key = `${el.name || ''} ${el.id || ''}`.toLowerCase();
+                    return (
+                        key.includes('assignfeedbackcomments') ||
+                        key.includes('feedbackcomments') ||
+                        key.includes('comments_editor')
+                    );
+                });
+
+                const visibles = Array.from(document.querySelectorAll('[contenteditable="true"], .editor_atto_content')).filter(el => {
+                    const key = `${el.id || ''} ${el.className || ''} ${el.getAttribute('aria-label') || ''}`.toLowerCase();
+                    const parent = `${el.closest('[id], [class]')?.id || ''} ${el.closest('[id], [class]')?.className || ''}`.toLowerCase();
+                    return (
+                        key.includes('assignfeedbackcomments') ||
+                        key.includes('feedbackcomments') ||
+                        key.includes('retroaliment') ||
+                        parent.includes('assignfeedbackcomments') ||
+                        parent.includes('feedbackcomments')
+                    );
+                });
+
+                for (const textarea of textareas) {
+                    const key = `${textarea.name || ''} ${textarea.id || ''}`.toLowerCase();
+                    const payload = key.includes('_editor') ? (html || value.replace(/\\n/g, '<br>')) : value;
+                    textarea.value = payload;
+                    textarea.textContent = payload;
+                    textarea.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value}));
+                    textarea.dispatchEvent(new Event('change', {bubbles: true}));
+
+                    const explicitEditable = document.getElementById(`${textarea.id}editable`)
+                        || document.getElementById(textarea.id.replace(/_editor$/, '_editable'))
+                        || textarea.closest('.fitem, .form-group, .felement')?.querySelector('[contenteditable="true"], .editor_atto_content');
+                    if (explicitEditable) {
+                        explicitEditable.innerHTML = html || value.replace(/\\n/g, '<br>');
+                        explicitEditable.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value}));
+                        explicitEditable.dispatchEvent(new Event('change', {bubbles: true}));
+                    }
+                }
+
+                for (const editor of visibles) {
+                    editor.innerHTML = html || value.replace(/\\n/g, '<br>');
+                    editor.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value}));
+                    editor.dispatchEvent(new Event('change', {bubbles: true}));
+                }
+
+                if (window.YUI) {
+                    try {
+                        window.YUI().use('node-event-simulate', function(Y) {
+                            for (const textarea of textareas) {
+                                if (textarea.id) {
+                                    const node = Y.one(`#${textarea.id}`);
+                                    if (node) {
+                                        node.simulate('change');
+                                    }
+                                }
+                            }
+                        });
+                    } catch (e) {}
+                }
+
+                if (textareas.length) {
+                    return textareas.map(el => el.name || el.id).join(', ');
+                }
+                if (visibles.length) {
+                    return visibles.map(el => el.id || el.className || 'editor_visible').join(', ');
+                }
+                return '';
+            }""",
+            feedback,
+        )
+        if selector_js:
+            return f"{selector_visible + ' | ' if selector_visible else ''}moodle_feedback:{selector_js}"
+        if selector_visible:
+            return selector_visible
+        return ""
+
+    @staticmethod
+    async def _rellenar_feedback_visible(page, feedback: str) -> str:
+        for selector in (
+            "#id_assignfeedbackcomments_editoreditable",
+            "#id_assignfeedbackcomments_editor_editable",
+            "#id_assignfeedbackcommentseditable",
+            "[id*='assignfeedbackcomments'][contenteditable='true']",
+            ".editor_atto_content[contenteditable='true']",
+        ):
+            locator = page.locator(selector).first
+            try:
+                if await locator.count():
+                    await locator.scroll_into_view_if_needed()
+                    await locator.click()
+                    await page.keyboard.press("Control+A")
+                    await page.keyboard.type(feedback, delay=0)
+                    await locator.dispatch_event("input")
+                    await locator.dispatch_event("change")
+                    return f"visible:{selector}"
+            except Exception:
+                continue
+
+        for frame in page.frames:
+            try:
+                editable = frame.locator("body[contenteditable='true'], body, [contenteditable='true']").first
+                if not await editable.count():
+                    continue
+                frame_name = (frame.name or frame.url or "").lower()
+                body_text = (await editable.text_content(timeout=500) or "").strip()
+                if (
+                    "assignfeedbackcomments" not in frame_name
+                    and "feedback" not in frame_name
+                    and body_text
+                ):
+                    continue
+                await editable.click()
+                await page.keyboard.press("Control+A")
+                await page.keyboard.type(feedback, delay=0)
+                return f"frame:{frame.name or frame.url or 'editor'}"
+            except Exception:
+                continue
+
+        return ""
+
+    @staticmethod
+    async def _diagnosticar_campos_feedback(page) -> list[dict]:
+        try:
+            elementos = await page.evaluate(
+                """() => Array.from(document.querySelectorAll('textarea, [contenteditable="true"], .editor_atto_content'))
+                    .map((el) => {
+                        const text = (el.value || el.innerText || el.textContent || '').slice(0, 120);
+                        return {
+                            tag: el.tagName.toLowerCase(),
+                            name: el.getAttribute('name') || '',
+                            id: el.id || '',
+                            class: typeof el.className === 'string' ? el.className : '',
+                            aria: el.getAttribute('aria-label') || '',
+                            visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
+                            muestra: text
+                        };
+                    })
+                    .filter((item) => {
+                        const key = `${item.name} ${item.id} ${item.class} ${item.aria}`.toLowerCase();
+                        return key.includes('feedback') || key.includes('comment') || key.includes('retroaliment') || item.muestra;
+                    })"""
+            )
+            for frame in page.frames:
+                if frame == page.main_frame:
+                    continue
+                try:
+                    elementos.append(
+                        {
+                            "tag": "iframe",
+                            "name": frame.name,
+                            "id": "",
+                            "class": "",
+                            "aria": "",
+                            "visible": True,
+                            "muestra": (await frame.locator("body").first.text_content(timeout=500) or "")[:120],
+                        }
+                    )
+                except Exception:
+                    continue
+            return elementos
+        except Exception:
+            return []
+
+    async def _guardar_calificacion(self, page) -> str:
+        for selector in (
+            "#id_savegrade",
+            "button[name='savechanges']",
+            "input[name='savechanges']",
+            "button:has-text('Guardar cambios')",
+            "input[value='Guardar cambios']",
+            "button:has-text('Guardar')",
+            "input[value='Guardar']",
+        ):
+            locator = page.locator(selector).first
+            try:
+                if await locator.count():
+                    await locator.click()
+                    await page.wait_for_load_state("networkidle")
+                    return selector
+            except Exception:
+                continue
+        raise RuntimeError("No se encontrÃ³ botÃ³n de guardado en el formulario de calificaciÃ³n.")
+
+    async def _subir_correccion_actividad(self, page, actividad: dict, correccion: dict, publicar: bool) -> dict:
+        alumno = str(correccion.get("alumno", "")).strip()
+        actividad_codigo = str(correccion.get("actividad") or correccion.get("actividad_codigo") or "").strip().lower()
+        nota = str(correccion.get("nota", "")).replace(",", ".")
+        feedback = GeneradorSalidas._texto_feedback(correccion)
+
+        url_calificador = await self._buscar_url_calificador(page, actividad, alumno)
+        if not url_calificador:
+            return {
+                "alumno": alumno,
+                "actividad": actividad_codigo,
+                "estado": "no_encontrado",
+                "mensaje": "No se encontrÃ³ enlace de calificaciÃ³n para el alumno en la tabla.",
+            }
+
+        await page.goto(url_calificador, wait_until="networkidle")
+        grade_selector = await self._rellenar_primero(
+            page,
+            [
+                "input[name='grade']",
+                "#id_grade",
+                "input[id*='grade'][type='text']",
+                "input[name*='grade'][type='text']",
+            ],
+            nota,
+        )
+        feedback_selector = await self._rellenar_feedback(page, feedback)
+
+        resultado = {
+            "alumno": alumno,
+            "actividad": actividad_codigo,
+            "nota": nota,
+            "url_calificador": self._redactar_texto_sensible(url_calificador),
+            "campo_nota": grade_selector,
+            "campo_feedback": feedback_selector,
+            "diagnostico_feedback": await self._diagnosticar_campos_feedback(page),
+            "estado": "previsualizado",
+        }
+
+        if not grade_selector:
+            resultado["estado"] = "error"
+            resultado["mensaje"] = "No se encontrÃ³ campo de nota."
+            return resultado
+        if not feedback_selector:
+            resultado["estado"] = "error"
+            resultado["mensaje"] = "No se encontrÃ³ campo de retroalimentaciÃ³n."
+            return resultado
+
+        if publicar:
+            boton = await self._guardar_calificacion(page)
+            resultado["boton_guardado"] = boton
+            resultado["estado"] = "publicado"
+
+        return resultado
+
+    async def subir_correcciones_carm(self, correcciones: list[dict], publicar: bool = False) -> list[dict]:
+        if async_playwright is None:
+            raise RuntimeError(
+                "Playwright no esta disponible. Ejecuta: pip install -r requirements.txt y luego playwright install chromium"
+            )
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=False)
+            context = await browser.new_context()
+            page = await context.new_page()
+            resultados: list[dict] = []
+            try:
+                await self._login(page)
+                await page.goto(CARM_COURSE_URL, wait_until="networkidle")
+                actividades = await self._obtener_actividades_obligatorias(page)
+                actividades_por_codigo = {act["codigo"]: act for act in actividades}
+                if self.cache:
+                    for codigo, act in list(actividades_por_codigo.items()):
+                        actividades_por_codigo[codigo] = self.cache.enriquecer_actividad(act)
+
+                for correccion in correcciones:
+                    actividad_codigo = str(
+                        correccion.get("actividad") or correccion.get("actividad_codigo") or ""
+                    ).strip().lower()
+                    actividad = actividades_por_codigo.get(actividad_codigo)
+                    if not actividad:
+                        resultados.append(
+                            {
+                                "alumno": correccion.get("alumno", ""),
+                                "actividad": actividad_codigo,
+                                "estado": "no_encontrado",
+                                "mensaje": "No se encontrÃ³ la actividad en CARM.",
+                            }
+                        )
+                        continue
+
+                    logger.info(
+                        "%s calificaciÃ³n %s - %s",
+                        "Publicando" if publicar else "Previsualizando",
+                        actividad_codigo,
+                        correccion.get("alumno", ""),
+                    )
+                    resultados.append(
+                        await self._subir_correccion_actividad(page, actividad, correccion, publicar=publicar)
+                    )
+
+                return resultados
+            finally:
+                if self.mantener_navegador:
+                    logger.info("Navegador abierto. Revisa la previsualizaciÃ³n y pulsa Enter en la consola para cerrarlo.")
+                    await asyncio.to_thread(input)
+                try:
+                    await context.clear_cookies()
+                    await page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+                except Exception:
+                    pass
+                await context.close()
+                await browser.close()
+
     async def ejecutar(self, solo_listar: bool = False) -> tuple[str, list[EnvioPendiente]]:
         if async_playwright is None:
             raise RuntimeError(
@@ -1996,6 +2340,59 @@ async def ejecutar_flujo(args) -> None:
         logger.info(f"Hoja de revisión manual generada en: {revision_path}")
         return
 
+    if getattr(args, "subir_correcciones_carm", ""):
+        usuario = os.getenv("CARM_USUARIO", "")
+        contrasena = os.getenv("CARM_CONTRASENA", "")
+        if not usuario or not contrasena:
+            logger.error("Faltan CARM_USUARIO/CARM_CONTRASENA en .env para subir correcciones a CARM")
+            return
+
+        salida = GeneradorSalidas(pendientes_dir, temporal_dir, actividad_codigo=args.actividad_codigo)
+        correcciones_path = Path(args.subir_correcciones_carm)
+        try:
+            correcciones = salida._leer_correcciones_codex(correcciones_path)
+        except Exception as e:
+            logger.error(f"No se pudieron leer correcciones para CARM: {e}")
+            return
+
+        publicar = getattr(args, "publicar_carm", False)
+        extractor = ExtractorCarm(
+            usuario,
+            contrasena,
+            pendientes_dir,
+            mantener_navegador=getattr(args, "mantener_navegador", False) or not publicar,
+            guardar_evidencias=getattr(args, "guardar_evidencias", False),
+            unidades=unidades_filtro,
+            actividades=actividades_filtro,
+            cache=cache_curso,
+            usar_cache=True,
+        )
+        try:
+            resultados_subida = await extractor.subir_correcciones_carm(correcciones, publicar=publicar)
+        except Exception as e:
+            logger.error(f"No se pudo completar la subida a CARM: {e}")
+            return
+
+        salida_path = RESPUESTAS_DIR / (
+            "subida_carm_publicada.json" if publicar else "subida_carm_previsualizacion.json"
+        )
+        salida_path.write_text(
+            json.dumps(resultados_subida, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        for resultado in resultados_subida:
+            logger.info(
+                "%s %s %s: %s",
+                resultado.get("actividad", ""),
+                resultado.get("alumno", ""),
+                resultado.get("nota", ""),
+                resultado.get("estado", ""),
+            )
+        logger.info(f"Registro de subida CARM generado en: {salida_path}")
+        if not publicar:
+            logger.info("Modo previsualizaciÃ³n: no se ha pulsado guardar en CARM.")
+        return
+
     usar_cache = (
         not getattr(args, "sin_cache", False)
         and not getattr(args, "refrescar_cache", False)
@@ -2280,6 +2677,16 @@ def parse_args() -> argparse.Namespace:
         "--importar-correcciones-codex",
         default="",
         help="Importa un JSON de correcciones devuelto por Codex/ChatGPT y genera salidas .txt por alumno.",
+    )
+    parser.add_argument(
+        "--subir-correcciones-carm",
+        default="",
+        help="Previsualiza en CARM un JSON de correcciones: abre el formulario, rellena nota/feedback y no guarda.",
+    )
+    parser.add_argument(
+        "--publicar-carm",
+        action="store_true",
+        help="Con --subir-correcciones-carm, pulsa guardar y publica la calificaciÃ³n en CARM.",
     )
     parser.add_argument(
         "--max-entregas-por-prompt",

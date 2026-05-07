@@ -1,0 +1,29 @@
+[
+  {
+    "id": "0",
+    "alumno": "Elisabet Lopez Ros",
+    "actividad": "ud01cp01",
+    "nota": 9.0,
+    "criterios": [
+      {
+        "nombre": "Presentación del trabajo",
+        "maximo": 3,
+        "puntuacion": 2.8,
+        "comentario": "La respuesta está bien redactada, ordenada y resulta fácil de seguir. Presenta una estructura clara con introducción, desarrollo de pasos y cierre."
+      },
+      {
+        "nombre": "Adecuación al enunciado",
+        "maximo": 4,
+        "puntuacion": 3.7,
+        "comentario": "Responde de forma muy adecuada a lo pedido: explica que el profesional debe verificar, revisar, corregir, adaptar y supervisar el contenido generado por IA antes de publicarlo."
+      },
+      {
+        "nombre": "Aplicación práctica",
+        "maximo": 3,
+        "puntuacion": 2.5,
+        "comentario": "Aporta medidas aplicables al caso, como contrastar fuentes oficiales, comprobar errores, adaptar el tono al público, revisar aspectos éticos y legales y mantener supervisión humana. Podría mejorar incorporando algún ejemplo más concreto del parque natural o de recursos turísticos regionales."
+      }
+    ],
+    "retroalimentacion": "Muy buen trabajo. Has explicado con claridad que la IA debe utilizarse como apoyo y que el contenido no debe publicarse sin una revisión profesional previa. La respuesta incluye pasos importantes: contraste con fuentes oficiales, revisión de claridad y coherencia, detección de datos inventados o desactualizados, adaptación al público, criterios éticos y legales, accesibilidad y supervisión humana final. Para mejorar aún más, podrías añadir algún ejemplo concreto aplicado al parque natural o a recursos turísticos de la Región de Murcia."
+  }
+]
