@@ -48,17 +48,16 @@ Superficie principal:
 - [x] Filtros CARM forzados a `Requiere calificacion` y nombre/apellido en todos.
 - [x] Cachear curso no recorre tablas de alumnos.
 - [x] Notificaciones en errores y revision manual.
-- [ ] Proteger endpoints locales con token de sesion local para evitar peticiones desde paginas externas del navegador.
-- [ ] Guardar credenciales con proteccion Windows DPAPI en vez de texto plano en `.env`.
+- [x] Proteger endpoints locales con token de sesion local para evitar peticiones desde paginas externas del navegador.
 - [ ] Separar cache didactica de datos personales y purgar datos de alumnos tras finalizar curso.
 - [ ] Redactar nombres/emails en diagnosticos exportables por defecto.
 
 ### Prioridad Media
 
-- [ ] Validar tamano maximo y extension antes de leer archivos de alumnos.
-- [ ] Endurecer ZIP: limite de numero de ficheros, tamano total y proteccion contra zip-slip.
+- [x] Validar tamano maximo y extension antes de leer archivos de alumnos.
+- [x] Endurecer ZIP: limite de numero de ficheros, tamano total y proteccion contra zip-slip.
 - [ ] Registrar auditoria local de acciones sensibles: descargar, corregir, previsualizar, publicar.
-- [ ] Bloquear publicacion si hay `revision_manual_necesaria` o errores en CSV/JSON.
+- [x] Bloquear publicacion si hay `revision_manual_necesaria` o errores en CSV/JSON.
 - [ ] Confirmacion fuerte antes de `--publicar-carm`.
 - [ ] Timeouts y reintentos controlados para Playwright.
 - [ ] Sanitizar feedback antes de insertarlo en editores Moodle.
@@ -69,6 +68,10 @@ Superficie principal:
 - [ ] Rotacion/limpieza de logs antiguos.
 - [ ] Modo exportacion de diagnostico seguro.
 - [ ] Pruebas automatizadas para endpoints locales.
+
+### Aceptado / No Prioritario
+
+- [ ] Guardar credenciales CARM con Windows DPAPI. Decision actual: no se prioriza porque la app es local y el modelo de amenaza asume que, si el usuario Windows esta comprometido, tambien lo esta el uso normal de CARM en navegador.
 
 ## Mapeo ASVS Practico
 

@@ -24,7 +24,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from html import unescape
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -1858,6 +1858,10 @@ class ExtractorCarm:
 
 
 class GeneradorSalidas:
+    MAX_ARCHIVO_BYTES = 50 * 1024 * 1024
+    MAX_ZIP_ENTRADAS = 40
+    MAX_ZIP_TOTAL_BYTES = 50 * 1024 * 1024
+    MAX_ZIP_ENTRADA_BYTES = 8 * 1024 * 1024
     EXTENSIONES_TEXTO = {
         ".txt",
         ".md",
@@ -1921,6 +1925,9 @@ class GeneradorSalidas:
             return LecturaEntrega("", True, "El archivo no existe o no es un archivo válido.")
 
         ext = path.suffix.lower()
+        validacion = self._validar_archivo_entrega(path, ext)
+        if validacion:
+            return LecturaEntrega("", True, validacion)
 
         if ext in self.EXTENSIONES_MULTIMEDIA:
             return LecturaEntrega(
@@ -1974,6 +1981,28 @@ class GeneradorSalidas:
             return LecturaEntrega("", False, "El archivo está vacío o no contiene texto legible.")
 
         return LecturaEntrega(texto)
+
+    def _validar_archivo_entrega(self, path: Path, ext: str) -> str:
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return "No se pudo leer el tamaÃ±o del archivo; requiere revisiÃ³n manual."
+        if size > self.MAX_ARCHIVO_BYTES:
+            return (
+                f"Archivo demasiado grande ({size} bytes, limite {self.MAX_ARCHIVO_BYTES}); "
+                "requiere revisiÃ³n manual."
+            )
+        permitidas = (
+            self.EXTENSIONES_TEXTO
+            | self.EXTENSIONES_OFFICE_TEXTO
+            | self.EXTENSIONES_REVISION_MANUAL
+            | self.EXTENSIONES_MULTIMEDIA
+            | self.EXTENSIONES_OCR
+            | {".pdf", ".pptx", ".xlsx", ".zip", ""}
+        )
+        if ext not in permitidas:
+            return f"Extension no permitida ({ext or 'sin extensiÃ³n'}); requiere revisiÃ³n manual."
+        return ""
 
     @staticmethod
     def _leer_docx(path: Path) -> str:
@@ -2051,10 +2080,23 @@ class GeneradorSalidas:
     def _leer_zip(self, path: Path) -> str:
         textos = []
         with zipfile.ZipFile(path) as z:
-            for info in z.infolist():
-                if info.is_dir() or info.file_size > 5_000_000:
+            infos = z.infolist()
+            if len(infos) > self.MAX_ZIP_ENTRADAS:
+                raise RuntimeError(f"ZIP con demasiados archivos ({len(infos)}).")
+            total = sum(info.file_size for info in infos)
+            if total > self.MAX_ZIP_TOTAL_BYTES:
+                raise RuntimeError(f"ZIP demasiado grande al descomprimir ({total} bytes).")
+
+            for info in infos:
+                nombre_zip = PurePosixPath(info.filename.replace("\\", "/"))
+                if nombre_zip.is_absolute() or ".." in nombre_zip.parts:
+                    raise RuntimeError(f"Ruta insegura dentro del ZIP: {info.filename}")
+                if info.is_dir():
                     continue
-                nombre = Path(info.filename)
+                if info.file_size > self.MAX_ZIP_ENTRADA_BYTES:
+                    textos.append(f"[{info.filename}: omitido por tamaÃ±o excesivo]")
+                    continue
+                nombre = Path(nombre_zip.name)
                 ext = nombre.suffix.lower()
                 if ext in self.EXTENSIONES_MULTIMEDIA or ext in self.EXTENSIONES_OCR:
                     textos.append(f"[{info.filename}: omitido, requiere revisión manual]")
