@@ -157,13 +157,23 @@ python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-po
 
 Este comando actualiza cache, registra filas de CARM, descarga entregas y genera prompts sin cerrar y abrir Chromium entre pasos.
 
-Para generar prompts, mandarlos a Codex CLI y dejar las correcciones importadas:
+## Dos comandos principales
+
+1. Preparar correcciones sin publicar en CARM:
 
 ```powershell
-python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 6 --corregir-con-codex --importar-tras-codex
+python corrector_agente.py --flujo-correccion-carm --unidad ud01 --max-entregas-por-prompt 6
 ```
 
-Las respuestas se guardan en `C:\temp\vscodec\temporal\prompts_codex\correcciones_codex\`. Este flujo usa la sesión de Codex CLI, no la API de OpenAI.
+Este comando entra en CARM, descarga entregas, genera prompts, corrige con Codex CLI e importa las salidas locales. No publica en CARM. El JSON combinado queda en `C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json`.
+
+2. Publicar en CARM cuando ya hayas revisado:
+
+```powershell
+python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json --publicar-carm
+```
+
+Las respuestas de Codex se guardan en `C:\temp\vscodec\temporal\prompts_codex\`. Este flujo usa la sesión de Codex CLI, no la API de OpenAI.
 
 Después de pegar el prompt en Codex/ChatGPT, guarda el JSON de respuesta e impórtalo:
 
@@ -184,6 +194,8 @@ Este modo rellena el formulario y deja el navegador abierto, pero no guarda. Par
 ```powershell
 python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json --publicar-carm
 ```
+
+Si el JSON contiene varias correcciones de la misma actividad, el publicador intenta usar `Guardar cambios y mostrar siguiente` entre alumnos, y usa `Guardar cambios` en la última corrección del lote.
 
 ## Salidas
 

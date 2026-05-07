@@ -446,3 +446,6 @@ waiting for locator(":scope")
 2026-05-07 14:13:02,520 - INFO - Previsualizando calificaciÃ³n ud01cp02 - Elisabet Lopez Ros
 2026-05-07 14:13:11,954 - INFO - Previsualizando calificaciÃ³n ud01cp02 - Carolina Villa Marin
 2026-05-07 14:13:13,150 - INFO - Navegador abierto. Revisa la previsualizaciÃ³n y pulsa Enter en la consola para cerrarlo.
+2026-05-07 14:22:16,672 - INFO - Publicando calificaciÃ³n ud01cp01 - Elisabet Lopez Ros
+2026-05-07 14:22:25,425 - INFO - ud01cp01 Elisabet Lopez Ros 9.0: publicado
+2026-05-07 14:22:25,426 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_publicada.json
