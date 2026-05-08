@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import os
 import json
 import re
@@ -38,6 +39,9 @@ PROMPTS_DIR = TEMPORAL_DIR / "prompts_codex"
 COMBINED_JSON = PROMPTS_DIR / "correcciones_codex_combinadas.json"
 REVISION_CSV = TEMPORAL_DIR / "revision_pendiente.csv"
 AGENTE_LOG = ROOT / "logs_correcciones" / "agente.log"
+AUDIT_LOG = ROOT / "respuestas_extraidas" / "auditoria.jsonl"
+SUBIDA_PUBLICADA_JSON = ROOT / "respuestas_extraidas" / "subida_carm_publicada.json"
+SUBIDA_ASISTIDA_JSON = ROOT / "respuestas_extraidas" / "subida_carm_asistida.json"
 ENV_PATH = ROOT / ".env"
 CARM_STORAGE_STATE = ROOT / "cache_carm" / "carm_storage_state.json"
 ALLOWED_UNITS = {f"ud{i:02d}" for i in range(1, 16)}
@@ -54,6 +58,9 @@ AUTO_CORRECT_AFTER_SCAN = False
 AUTO_CORRECT_ARGS = ["--flujo-correccion-carm", "--max-entregas-por-prompt", "6"]
 DEFAULT_SCAN_INTERVAL_MINUTES = 60
 API_TOKEN = secrets.token_urlsafe(32)
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8765
+PORT_FALLBACK_ATTEMPTS = 30
 
 
 def load_app_config() -> dict:
@@ -145,6 +152,47 @@ def allowed_json_paths() -> set[str]:
 
 
 configure_work_dirs()
+
+
+def redact_text(text: object) -> str:
+    value = str(text or "")
+    value = re.sub(r"[\w.\-+%]+@[\w.\-]+\.[A-Za-z]{2,}", "[email-redactado]", value)
+    value = re.sub(r"(sesskey=)[^&\"'>\s]+", r"\1[redactado]", value, flags=re.I)
+    value = re.sub(r"(password|contrasena|contraseña|api[_-]?key|token|authorization|cookie)(\s*[=:]\s*)[^&\"'>\s]+", r"\1\2[redactado]", value, flags=re.I)
+    return value
+
+
+def pseudonym(value: object, prefix: str = "persona") -> str:
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return f"{prefix}_desconocida"
+    digest = hashlib.sha256(raw.encode("utf-8", errors="ignore")).hexdigest()[:10]
+    return f"{prefix}_{digest}"
+
+
+def audit_ui_event(action: str, result: str = "ok", **details: object) -> None:
+    safe: dict[str, str] = {}
+    for key, value in details.items():
+        key_lower = key.lower()
+        if key_lower in {"usuario", "alumno", "email", "correo"}:
+            safe[f"{key}_ref"] = pseudonym(value)
+        elif key_lower in {"contrasena", "password", "token", "cookie", "api_key"}:
+            safe[key] = "[redactado]"
+        else:
+            safe[key] = redact_text(value)
+    event = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "origen": "interfaz_app",
+        "accion": action,
+        "resultado": result,
+        "detalles": safe,
+    }
+    try:
+        AUDIT_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with AUDIT_LOG.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 def notify(title: str, message: str) -> None:
@@ -270,7 +318,7 @@ def save_carm_credentials(usuario: str, contrasena: str) -> tuple[bool, str]:
 
 
 def logout_carm() -> None:
-    write_env_values({"CARM_USUARIO": None, "CARM_CONTRASENA": None})
+    write_env_values({"CARM_USUARIO": "", "CARM_CONTRASENA": ""})
     if CARM_STORAGE_STATE.exists():
         CARM_STORAGE_STATE.unlink()
 
@@ -526,6 +574,22 @@ def require_api_token(handler: BaseHTTPRequestHandler) -> bool:
     return False
 
 
+def create_local_server(host: str, port: int) -> tuple[ThreadingHTTPServer, int, list[int]]:
+    attempted: list[int] = []
+    if port == 0:
+        server = ThreadingHTTPServer((host, 0), Handler)
+        return server, int(server.server_address[1]), attempted
+    for candidate in range(port, port + PORT_FALLBACK_ATTEMPTS):
+        attempted.append(candidate)
+        try:
+            server = ThreadingHTTPServer((host, candidate), Handler)
+            return server, candidate, attempted
+        except OSError:
+            continue
+    tried = ", ".join(str(item) for item in attempted)
+    raise OSError(f"No se pudo abrir la interfaz local. Puertos probados: {tried}.")
+
+
 def file_info(path: Path) -> dict:
     return {
         "path": str(path),
@@ -535,11 +599,57 @@ def file_info(path: Path) -> dict:
     }
 
 
+def pending_publication_state() -> dict:
+    combined = file_info(COMBINED_JSON)
+    revision = file_info(REVISION_CSV)
+    published = file_info(SUBIDA_PUBLICADA_JSON)
+    assisted = file_info(SUBIDA_ASISTIDA_JSON)
+    rows = 0
+    blocking = 0
+    if REVISION_CSV.exists():
+        try:
+            with REVISION_CSV.open("r", encoding="utf-8-sig", newline="") as handle:
+                data = list(csv.DictReader(handle, delimiter=";"))
+            rows = len(data)
+            estados_bloqueantes = {"revision_manual_necesaria", "error", "error_descarga", "sin_archivo_detectado", "sin_entrega"}
+            blocking = sum(1 for row in data if (row.get("estado") or "").strip().lower() in estados_bloqueantes)
+        except Exception:
+            blocking = 1
+    base_modified = max(combined["modified"], revision["modified"])
+    pending = bool(combined["exists"] and revision["exists"] and rows and published["modified"] < base_modified)
+    return {
+        "pending": pending,
+        "rows": rows,
+        "blocking": blocking,
+        "ready_for_assisted_upload": pending and blocking == 0,
+        "combined": combined,
+        "revision_csv": revision,
+        "published": published,
+        "assisted": assisted,
+    }
+
+
+def notify_pending_publication() -> None:
+    pending = pending_publication_state()
+    if not pending["pending"]:
+        return
+    if pending["blocking"]:
+        notify(
+            "Corrector CARM",
+            f"Hay {pending['rows']} calificaciones preparadas, pero {pending['blocking']} requieren revision antes de subir.",
+        )
+        return
+    notify(
+        "Corrector CARM",
+        f"Hay {pending['rows']} calificaciones revisadas pendientes de subir. Abre la interfaz para iniciar subida asistida.",
+    )
+
+
 def latest_log_lines(path: Path, limit: int = 80) -> list[str]:
     if not path.exists():
         return []
     try:
-        return path.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]
+        return [redact_text(line) for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]]
     except Exception as exc:
         return [f"No se pudo leer el log: {exc}"]
 
@@ -665,6 +775,7 @@ def project_state() -> dict:
         "prompts": [file_info(p) for p in prompts],
         "corrections": [file_info(p) for p in corrections],
         "agent_log": latest_log_lines(AGENTE_LOG),
+        "pending_publication": pending_publication_state(),
     }
 
 
@@ -836,6 +947,7 @@ HTML = r"""<!doctype html>
     button:disabled { opacity: .55; cursor: not-allowed; }
     .button-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 12px; }
     .button-row.two { grid-template-columns: 1fr 1fr; }
+    .button-row.three { grid-template-columns: 1fr 1fr 1fr; }
     .badge {
       display: inline-flex;
       align-items: center;
@@ -861,6 +973,21 @@ HTML = r"""<!doctype html>
     }
     .badge.idle { background: #eef1f0; color: var(--muted); }
     .badge.err { background: #fff1f0; color: var(--red); }
+    .system-notice {
+      display: none;
+      max-width: 1440px;
+      margin: 12px auto 0;
+      padding: 0 18px;
+    }
+    .system-notice.open { display: block; }
+    .system-notice > div {
+      border: 1px solid #e7c98b;
+      background: #fff8ea;
+      color: #5f3b00;
+      border-radius: 8px;
+      padding: 10px 12px;
+      line-height: 1.45;
+    }
     .path {
       font-family: Consolas, "Courier New", monospace;
       background: var(--surface);
@@ -932,6 +1059,16 @@ HTML = r"""<!doctype html>
       background: rgba(20, 29, 27, .38);
     }
     .modal-backdrop.open { display: flex; }
+    .modal-backdrop.locked {
+      background: rgba(20, 29, 27, .72);
+      backdrop-filter: blur(3px);
+    }
+    body.auth-locked main,
+    body.auth-locked header .topbar-actions {
+      filter: grayscale(.35);
+      pointer-events: none;
+      user-select: none;
+    }
     .modal {
       width: min(760px, 100%);
       max-height: calc(100vh - 96px);
@@ -963,7 +1100,7 @@ HTML = r"""<!doctype html>
       .summary-grid { grid-template-columns: 1fr; }
       header { align-items: flex-start; flex-direction: column; }
       .topbar-actions { justify-content: flex-start; }
-      .button-row, .button-row.two { grid-template-columns: 1fr; }
+      .button-row, .button-row.two, .button-row.three { grid-template-columns: 1fr; }
       .folder-row { grid-template-columns: 1fr; }
     }
   </style>
@@ -981,10 +1118,13 @@ HTML = r"""<!doctype html>
       <span id="courseSummary" class="pill"></span>
       <span id="statusBadge" class="badge idle">Parado</span>
       <button id="refreshBtn">Actualizar</button>
-      <button id="logoutBtn">Cerrar sesion CARM</button>
+      <button id="logoutBtn">Borrar credenciales CARM</button>
       <button id="settingsBtn" class="icon" title="Configuracion" aria-label="Configuracion">⚙</button>
     </div>
   </header>
+  <div id="systemNotice" class="system-notice" role="status" aria-live="polite">
+    <div id="systemNoticeText"></div>
+  </div>
   <main>
     <div class="stack">
       <div class="workflow" aria-label="Flujo principal">
@@ -1048,7 +1188,7 @@ HTML = r"""<!doctype html>
       <section>
         <div class="section-head">
           <h2>Subida a CARM</h2>
-          <p>Previsualiza primero. Publicar requiere confirmacion y revision limpia.</p>
+          <p>Previsualiza primero. La subida asistida rellena campos y espera tu guardado manual.</p>
         </div>
         <label for="jsonPath">JSON de correcciones</label>
         <select id="jsonPath">
@@ -1057,8 +1197,9 @@ HTML = r"""<!doctype html>
           <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp02_correccion.json">prompt_ud01cp02_correccion.json</option>
           <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp03_correccion.json">prompt_ud02cp03_correccion.json</option>
         </select>
-        <div class="button-row two">
+        <div class="button-row three">
           <button id="previewBtn">Previsualizar</button>
+          <button class="primary" id="assistPublishBtn">Subida asistida</button>
           <button class="warn" id="publishBtn">Publicar</button>
         </div>
         <label class="check" style="margin-top:10px">
@@ -1128,7 +1269,7 @@ HTML = r"""<!doctype html>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
       <div class="split">
         <h2 id="authTitle">Configurar CARM</h2>
-        <span class="muted">Primera configuracion</span>
+        <span id="authSubtitle" class="muted">Acceso requerido</span>
       </div>
       <div class="stack" style="margin-top:12px">
         <p class="hint">Introduce tus credenciales de CARM. La app las comprobara en CARM antes de guardarlas localmente.</p>
@@ -1332,12 +1473,56 @@ HTML = r"""<!doctype html>
     let courseOptions = {units: [], activities: []};
     let authState = {configured: false, session_saved: false};
 
+    function showSystemNotice(message) {
+      $('systemNoticeText').textContent = message;
+      $('systemNotice').classList.add('open');
+    }
+
+    function clearSystemNotice() {
+      $('systemNotice').classList.remove('open');
+      $('systemNoticeText').textContent = '';
+    }
+
     async function api(path, options = {}) {
-      const res = await fetch(path, {
-        headers: {'Content-Type': 'application/json', 'X-Corrector-Token': API_TOKEN},
-        ...options
-      });
-      return await res.json();
+      let res;
+      try {
+        res = await fetch(path, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Corrector-Token': API_TOKEN,
+            ...(options.headers || {})
+          }
+        });
+      } catch (err) {
+        showSystemNotice('No se puede conectar con el servidor local. Puede haberse cerrado la app o haber cambiado el puerto; vuelve a abrir el panel desde la consola o la bandeja.');
+        throw err;
+      }
+      let payload = {};
+      try {
+        payload = await res.json();
+      } catch (err) {
+        payload = {ok: false, message: `Respuesta local no valida (${res.status}).`};
+      }
+      if (res.status === 403 && String(payload.message || '').toLowerCase().includes('token')) {
+        if (!sessionStorage.getItem('correctorTokenReloaded')) {
+          sessionStorage.setItem('correctorTokenReloaded', '1');
+          window.location.reload();
+          return new Promise(() => {});
+        }
+        showSystemNotice('La sesion local del panel ha caducado. Recarga la pagina para recibir un token nuevo.');
+        throw new Error(payload.message || 'Token local no valido.');
+      }
+      if (res.status === 401 || payload.auth_required) {
+        authState = {configured: false, session_saved: false};
+        setAuthLocked(true);
+        return {...payload, ok: false};
+      }
+      if (res.ok) {
+        sessionStorage.removeItem('correctorTokenReloaded');
+        clearSystemNotice();
+      }
+      return payload;
     }
 
     function fmtFile(file) {
@@ -1392,7 +1577,7 @@ HTML = r"""<!doctype html>
     async function loadAuth() {
       authState = await api('/api/auth');
       $('logoutBtn').disabled = !authState.configured;
-      toggleAuth(!authState.configured);
+      setAuthLocked(!authState.configured);
       return authState;
     }
 
@@ -1433,6 +1618,7 @@ HTML = r"""<!doctype html>
       const hasSelectedActivity = $('prepareMode').value !== 'activity' || Boolean($('actividad').value);
       $('prepareBtn').disabled = locked || !hasUnits || !hasSelectedActivity;
       $('previewBtn').disabled = locked;
+      $('assistPublishBtn').disabled = locked || !$('publishCheck').checked;
       $('publishBtn').disabled = locked || !$('publishCheck').checked;
       $('stopBtn').disabled = !running;
       $('runAdvancedBtn').disabled = locked;
@@ -1453,6 +1639,17 @@ HTML = r"""<!doctype html>
     function toggleAuth(open) {
       $('authModal').classList.toggle('open', open);
       $('authModal').setAttribute('aria-hidden', open ? 'false' : 'true');
+    }
+
+    function setAuthLocked(locked) {
+      document.body.classList.toggle('auth-locked', locked);
+      $('authModal').classList.toggle('locked', locked);
+      toggleAuth(locked);
+      $('authSubtitle').textContent = locked ? 'Acceso requerido' : 'Credenciales configuradas';
+      if (locked) {
+        $('authMessage').textContent = 'Introduce y verifica credenciales CARM para usar el panel.';
+        showSystemNotice('Panel bloqueado: faltan credenciales CARM verificadas.');
+      }
     }
 
     function toggleSettings(open) {
@@ -1524,6 +1721,10 @@ HTML = r"""<!doctype html>
 
     async function refresh() {
       await loadAuth();
+      if (!authState.configured) {
+        setBusy(false);
+        return;
+      }
       const status = await api('/api/status');
       const state = await api('/api/state');
       await loadOptions();
@@ -1549,6 +1750,13 @@ HTML = r"""<!doctype html>
       $('elapsed').textContent = status.running ? `${status.action} · ${status.elapsed}s` : '';
       $('logBox').textContent = (status.lines || []).join('\n') || (state.agent_log || []).join('\n');
       $('logBox').scrollTop = $('logBox').scrollHeight;
+      if (state.pending_publication && state.pending_publication.pending) {
+        const pending = state.pending_publication;
+        const extra = pending.blocking
+          ? `Hay ${pending.blocking} incidencia(s); revisa el CSV antes de subir.`
+          : 'Puedes usar Subida asistida para rellenar CARM y guardar manualmente.';
+        showSystemNotice(`Hay ${pending.rows} calificacion(es) preparadas pendientes de subir. ${extra}`);
+      }
       $('combinedPath').textContent = `${state.combined.path} · ${state.combined.exists ? 'listo' : 'pendiente'}`;
       $('revisionPath').textContent = `${state.revision_csv.path} · ${state.revision_csv.exists ? 'listo' : 'pendiente'}`;
       $('promptsList').innerHTML = state.prompts.length ? state.prompts.map(fmtFile).join('') : '<span class="muted">Sin prompts</span>';
@@ -1559,9 +1767,17 @@ HTML = r"""<!doctype html>
       setBusy(status.running);
     }
 
+    async function safeRefresh() {
+      try {
+        await refresh();
+      } catch (err) {
+        console.warn('No se pudo refrescar el panel local', err);
+      }
+    }
+
     async function run(action, body = {}) {
       if (!authState.configured) {
-        toggleAuth(true);
+        setAuthLocked(true);
         return;
       }
       const result = await api('/api/run', {method: 'POST', body: JSON.stringify({action, ...body})});
@@ -1576,14 +1792,18 @@ HTML = r"""<!doctype html>
       max_entregas: $('maxEntregas').value
     });
     $('previewBtn').onclick = () => run('preview', {json_path: $('jsonPath').value});
+    $('assistPublishBtn').onclick = () => {
+      if (!$('publishCheck').checked) return alert('Marca la confirmación antes de iniciar la subida asistida.');
+      run('assist_publish', {json_path: $('jsonPath').value});
+    };
     $('publishBtn').onclick = () => {
       if (!$('publishCheck').checked) return alert('Marca la confirmación antes de publicar.');
       run('publish', {json_path: $('jsonPath').value});
     };
-    $('stopBtn').onclick = async () => { await api('/api/stop', {method:'POST'}); await refresh(); };
-    $('refreshBtn').onclick = refresh;
+    $('stopBtn').onclick = async () => { await api('/api/stop', {method:'POST'}); await safeRefresh(); };
+    $('refreshBtn').onclick = safeRefresh;
     $('logoutBtn').onclick = async () => {
-      if (!confirm('Cerrar sesion CARM y borrar credenciales locales?')) return;
+      if (!confirm('Esto vaciara CARM_USUARIO/CARM_CONTRASENA en .env y borrara la sesion recordada. Tendras que volver a introducir credenciales para usar el panel. Continuar?')) return;
       const result = await api('/api/auth/logout', {method:'POST'});
       $('authMessage').textContent = result.message || 'Sesion cerrada.';
       await refresh();
@@ -1599,12 +1819,18 @@ HTML = r"""<!doctype html>
       $('saveAuthBtn').disabled = false;
       if (result.ok) {
         $('carmPass').value = '';
+        setAuthLocked(false);
         await refresh();
       }
     };
     $('settingsBtn').onclick = () => toggleSettings(true);
     $('closeSettingsBtn').onclick = () => toggleSettings(false);
     $('cancelSettingsBtn').onclick = () => toggleSettings(false);
+    $('authModal').onclick = (event) => {
+      if (event.target === $('authModal') && !authState.configured) {
+        $('authMessage').textContent = 'Debes verificar CARM antes de entrar al panel.';
+      }
+    };
     $('settingsModal').onclick = (event) => {
       if (event.target === $('settingsModal')) toggleSettings(false);
     };
@@ -1634,14 +1860,13 @@ HTML = r"""<!doctype html>
         json_path: $('importJsonPath').value
       });
     };
-    $('publishCheck').onchange = refresh;
+    $('publishCheck').onchange = safeRefresh;
     $('prepareMode').onchange = updateActivityOptions;
     $('unidad').onchange = updateActivityOptions;
     $('advancedUnidad').onchange = updateAdvancedActivityOptions;
     updateAdvancedForm();
-    loadOptions();
-    setInterval(refresh, 3000);
-    refresh();
+    setInterval(safeRefresh, 3000);
+    safeRefresh();
   </script>
 </body>
 </html>
@@ -1659,6 +1884,17 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return
+        if parsed.path.startswith("/api/") and not require_api_token(self):
+            return
+        if parsed.path == "/api/auth":
+            send_json(self, auth_status())
+            return
+        if not carm_credentials_present():
+            if parsed.path == "/api/status":
+                send_json(self, {"running": False, "auth_required": True, "lines": ["Configura credenciales CARM para usar el panel."]})
+                return
+            send_json(self, {"ok": False, "auth_required": True, "message": "Credenciales CARM requeridas."}, HTTPStatus.UNAUTHORIZED)
+            return
         if parsed.path == "/api/status":
             send_json(self, RUNNER.snapshot())
             return
@@ -1668,17 +1904,11 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/options":
             send_json(self, course_options())
             return
-        if parsed.path == "/api/auth":
-            send_json(self, auth_status())
-            return
         send_json(self, {"error": "not_found"}, 404)
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         if not require_api_token(self):
-            return
-        if parsed.path == "/api/stop":
-            send_json(self, {"ok": RUNNER.stop()})
             return
         if parsed.path == "/api/auth/save":
             try:
@@ -1687,13 +1917,23 @@ class Handler(BaseHTTPRequestHandler):
                     str(body.get("usuario") or ""),
                     str(body.get("contrasena") or ""),
                 )
+                audit_ui_event("guardar_credenciales_carm", "ok" if ok else "error", usuario=body.get("usuario", ""))
                 send_json(self, {"ok": ok, "message": message}, 200 if ok else 400)
             except Exception as exc:
+                audit_ui_event("guardar_credenciales_carm", "error", error=exc)
                 send_json(self, {"ok": False, "message": str(exc)}, 400)
+            return
+        if not carm_credentials_present() and parsed.path != "/api/auth/logout":
+            send_json(self, {"ok": False, "auth_required": True, "message": "Credenciales CARM requeridas."}, HTTPStatus.UNAUTHORIZED)
+            return
+        if parsed.path == "/api/stop":
+            audit_ui_event("detener_tarea", action=RUNNER.action)
+            send_json(self, {"ok": RUNNER.stop()})
             return
         if parsed.path == "/api/auth/logout":
             RUNNER.stop()
             logout_carm()
+            audit_ui_event("cerrar_sesion_carm")
             send_json(self, {"ok": True, "message": "Sesion CARM cerrada. Vuelve a introducir credenciales."})
             return
         if parsed.path == "/api/pick-directory":
@@ -1712,6 +1952,7 @@ class Handler(BaseHTTPRequestHandler):
                     temporal=str(body.get("temporal_dir") or ""),
                     persist=True,
                 )
+                audit_ui_event("configurar_carpetas", pendientes_dir=PENDIENTES_DIR, temporal_dir=TEMPORAL_DIR)
                 send_json(
                     self,
                     {
@@ -1728,6 +1969,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 body = read_json_body(self)
                 url = save_course_url(str(body.get("course") or ""))
+                audit_ui_event("configurar_curso", course_id=course_id_from_url(url))
                 send_json(
                     self,
                     {
@@ -1748,6 +1990,7 @@ class Handler(BaseHTTPRequestHandler):
                     if interval == 0
                     else f"Autodeteccion guardada: cada {interval} minutos."
                 )
+                audit_ui_event("configurar_autoescaneo", intervalo_minutos=interval)
                 send_json(self, {"ok": True, "message": message, "auto_scan_interval_minutes": interval})
             except Exception as exc:
                 send_json(self, {"ok": False, "message": str(exc)}, 400)
@@ -1761,8 +2004,10 @@ class Handler(BaseHTTPRequestHandler):
             action = str(body.get("action", ""))
             args = build_args(action, body)
             ok, message = RUNNER.start(action, args)
+            audit_ui_event("ejecutar_accion", "iniciada" if ok else "rechazada", action=action)
             send_json(self, {"ok": ok, "message": message})
         except Exception as exc:
+            audit_ui_event("ejecutar_accion", "error", error=exc)
             send_json(self, {"ok": False, "message": str(exc)}, 400)
 
     def log_message(self, fmt: str, *args) -> None:
@@ -1793,12 +2038,15 @@ def build_args(action: str, body: dict) -> list[str]:
         args.extend(["--unidad", unidad])
         return args
 
-    if action in {"preview", "publish"}:
+    if action in {"preview", "publish", "assist_publish"}:
         json_path = require_allowed(str(body.get("json_path") or COMBINED_JSON), allowed_json_paths(), "JSON")
         args = ["--subir-correcciones-carm", str(json_path)]
         if action == "publish":
             revisar_publicacion_segura()
             args.append("--publicar-carm")
+        if action == "assist_publish":
+            revisar_publicacion_segura()
+            args.append("--subida-asistida-carm")
         return args
 
     if action == "diagnose":
@@ -1895,7 +2143,7 @@ def install_startup() -> Path:
     cmd_path.write_text(
         "@echo off\n"
         f'cd /d "{ROOT}"\n'
-        f'start "" "{runner}" "{ROOT / "interfaz_app.py"}" --tray --auto-correct --host 127.0.0.1 --port 8765 --no-browser\n',
+        f'start "" "{runner}" "{ROOT / "interfaz_app.py"}" --tray --auto-correct --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser\n',
         encoding="utf-8",
     )
     return cmd_path
@@ -1946,6 +2194,7 @@ def run_tray(server: ThreadingHTTPServer, url: str, startup_scan: bool) -> None:
     )
     TRAY_ICON = icon
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    notify_pending_publication()
     if startup_scan and carm_credentials_present():
         RUNNER.start("detect_course", ["--cachear-curso", "--refrescar-cache"])
     elif startup_scan:
@@ -1978,8 +2227,8 @@ def start_periodic_scan(disabled: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Interfaz web local del corrector CARM.")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--host", default=DEFAULT_HOST)
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--tray", action="store_true", help="Ejecuta la app en la bandeja del sistema.")
     parser.add_argument(
@@ -2017,9 +2266,19 @@ def main() -> None:
         print("Arranque automatico eliminado." if removed else "No habia arranque automatico instalado.")
         return
 
-    server = ThreadingHTTPServer((args.host, args.port), Handler)
-    url = f"http://{args.host}:{args.port}"
+    try:
+        server, active_port, attempted_ports = create_local_server(args.host, args.port)
+    except OSError as exc:
+        print(f"No se pudo iniciar la interfaz local: {exc}")
+        print("Cierra otra instancia del Corrector CARM o prueba con --port 0 para usar un puerto libre automatico.")
+        return
+    url_host = "127.0.0.1" if args.host in {"0.0.0.0", "::"} else args.host
+    url = f"http://{url_host}:{active_port}"
+    save_app_config({"last_local_url": url, "last_local_port": active_port})
     print(f"Interfaz Corrector CARM: {url}")
+    if args.port and active_port != args.port:
+        print(f"Puerto {args.port} ocupado; se ha usado automaticamente el puerto {active_port}.")
+    notify_pending_publication()
     start_periodic_scan(disabled=args.no_periodic_scan)
     if args.tray:
         if not args.no_browser:

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import getpass
+import hashlib
 import json
 import logging
 import os
@@ -71,9 +73,196 @@ CORRECCIONES_DIR = Path("correcciones_validadas")
 CACHE_DIR = Path("cache_carm")
 CARM_RECORDAR_CUENTA = os.getenv("CARM_RECORDAR_CUENTA", "1").strip().lower() not in {"0", "false", "no"}
 CARM_STORAGE_STATE = CACHE_DIR / "carm_storage_state.json"
+AUDIT_LOG = RESPUESTAS_DIR / "auditoria.jsonl"
+
+
+def _env_int(nombre: str, defecto: int) -> int:
+    try:
+        return int(os.getenv(nombre, str(defecto)) or defecto)
+    except ValueError:
+        return defecto
+
+
+LOG_RETENTION_DAYS = _env_int("LOG_RETENTION_DAYS", 90)
+AUDIT_RETENTION_DAYS = _env_int("AUDIT_RETENTION_DAYS", 365)
 
 for d in (LOG_DIR, RESPUESTAS_DIR, CORRECCIONES_DIR, CACHE_DIR):
     d.mkdir(exist_ok=True)
+
+
+def redactar_texto_sensible(texto: object) -> str:
+    texto = str(texto or "")
+    texto = re.sub(r"[\w.\-+%]+@[\w.\-]+\.[A-Za-z]{2,}", "[email-redactado]", texto)
+    texto = re.sub(r"(sesskey=)[^&\"'>\s]+", r"\1[redactado]", texto, flags=re.I)
+    texto = re.sub(r'("sesskey"\s*:\s*")[^"]+', r'\1[redactado]', texto, flags=re.I)
+    texto = re.sub(r"(password|contrasena|contraseña|contraseÃ±a)(=|%3D)[^&\"'>\s]+", r"\1\2[redactado]", texto, flags=re.I)
+    texto = re.sub(r"(api[_-]?key|token|authorization|cookie)(\s*[=:]\s*)[^&\"'>\s]+", r"\1\2[redactado]", texto, flags=re.I)
+    texto = re.sub(r"(CARM_CONTRASENA|OPENAI_API_KEY|X-Corrector-Token)=\S+", r"\1=[redactado]", texto, flags=re.I)
+    return texto
+
+
+def escribir_env_valores(updates: dict[str, str]) -> None:
+    env_path = Path(".env")
+    lines = env_path.read_text(encoding="utf-8", errors="replace").splitlines() if env_path.exists() else []
+    seen: set[str] = set()
+    output: list[str] = []
+    for line in lines:
+        if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
+            output.append(line)
+            continue
+        key = line.split("=", 1)[0].strip()
+        if key in updates:
+            seen.add(key)
+            output.append(f"{key}={updates[key]}")
+        else:
+            output.append(line)
+    for key, value in updates.items():
+        if key not in seen:
+            output.append(f"{key}={value}")
+    env_path.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
+
+
+def obtener_credenciales_carm_interactivo(motivo: str) -> tuple[str, str] | None:
+    usuario = os.getenv("CARM_USUARIO", "").strip()
+    contrasena = os.getenv("CARM_CONTRASENA", "").strip()
+    if usuario and contrasena:
+        return usuario, contrasena
+    if not sys.stdin.isatty():
+        logger.error("Faltan CARM_USUARIO/CARM_CONTRASENA. Abre la interfaz para introducir credenciales CARM.")
+        registrar_auditoria("credenciales_carm_requeridas", "bloqueado_sin_consola", motivo=motivo)
+        return None
+
+    print("")
+    print(f"Credenciales CARM requeridas para: {motivo}")
+    print("Se guardaran en .env para que el flujo pueda continuar.")
+    if not usuario:
+        usuario = input("Usuario CARM: ").strip()
+    if not contrasena:
+        contrasena = getpass.getpass("Contrasena CARM: ").strip()
+    if not usuario or not contrasena:
+        logger.error("Credenciales CARM incompletas. Flujo detenido.")
+        registrar_auditoria("credenciales_carm_requeridas", "incompletas", motivo=motivo)
+        return None
+    os.environ["CARM_USUARIO"] = usuario
+    os.environ["CARM_CONTRASENA"] = contrasena
+    os.environ["CARM_RECORDAR_CUENTA"] = "1"
+    escribir_env_valores(
+        {
+            "CARM_USUARIO": usuario,
+            "CARM_CONTRASENA": contrasena,
+            "CARM_RECORDAR_CUENTA": "1",
+        }
+    )
+    registrar_auditoria("credenciales_carm_introducidas", motivo=motivo, usuario=usuario)
+    return usuario, contrasena
+
+
+def pseudonimo(valor: object, prefijo: str = "persona") -> str:
+    texto = str(valor or "").strip().lower()
+    if not texto:
+        return f"{prefijo}_desconocida"
+    digest = hashlib.sha256(texto.encode("utf-8", errors="ignore")).hexdigest()[:10]
+    return f"{prefijo}_{digest}"
+
+
+def sanitizar_feedback(texto: str, max_chars: int = 6000) -> str:
+    limpio = str(texto or "")
+    limpio = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", limpio)
+    limpio = re.sub(r"</?(script|iframe|object|embed|style|link|meta)[^>]*>", "", limpio, flags=re.I)
+    limpio = re.sub(r"\son\w+\s*=\s*(['\"]).*?\1", "", limpio, flags=re.I | re.S)
+    limpio = re.sub(r"\s(href|src)\s*=\s*(['\"])\s*javascript:[^'\"]*\2", "", limpio, flags=re.I)
+    limpio = redactar_texto_sensible(limpio)
+    limpio = limpio.strip()
+    if max_chars > 0 and len(limpio) > max_chars:
+        limpio = limpio[:max_chars].rstrip() + "\n\n[Feedback recortado por limite de seguridad.]"
+    return limpio
+
+
+class RedactingFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = redactar_texto_sensible(record.getMessage())
+        record.args = ()
+        return True
+
+
+def registrar_auditoria(accion: str, resultado: str = "ok", **detalles: object) -> None:
+    seguro = {}
+    for clave, valor in detalles.items():
+        if clave.lower() in {"alumno", "usuario", "email", "correo"}:
+            seguro[f"{clave}_ref"] = pseudonimo(valor)
+        elif clave.lower() in {"contrasena", "password", "token", "cookie", "api_key"}:
+            seguro[clave] = "[redactado]"
+        else:
+            seguro[clave] = redactar_texto_sensible(valor)
+    evento = {
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "accion": accion,
+        "resultado": resultado,
+        "detalles": seguro,
+    }
+    try:
+        with AUDIT_LOG.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(evento, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def limpiar_archivos_antiguos(carpeta: Path, dias: int, patrones: tuple[str, ...]) -> int:
+    if dias <= 0 or not carpeta.exists():
+        return 0
+    limite = datetime.now().timestamp() - (dias * 86400)
+    borrados = 0
+    for patron in patrones:
+        for path in carpeta.glob(patron):
+            try:
+                if path.is_file() and path.stat().st_mtime < limite:
+                    path.unlink()
+                    borrados += 1
+            except Exception:
+                continue
+    return borrados
+
+
+def aplicar_retencion_local() -> None:
+    logs_borrados = limpiar_archivos_antiguos(LOG_DIR, LOG_RETENTION_DAYS, ("*.log",))
+    auditoria_borrada = limpiar_archivos_antiguos(RESPUESTAS_DIR, AUDIT_RETENTION_DAYS, ("auditoria*.jsonl",))
+    if logs_borrados or auditoria_borrada:
+        registrar_auditoria(
+            "retencion_local",
+            logs_borrados=logs_borrados,
+            auditoria_borrada=auditoria_borrada,
+        )
+
+
+def _borrar_contenido_directorio(path: Path) -> int:
+    if not path.exists() or not path.is_dir():
+        return 0
+    borrados = 0
+    for item in path.iterdir():
+        try:
+            if item.name == AUDIT_LOG.name:
+                continue
+            if item.is_dir():
+                shutil.rmtree(item)
+            else:
+                item.unlink()
+            borrados += 1
+        except Exception as exc:
+            logger.warning("No se pudo purgar %s: %s", item, exc)
+    return borrados
+
+
+def purgar_datos_personales_locales(pendientes_dir: Path, temporal_dir: Path) -> dict:
+    objetivos = {
+        "pendientes": pendientes_dir,
+        "temporal": temporal_dir,
+        "respuestas_extraidas": RESPUESTAS_DIR,
+        "correcciones_validadas": CORRECCIONES_DIR,
+    }
+    resumen = {nombre: _borrar_contenido_directorio(path) for nombre, path in objetivos.items()}
+    registrar_auditoria("purga_datos_personales_locales", **resumen)
+    return resumen
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,6 +273,8 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger(__name__)
+for handler in logging.getLogger().handlers:
+    handler.addFilter(RedactingFilter())
 
 
 PROMPT_SISTEMA = (
@@ -1525,6 +1716,43 @@ class ExtractorCarm:
                 continue
         raise RuntimeError("No se encontrÃ³ botÃ³n de guardado en el formulario de calificaciÃ³n.")
 
+    @staticmethod
+    async def _mostrar_guia_subida_asistida(page, indice: int, total: int, actividad_codigo: str, alumno: str, usar_siguiente: bool) -> None:
+        boton = "Guardar cambios y mostrar siguiente" if usar_siguiente else "Guardar cambios"
+        mensaje = (
+            f"Revision humana {indice}/{total} - {actividad_codigo.upper()} - "
+            f"{pseudonimo(alumno)}. Revisa nota y feedback. Pulsa: {boton}."
+        )
+        await page.evaluate(
+            """(message) => {
+                const previous = document.getElementById('corrector-carm-assisted-banner');
+                if (previous) previous.remove();
+                const banner = document.createElement('div');
+                banner.id = 'corrector-carm-assisted-banner';
+                banner.textContent = message;
+                banner.style.position = 'fixed';
+                banner.style.left = '16px';
+                banner.style.right = '16px';
+                banner.style.bottom = '16px';
+                banner.style.zIndex = '2147483647';
+                banner.style.padding = '12px 14px';
+                banner.style.background = '#fff8ea';
+                banner.style.border = '1px solid #d6a84f';
+                banner.style.color = '#3f2a00';
+                banner.style.font = '600 14px Segoe UI, Arial, sans-serif';
+                banner.style.boxShadow = '0 8px 28px rgba(0,0,0,.18)';
+                banner.style.borderRadius = '8px';
+                document.body.appendChild(banner);
+            }""",
+            mensaje,
+        )
+
+    @staticmethod
+    async def _esperar_guardado_manual(page) -> None:
+        url_inicial = page.url
+        await page.wait_for_url(lambda url: url != url_inicial, timeout=0)
+        await page.wait_for_load_state("networkidle")
+
     async def _subir_correccion_actividad(
         self,
         page,
@@ -1532,6 +1760,9 @@ class ExtractorCarm:
         correccion: dict,
         publicar: bool,
         mostrar_siguiente: bool = False,
+        asistida: bool = False,
+        indice: int = 1,
+        total: int = 1,
     ) -> dict:
         alumno = str(correccion.get("alumno", "")).strip()
         actividad_codigo = str(correccion.get("actividad") or correccion.get("actividad_codigo") or "").strip().lower()
@@ -1585,17 +1816,37 @@ class ExtractorCarm:
             boton = await self._guardar_calificacion(page, mostrar_siguiente=mostrar_siguiente)
             resultado["boton_guardado"] = boton
             resultado["estado"] = "publicado"
+        elif asistida:
+            await self._mostrar_guia_subida_asistida(
+                page,
+                indice=indice,
+                total=total,
+                actividad_codigo=actividad_codigo,
+                alumno=alumno,
+                usar_siguiente=mostrar_siguiente,
+            )
+            resultado["estado"] = "esperando_guardado_manual"
+            resultado["boton_recomendado"] = (
+                "guardar_cambios_y_mostrar_siguiente" if mostrar_siguiente else "guardar_cambios"
+            )
+            await self._esperar_guardado_manual(page)
+            resultado["estado"] = "guardado_manual_por_usuario"
 
         return resultado
 
-    async def subir_correcciones_carm(self, correcciones: list[dict], publicar: bool = False) -> list[dict]:
+    async def subir_correcciones_carm(
+        self,
+        correcciones: list[dict],
+        publicar: bool = False,
+        asistida: bool = False,
+    ) -> list[dict]:
         if async_playwright is None:
             raise RuntimeError(
                 "Playwright no esta disponible. Ejecuta: pip install -r requirements.txt y luego playwright install chromium"
             )
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=CARM_HEADLESS)
+            browser = await p.chromium.launch(headless=False if asistida else CARM_HEADLESS)
             context = await self._crear_contexto(browser)
             page = await context.new_page()
             self._configurar_page(page)
@@ -1621,7 +1872,7 @@ class ExtractorCarm:
                             or correcciones[indice + 1].get("actividad_codigo")
                             or ""
                         ).strip().lower()
-                    mostrar_siguiente = publicar and bool(siguiente_codigo) and siguiente_codigo == actividad_codigo
+                    mostrar_siguiente = (publicar or asistida) and bool(siguiente_codigo) and siguiente_codigo == actividad_codigo
                     actividad = actividades_por_codigo.get(actividad_codigo)
                     if not actividad:
                         resultados.append(
@@ -1641,6 +1892,9 @@ class ExtractorCarm:
                             correccion,
                             publicar=publicar,
                             mostrar_siguiente=mostrar_siguiente,
+                            asistida=asistida,
+                            indice=indice + 1,
+                            total=total,
                         )
                     )
 
@@ -2201,7 +2455,7 @@ class GeneradorSalidas:
         for clave in ("retroalimentacion", "comentario", "feedback", "observaciones"):
             valor = correccion.get(clave)
             if valor:
-                return str(valor)
+                return sanitizar_feedback(str(valor))
         return ""
 
     def eliminar_pendiente_calificado(self, envio: EnvioPendiente) -> None:
@@ -2692,21 +2946,31 @@ async def ejecutar_flujo(args) -> None:
     contexto_unidad = ""
     pendientes_extraidos: list[EnvioPendiente] = []
     cache_curso = CacheCursoCarm()
-    cache_curso.purgar_si_expirada()
+    if cache_curso.purgar_si_expirada():
+        registrar_auditoria("cache_curso_purgada_por_fecha_fin", course_id=cache_curso.course_id)
+
+    if getattr(args, "purgar_datos_personales_locales", False):
+        if not getattr(args, "confirmar_purga_datos", False):
+            logger.error("Purga bloqueada: anade --confirmar-purga-datos para borrar salidas locales con datos personales.")
+            registrar_auditoria("purga_datos_personales_locales", "bloqueada_sin_confirmacion")
+            return
+        resumen_purga = purgar_datos_personales_locales(pendientes_dir, temporal_dir)
+        logger.info("Purga local completada: %s", resumen_purga)
+        return
 
     if getattr(args, "borrar_cache_curso", False):
         if cache_curso.borrar():
             logger.info(f"Cache del curso borrada: {cache_curso.path}")
+            registrar_auditoria("cache_curso_borrada", course_id=cache_curso.course_id)
         else:
             logger.info(f"No existía cache del curso en: {cache_curso.path}")
         return
 
     if getattr(args, "comprobar_login_carm", False):
-        usuario = os.getenv("CARM_USUARIO", "")
-        contrasena = os.getenv("CARM_CONTRASENA", "")
-        if not usuario or not contrasena:
-            logger.error("Faltan CARM_USUARIO/CARM_CONTRASENA para comprobar login CARM")
+        credenciales = obtener_credenciales_carm_interactivo("comprobar login CARM")
+        if not credenciales:
             return
+        usuario, contrasena = credenciales
         extractor = ExtractorCarm(
             usuario,
             contrasena,
@@ -2716,6 +2980,7 @@ async def ejecutar_flujo(args) -> None:
             usar_cache=True,
         )
         await extractor.comprobar_login()
+        registrar_auditoria("comprobar_login_carm", course_id=cache_curso.course_id)
         return
 
     if getattr(args, "importar_correcciones_codex", ""):
@@ -2731,14 +2996,19 @@ async def ejecutar_flujo(args) -> None:
         for ruta in rutas_extra:
             logger.info(f"- {ruta}")
         logger.info(f"Hoja de revisión manual generada en: {revision_path}")
+        registrar_auditoria(
+            "importar_correcciones_codex",
+            correcciones=len(resultados),
+            origen=correcciones_path,
+            revision=revision_path,
+        )
         return
 
     if getattr(args, "subir_correcciones_carm", ""):
-        usuario = os.getenv("CARM_USUARIO", "")
-        contrasena = os.getenv("CARM_CONTRASENA", "")
-        if not usuario or not contrasena:
-            logger.error("Faltan CARM_USUARIO/CARM_CONTRASENA en .env para subir correcciones a CARM")
+        credenciales = obtener_credenciales_carm_interactivo("subir/previsualizar correcciones en CARM")
+        if not credenciales:
             return
+        usuario, contrasena = credenciales
 
         salida = GeneradorSalidas(pendientes_dir, temporal_dir, actividad_codigo=args.actividad_codigo)
         correcciones_path = Path(args.subir_correcciones_carm)
@@ -2749,6 +3019,7 @@ async def ejecutar_flujo(args) -> None:
             return
 
         publicar = getattr(args, "publicar_carm", False)
+        asistida = getattr(args, "subida_asistida_carm", False)
         extractor = ExtractorCarm(
             usuario,
             contrasena,
@@ -2761,23 +3032,35 @@ async def ejecutar_flujo(args) -> None:
             usar_cache=True,
         )
         try:
-            resultados_subida = await extractor.subir_correcciones_carm(correcciones, publicar=publicar)
+            resultados_subida = await extractor.subir_correcciones_carm(
+                correcciones,
+                publicar=publicar,
+                asistida=asistida,
+            )
         except Exception as e:
             logger.error(f"No se pudo completar la subida a CARM: {e}")
             return
 
         salida_path = RESPUESTAS_DIR / (
-            "subida_carm_publicada.json" if publicar else "subida_carm_previsualizacion.json"
+            "subida_carm_publicada.json" if publicar else (
+                "subida_carm_asistida.json" if asistida else "subida_carm_previsualizacion.json"
+            )
         )
         salida_path.write_text(
             json.dumps(resultados_subida, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+        registrar_auditoria(
+            "publicar_carm" if publicar else ("subida_asistida_carm" if asistida else "previsualizar_subida_carm"),
+            correcciones=len(correcciones),
+            resultados=len(resultados_subida),
+            salida=salida_path,
+        )
         for resultado in resultados_subida:
             logger.info(
                 "%s %s %s: %s",
                 resultado.get("actividad", ""),
-                resultado.get("alumno", ""),
+                pseudonimo(resultado.get("alumno", "")),
                 resultado.get("nota", ""),
                 resultado.get("estado", ""),
             )
@@ -2806,11 +3089,10 @@ async def ejecutar_flujo(args) -> None:
         or getattr(args, "solo_listar_carm", False)
         or getattr(args, "cachear_curso", False)
     ):
-        usuario = os.getenv("CARM_USUARIO", "")
-        contrasena = os.getenv("CARM_CONTRASENA", "")
-        if not usuario or not contrasena:
-            logger.error("Faltan CARM_USUARIO/CARM_CONTRASENA en .env para extraer desde CARM")
+        credenciales = obtener_credenciales_carm_interactivo("extraer o cachear datos desde CARM")
+        if not credenciales:
             return
+        usuario, contrasena = credenciales
 
         extractor = ExtractorCarm(
             usuario,
@@ -3129,6 +3411,11 @@ def parse_args() -> argparse.Namespace:
         help="Con --subir-correcciones-carm, pulsa guardar y publica la calificaciÃ³n en CARM.",
     )
     parser.add_argument(
+        "--subida-asistida-carm",
+        action="store_true",
+        help="Con --subir-correcciones-carm, rellena cada calificacion y espera a que el usuario pulse guardar.",
+    )
+    parser.add_argument(
         "--max-entregas-por-prompt",
         type=int,
         default=8,
@@ -3145,9 +3432,20 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="No elimina de pendientes los archivos ya copiados y corregidos.",
     )
+    parser.add_argument(
+        "--purgar-datos-personales-locales",
+        action="store_true",
+        help="Borra salidas locales con datos personales del flujo de correccion. Requiere --confirmar-purga-datos.",
+    )
+    parser.add_argument(
+        "--confirmar-purga-datos",
+        action="store_true",
+        help="Confirmacion fuerte para ejecutar --purgar-datos-personales-locales.",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     argumentos = parse_args()
+    aplicar_retencion_local()
     asyncio.run(ejecutar_flujo(argumentos))
