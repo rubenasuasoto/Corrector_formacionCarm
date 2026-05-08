@@ -2013,3 +2013,93 @@ Evalúa solo lo que el alumno ha e
 2026-05-08 18:22:50,683 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
 2026-05-08 18:22:54,575 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
 2026-05-08 18:22:59,929 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 19:04:05,039 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 19:04:26,227 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 19:04:26,227 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 19:04:30,214 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 19:04:34,147 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 19:04:38,053 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 19:04:42,000 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 19:04:45,951 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 19:04:49,944 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 19:04:53,843 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 19:04:57,789 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 19:05:01,762 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 19:05:05,689 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 19:05:09,588 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 19:05:13,620 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 19:05:18,604 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 19:05:22,495 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 19:05:26,404 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 19:05:30,335 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 19:05:34,252 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 19:05:38,222 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 19:05:42,139 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 19:05:46,061 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 19:05:50,037 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 19:05:53,953 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 19:05:57,941 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 19:06:01,901 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 19:06:05,812 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 19:06:09,777 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 19:06:13,678 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 19:06:17,935 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 19:06:21,834 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 19:06:25,743 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 19:06:29,650 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 19:06:33,598 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 19:06:37,494 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 19:06:41,411 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 19:06:45,334 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 19:06:50,635 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 19:24:53,517 - INFO - OpenAI API preparada. Modelo: gpt-5.4-mini
+2026-05-08 19:24:53,520 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-08 19:25:03,308 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-08 19:25:03,309 - INFO - Actividades prioritarias encontradas: 1
+2026-05-08 19:25:03,309 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 19:26:34,547 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud01cp02\Elisabet Lopez Ros.pdf
+2026-05-08 19:26:35,090 - INFO - Descargado envio de Carolina Villa Marin: C:\temp\vscodec\pendientes\ud01cp02\Carolina Villa Marin.docx
+2026-05-08 19:26:35,441 - INFO - Descargado envio de Sofía Martínez Hernández: C:\temp\vscodec\pendientes\ud01cp02\Sofía Martínez Hernández.pdf
+2026-05-08 19:26:35,761 - INFO - Descargado envio de Sofia Penalva Garcia: C:\temp\vscodec\pendientes\ud01cp02\Sofia Penalva Garcia.docx
+2026-05-08 19:26:36,307 - INFO - Descargado envio de Lydia Quesada Gonzalez: C:\temp\vscodec\pendientes\ud01cp02\Lydia Quesada Gonzalez.pdf
+2026-05-08 19:26:37,598 - INFO - Descargado envio de Gabriela Mihaela Sima Sima: C:\temp\vscodec\pendientes\ud01cp02\Gabriela Mihaela Sima Sima.html
+2026-05-08 19:26:38,428 - INFO - Corrigiendo lote ud01cp02: 6 entrega(s)
+2026-05-08 19:26:38,429 - WARNING - Entrega marcada para revisión manual: C:\temp\vscodec\pendientes\ud01cp02\Elisabet Lopez Ros.pdf (No se pudo extraer texto de Elisabet Lopez Ros.pdf: Instala pypdf para extraer texto de PDF)
+2026-05-08 19:26:38,432 - WARNING - Entrega marcada para revisión manual: C:\temp\vscodec\pendientes\ud01cp02\Sofía Martínez Hernández.pdf (No se pudo extraer texto de Sofía Martínez Hernández.pdf: Instala pypdf para extraer texto de PDF)
+2026-05-08 19:26:38,434 - WARNING - Entrega marcada para revisión manual: C:\temp\vscodec\pendientes\ud01cp02\Lydia Quesada Gonzalez.pdf (No se pudo extraer texto de Lydia Quesada Gonzalez.pdf: Instala pypdf para extraer texto de PDF)
+2026-05-08 19:26:40,654 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-05-08 19:26:40,655 - INFO - Retrying request to /chat/completions in 0.392038 seconds
+2026-05-08 19:26:42,112 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-05-08 19:26:42,113 - INFO - Retrying request to /chat/completions in 0.783276 seconds
+2026-05-08 19:26:44,523 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-05-08 19:26:44,524 - ERROR - No se pudo corregir ud01cp02 con OpenAI API: Error corrigiendo lote ud01cp02 con OpenAI API: Error code: 429 - {'error': {'message': 'Request too large for gpt-5.4-mini in organization org-Au312xDfiTQQYMpk6tEECSeP on tokens per min (TPM): Limit 200000, Requested 776485. The input or output tokens must be reduced in order to run successfully. Visit https://platform.openai.com/account/rate-limits to learn more.', 'type': 'tokens', 'param': None, 'code': 'rate_limit_exceeded'}}
+2026-05-08 19:46:36,393 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-08 19:46:36,395 - INFO - - tmp_prueba\temporal_prompt_limpio\prompts_codex\prompt_ud01cp02.md
+2026-05-08 19:46:36,395 - INFO - - tmp_prueba\temporal_prompt_limpio\prompts_codex\manifiesto_entregas.json
+2026-05-08 19:59:16,363 - INFO - OpenAI API preparada. Modelo: gpt-5.4-mini
+2026-05-08 19:59:16,366 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-08 19:59:25,853 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-08 19:59:25,853 - INFO - Actividades prioritarias encontradas: 1
+2026-05-08 19:59:25,853 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 20:00:57,033 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud01cp02\Elisabet Lopez Ros.pdf
+2026-05-08 20:00:57,302 - INFO - Descargado envio de Carolina Villa Marin: C:\temp\vscodec\pendientes\ud01cp02\Carolina Villa Marin.docx
+2026-05-08 20:00:57,698 - INFO - Descargado envio de Sofía Martínez Hernández: C:\temp\vscodec\pendientes\ud01cp02\Sofía Martínez Hernández.pdf
+2026-05-08 20:00:57,991 - INFO - Descargado envio de Sofia Penalva Garcia: C:\temp\vscodec\pendientes\ud01cp02\Sofia Penalva Garcia.docx
+2026-05-08 20:00:58,271 - INFO - Descargado envio de Lydia Quesada Gonzalez: C:\temp\vscodec\pendientes\ud01cp02\Lydia Quesada Gonzalez.pdf
+2026-05-08 20:00:58,831 - INFO - Descargado envio de Gabriela Mihaela Sima Sima: C:\temp\vscodec\pendientes\ud01cp02\Gabriela Mihaela Sima Sima.html
+2026-05-08 20:00:59,631 - INFO - Corrigiendo lote ud01cp02: 6 entrega(s)
+2026-05-08 20:01:00,474 - WARNING - C:\temp\vscodec\pendientes\ud01cp02\Gabriela Mihaela Sima Sima.html: HTML limpiado automaticamente desde 2571131 bytes.
+2026-05-08 20:01:00,474 - INFO - Corrigiendo sublote API ud01cp02: 6 entrega(s) (1/6)
+2026-05-08 20:01:19,512 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-08 20:01:19,519 - INFO - Eliminado pendiente ya calificado: C:\temp\vscodec\pendientes\ud01cp02\Elisabet Lopez Ros.pdf
+2026-05-08 20:01:19,523 - INFO - Eliminado pendiente ya calificado: C:\temp\vscodec\pendientes\ud01cp02\Carolina Villa Marin.docx
+2026-05-08 20:01:19,527 - INFO - Eliminado pendiente ya calificado: C:\temp\vscodec\pendientes\ud01cp02\Sofía Martínez Hernández.pdf
+2026-05-08 20:01:19,531 - INFO - Eliminado pendiente ya calificado: C:\temp\vscodec\pendientes\ud01cp02\Sofia Penalva Garcia.docx
+2026-05-08 20:01:19,535 - INFO - Eliminado pendiente ya calificado: C:\temp\vscodec\pendientes\ud01cp02\Lydia Quesada Gonzalez.pdf
+2026-05-08 20:01:19,541 - INFO - Eliminado pendiente ya calificado: C:\temp\vscodec\pendientes\ud01cp02\Gabriela Mihaela Sima Sima.html
+2026-05-08 20:01:19,542 - INFO - Eliminada carpeta de pendientes vacía: C:\temp\vscodec\pendientes\ud01cp02
+2026-05-08 20:01:19,549 - INFO - Proceso completado. Resumen generado en: C:\temp\vscodec\temporal\resumen.txt
+2026-05-08 20:01:19,549 - INFO - Resumen por actividad generado en: C:\temp\vscodec\temporal\resumen_ud01cp02.txt
+2026-05-08 20:01:19,550 - INFO - Hoja de revisión manual generada en: C:\temp\vscodec\temporal\revision_pendiente.csv
+2026-05-08 20:01:19,550 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-08 20:26:34,818 - INFO - Contexto didactico cache optimizado para ud01: 55154 -> 125 caracteres.

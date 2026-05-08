@@ -557,6 +557,8 @@ class TaskRunner:
             if self.action == "check_playwright" and code == 0 and not has_error and self.scan_blocked_by_permissions:
                 self.scan_blocked_by_permissions = False
                 should_retry_scan = True
+            if self.action == "auto_prepare":
+                self.last_detection_at = time.time()
             should_auto_correct = (
                 AUTO_CORRECT_AFTER_SCAN
                 and self.action == "detect_course"
@@ -572,13 +574,9 @@ class TaskRunner:
             notify("Corrector CARM", "Correccion automatica terminada. Revisa el CSV antes de publicar.")
         if should_retry_scan:
             notify("Corrector CARM", "Permisos de navegador recuperados. Repito el escaneo de CARM.")
-            threading.Timer(1.0, lambda: self.start("detect_course", ["--cachear-curso", "--refrescar-cache"])).start()
+            threading.Timer(1.0, lambda: start_startup_work()).start()
         if should_auto_correct:
-            if correction_mode() == "api" and openai_api_key_present():
-                notify("Corrector CARM", "CARM revisado. Empiezo a preparar correcciones automaticamente.")
-                threading.Timer(1.0, lambda: self.start("auto_correct", AUTO_CORRECT_ARGS)).start()
-            else:
-                notify("Corrector CARM", "CARM revisado. No hay API key: abre la interfaz para generar prompts manuales.")
+            threading.Timer(1.0, lambda: start_auto_prepare()).start()
 
     def _notify_line(self, line: str) -> None:
         lowered = line.lower()
@@ -737,6 +735,29 @@ def notify_pending_publication() -> None:
     )
 
 
+def start_auto_prepare() -> tuple[bool, str]:
+    if correction_mode() == "api" and openai_api_key_present():
+        notify("Corrector CARM", "Preparo correcciones automaticamente con OpenAI API.")
+    else:
+        notify("Corrector CARM", "Sin API key o modo prompt: preparo prompts para correccion manual.")
+    return RUNNER.start("auto_prepare", auto_prepare_args_from_cache())
+
+
+def start_startup_work() -> None:
+    if not carm_credentials_present():
+        notify("Corrector CARM", "Faltan credenciales CARM. Abre la interfaz para configurarlas.")
+        return
+    if has_cached_course_data():
+        RUNNER.last_detection_at = time.time()
+        if AUTO_CORRECT_AFTER_SCAN:
+            start_auto_prepare()
+        else:
+            notify("Corrector CARM", "Cache del curso cargada. No se refresca CARM al iniciar.")
+        return
+    notify("Corrector CARM", "No hay cache didactica del curso. Hago primera deteccion en CARM.")
+    RUNNER.start("detect_course", ["--cachear-curso"])
+
+
 def latest_log_lines(path: Path, limit: int = 80) -> list[str]:
     if not path.exists():
         return []
@@ -851,6 +872,25 @@ def course_options() -> dict:
             key=lambda item: (0 if item.get("tipo") == "obligatorio" else 1, item["codigo"]),
         ),
     }
+
+
+def has_cached_course_data() -> bool:
+    options = course_options()
+    return bool(options.get("cache_path") and options.get("units") and options.get("activities"))
+
+
+def auto_prepare_args_from_cache() -> list[str]:
+    if correction_mode() == "api" and openai_api_key_present():
+        return [*AUTO_CORRECT_ARGS, "--max-entregas-por-prompt", "2"]
+    return [
+        "--preparar-carm-codex",
+        "--pendientes",
+        str(PENDIENTES_DIR),
+        "--temporal",
+        str(TEMPORAL_DIR),
+        "--max-entregas-por-prompt",
+        "6",
+    ]
 
 
 def project_state() -> dict:
@@ -1469,7 +1509,7 @@ HTML = r"""<!doctype html>
                 <button id="saveAutomationBtn" type="button">Guardar automatizacion</button>
               </div>
             </div>
-            <p class="hint">Usa 0 para desactivar el refresco periodico. Al iniciar, la app tambien puede actualizar datos si no usas `--no-startup-scan`.</p>
+            <p class="hint">Usa 0 para desactivar la comprobacion periodica. Al iniciar, la app usa la cache existente y solo detecta CARM si no hay datos guardados.</p>
             <div class="row">
               <button id="scanNowBtn" type="button">Escanear ahora</button>
               <button id="pauseScanBtn" type="button">Pausar autoescaneo</button>
@@ -2322,6 +2362,7 @@ def build_args(action: str, body: dict) -> list[str]:
         ]
         if use_api:
             args.insert(1, "--requerir-openai-api")
+            args.extend(["--max-entregas-por-prompt", max_entregas])
         else:
             args.extend(["--max-entregas-por-prompt", max_entregas])
         if modo == "activity":
@@ -2374,6 +2415,8 @@ def build_args(action: str, body: dict) -> list[str]:
                 str(PENDIENTES_DIR),
                 "--temporal",
                 str(TEMPORAL_DIR),
+                "--max-entregas-por-prompt",
+                max_entregas,
                 "--unidad",
                 unidad,
             ]
@@ -2489,8 +2532,8 @@ def run_tray(server: ThreadingHTTPServer, url: str, startup_scan: bool) -> None:
         )
         print(message)
         notify("Corrector CARM", message)
-        if startup_scan and carm_credentials_present():
-            RUNNER.start("detect_course", ["--cachear-curso", "--refrescar-cache"])
+        if startup_scan:
+            start_startup_work()
         server.serve_forever()
         return
 
@@ -2513,10 +2556,8 @@ def run_tray(server: ThreadingHTTPServer, url: str, startup_scan: bool) -> None:
     TRAY_ICON = icon
     threading.Thread(target=server.serve_forever, daemon=True).start()
     notify_pending_publication()
-    if startup_scan and carm_credentials_present():
-        RUNNER.start("detect_course", ["--cachear-curso", "--refrescar-cache"])
-    elif startup_scan:
-        notify("Corrector CARM", "Faltan credenciales CARM. Abre la interfaz para configurarlas.")
+    if startup_scan:
+        start_startup_work()
     icon.run()
 
 
@@ -2536,9 +2577,11 @@ def start_periodic_scan(disabled: bool) -> None:
             snapshot = RUNNER.snapshot()
             if snapshot.get("running"):
                 continue
-            ok, _ = RUNNER.start("detect_course", ["--cachear-curso", "--refrescar-cache"])
+            if has_cached_course_data():
+                continue
+            ok, _ = RUNNER.start("detect_course", ["--cachear-curso"])
             if ok:
-                notify("Corrector CARM", "Autodeteccion periodica de CARM iniciada.")
+                notify("Corrector CARM", "Primera deteccion periodica de CARM iniciada.")
 
     threading.Thread(target=loop, daemon=True).start()
 
@@ -2603,11 +2646,8 @@ def main() -> None:
             threading.Timer(0.8, lambda: webbrowser.open(url)).start()
         run_tray(server, url, startup_scan=not args.no_startup_scan)
         return
-    if not args.no_startup_scan and carm_credentials_present():
-        ok, message = RUNNER.start("detect_course", ["--cachear-curso", "--refrescar-cache"])
-        print(f"Revision inicial CARM: {message if ok else 'omitida'}")
-    elif not args.no_startup_scan:
-        print("Revision inicial CARM omitida: faltan credenciales.")
+    if not args.no_startup_scan:
+        start_startup_work()
     if not args.no_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     try:
