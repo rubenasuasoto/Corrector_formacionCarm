@@ -55,7 +55,7 @@ ACTIVITY_RE = re.compile(r"^ud\d{2}cp\d{2}$")
 COURSE_URL_RE = re.compile(r"^https://formacion\.carm\.es/course/view\.php\?id=\d+$")
 TRAY_ICON = None
 AUTO_CORRECT_AFTER_SCAN = False
-AUTO_CORRECT_ARGS = ["--extraer-carm", "--requerir-openai-api"]
+AUTO_CORRECT_ARGS = ["--preparar-carm-codex"]
 DEFAULT_SCAN_INTERVAL_MINUTES = 60
 API_TOKEN = secrets.token_urlsafe(32)
 DEFAULT_HOST = "127.0.0.1"
@@ -123,8 +123,8 @@ def save_automation_config(interval_minutes: str | int) -> int:
     return interval
 
 
-def json_options() -> list[dict]:
-    paths = [COMBINED_JSON]
+def correction_source_options() -> list[dict]:
+    paths = [REVISION_CSV, COMBINED_JSON]
     if PROMPTS_DIR.exists():
         paths.extend(sorted(PROMPTS_DIR.glob("*_correccion.json")))
         corrections_dir = PROMPTS_DIR / "correcciones_codex"
@@ -141,8 +141,13 @@ def json_options() -> list[dict]:
     return options
 
 
+def json_options() -> list[dict]:
+    return correction_source_options()
+
+
 def allowed_json_paths() -> set[str]:
-    allowed = {item["path"] for item in json_options()}
+    allowed = {item["path"] for item in correction_source_options()}
+    allowed.add(str(REVISION_CSV))
     allowed.update(
         str(PROMPTS_DIR / name)
         for name in (
@@ -160,6 +165,12 @@ def allowed_json_paths() -> set[str]:
         )
     )
     return allowed
+
+
+def default_correction_source_path() -> Path:
+    if REVISION_CSV.exists():
+        return REVISION_CSV
+    return COMBINED_JSON
 
 
 configure_work_dirs()
@@ -511,7 +522,7 @@ class TaskRunner:
             self.manual_notified = False
             self.permission_error = False
             env = os.environ.copy()
-            if action in {"detect_course", "auto_correct", "check_playwright"}:
+            if action in {"detect_course", "auto_prepare", "check_playwright"}:
                 env["CARM_HEADLESS"] = "1"
             popen_kwargs = {}
             if os.name == "nt":
@@ -570,8 +581,10 @@ class TaskRunner:
                 notify("Corrector CARM", "Windows bloqueo Playwright/Chromium. Ejecuta la app con permisos permitidos.")
             else:
                 notify("Corrector CARM", "Hay errores en la ultima tarea. Abre la interfaz para revisar el log.")
-        elif self.action == "auto_correct":
-            notify("Corrector CARM", "Correccion automatica terminada. Revisa el CSV antes de publicar.")
+        elif self.action in {"auto_prepare", "prepare"}:
+            notify_prompts_prepared()
+        elif self.action in {"prepare_carm_api", "solve_prompts_api", "import_codex"}:
+            notify_pending_publication()
         if should_retry_scan:
             notify("Corrector CARM", "Permisos de navegador recuperados. Repito el escaneo de CARM.")
             threading.Timer(1.0, lambda: start_startup_work()).start()
@@ -692,6 +705,8 @@ def file_info(path: Path) -> dict:
 def pending_publication_state() -> dict:
     combined = file_info(COMBINED_JSON)
     revision = file_info(REVISION_CSV)
+    source_path = default_correction_source_path()
+    source = file_info(source_path)
     published = file_info(SUBIDA_PUBLICADA_JSON)
     assisted = file_info(SUBIDA_ASISTIDA_JSON)
     rows = 0
@@ -705,13 +720,15 @@ def pending_publication_state() -> dict:
             blocking = sum(1 for row in data if (row.get("estado") or "").strip().lower() in estados_bloqueantes)
         except Exception:
             blocking = 1
-    base_modified = max(combined["modified"], revision["modified"])
-    pending = bool(combined["exists"] and revision["exists"] and rows and published["modified"] < base_modified)
+    base_modified = max(source["modified"], revision["modified"])
+    uploaded_modified = max(published["modified"], assisted["modified"])
+    pending = bool(revision["exists"] and rows and uploaded_modified < base_modified)
     return {
         "pending": pending,
         "rows": rows,
         "blocking": blocking,
         "ready_for_assisted_upload": pending and blocking == 0,
+        "source": source,
         "combined": combined,
         "revision_csv": revision,
         "published": published,
@@ -735,9 +752,18 @@ def notify_pending_publication() -> None:
     )
 
 
+def notify_prompts_prepared() -> None:
+    prompts = sorted(PROMPTS_DIR.glob("prompt_*.md")) if PROMPTS_DIR.exists() else []
+    if prompts:
+        notify(
+            "Corrector CARM",
+            f"Hay {len(prompts)} prompt(s) preparados. Abre la interfaz y pulsa Corregir prompts con API.",
+        )
+
+
 def start_auto_prepare() -> tuple[bool, str]:
     if correction_mode() == "api" and openai_api_key_present():
-        notify("Corrector CARM", "Preparo correcciones automaticamente con OpenAI API.")
+        notify("Corrector CARM", "Preparo prompts automaticamente. La API se ejecutara cuando lo confirmes.")
     else:
         notify("Corrector CARM", "Sin API key o modo prompt: preparo prompts para correccion manual.")
     return RUNNER.start("auto_prepare", auto_prepare_args_from_cache())
@@ -881,7 +907,15 @@ def has_cached_course_data() -> bool:
 
 def auto_prepare_args_from_cache() -> list[str]:
     if correction_mode() == "api" and openai_api_key_present():
-        return [*AUTO_CORRECT_ARGS, "--max-entregas-por-prompt", "2"]
+        return [
+            *AUTO_CORRECT_ARGS,
+            "--pendientes",
+            str(PENDIENTES_DIR),
+            "--temporal",
+            str(TEMPORAL_DIR),
+            "--max-entregas-por-prompt",
+            "0",
+        ]
     return [
         "--preparar-carm-codex",
         "--pendientes",
@@ -889,16 +923,18 @@ def auto_prepare_args_from_cache() -> list[str]:
         "--temporal",
         str(TEMPORAL_DIR),
         "--max-entregas-por-prompt",
-        "6",
+        "0",
     ]
 
 
 def project_state() -> dict:
     prompts = sorted(PROMPTS_DIR.glob("prompt_*.md")) if PROMPTS_DIR.exists() else []
     corrections = sorted(PROMPTS_DIR.glob("*_correccion.json")) if PROMPTS_DIR.exists() else []
+    resumenes = sorted(TEMPORAL_DIR.glob("resumen*.txt")) if TEMPORAL_DIR.exists() else []
     return {
         "combined": file_info(COMBINED_JSON),
         "revision_csv": file_info(REVISION_CSV),
+        "correction_source": file_info(default_correction_source_path()),
         "pendientes_dir": str(PENDIENTES_DIR),
         "prompts_dir": str(PROMPTS_DIR),
         "temporal_dir": str(TEMPORAL_DIR),
@@ -906,6 +942,7 @@ def project_state() -> dict:
         "json_options": json_options(),
         "prompts": [file_info(p) for p in prompts],
         "corrections": [file_info(p) for p in corrections],
+        "summaries": [file_info(p) for p in resumenes],
         "agent_log": latest_log_lines(AGENTE_LOG),
         "pending_publication": pending_publication_state(),
     }
@@ -1300,11 +1337,11 @@ HTML = r"""<!doctype html>
           <div class="field">
             <label for="maxEntregas">Entregas por prompt</label>
             <select id="maxEntregas">
-              <option value="0">Todos los pendientes</option>
+              <option value="0" selected>Todos los pendientes</option>
               <option value="3">3</option>
               <option value="4">4</option>
               <option value="5">5</option>
-              <option value="6" selected>6</option>
+              <option value="6">6</option>
               <option value="8">8</option>
               <option value="10">10</option>
               <option value="12">12</option>
@@ -1312,7 +1349,8 @@ HTML = r"""<!doctype html>
           </div>
         </div>
         <div class="button-row">
-          <button class="primary" id="prepareBtn">Preparar con API</button>
+          <button class="primary" id="prepareBtn">Preparar prompts</button>
+          <button id="solveApiBtn">Corregir prompts con API</button>
           <button class="danger" id="stopBtn">Detener</button>
         </div>
       </section>
@@ -1322,8 +1360,9 @@ HTML = r"""<!doctype html>
           <h2>Subida a CARM</h2>
           <p>Previsualiza primero. La subida asistida rellena campos y espera tu guardado manual.</p>
         </div>
-        <label for="jsonPath">JSON de correcciones</label>
+        <label for="jsonPath">Archivo de correcciones</label>
         <select id="jsonPath">
+          <option value="C:\temp\vscodec\temporal\revision_pendiente.csv">revision_pendiente.csv</option>
           <option value="C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json">correcciones_codex_combinadas.json</option>
           <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01_correccion.json">prompt_ud01cp01_correccion.json</option>
           <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp02_correccion.json">prompt_ud01cp02_correccion.json</option>
@@ -1352,12 +1391,12 @@ HTML = r"""<!doctype html>
           </div>
           <div class="metric">
             <strong id="correctionCount">0</strong>
-            <span>JSON de correccion</span>
+            <span>correcciones listas</span>
           </div>
         </div>
         <div class="stack">
           <div>
-            <label>JSON combinado</label>
+            <label>Archivo para subir</label>
             <div id="combinedPath" class="path"></div>
           </div>
           <div>
@@ -1370,7 +1409,7 @@ HTML = r"""<!doctype html>
       <section>
         <div class="section-head">
           <h2>Archivos recientes</h2>
-          <p>Prompts enviados y respuestas JSON recibidas.</p>
+          <p>Prompts, resúmenes y respuestas recibidas.</p>
         </div>
         <div class="stack">
           <div>
@@ -1380,6 +1419,10 @@ HTML = r"""<!doctype html>
           <div>
             <label>Correcciones</label>
             <div id="correctionsList" class="list"></div>
+          </div>
+          <div>
+            <label>Resúmenes</label>
+            <div id="summariesList" class="list"></div>
           </div>
         </div>
       </section>
@@ -1566,7 +1609,8 @@ HTML = r"""<!doctype html>
             <option value="cache_course">Cachear curso</option>
             <option value="check_openai">Comprobar OpenAI API</option>
             <option value="check_codex">Comprobar Codex CLI</option>
-            <option value="prepare_carm_api">Corregir desde CARM con API</option>
+            <option value="solve_prompts_api">Corregir prompts preparados con API</option>
+            <option value="prepare_carm_api">Corregir desde CARM con API directo</option>
             <option value="prepare_carm_codex">Preparar prompts desde CARM</option>
             <option value="prepare_carm_codex_activity">Preparar prompts de un caso desde CARM</option>
             <option value="prepare_local_prompts">Preparar prompts desde archivos locales</option>
@@ -1585,11 +1629,11 @@ HTML = r"""<!doctype html>
             <div>
               <label for="advancedMaxEntregas">Entregas por prompt</label>
               <select id="advancedMaxEntregas">
-                <option value="0">Todos los pendientes</option>
+                <option value="0" selected>Todos los pendientes</option>
                 <option value="3">3</option>
                 <option value="4">4</option>
                 <option value="5">5</option>
-                <option value="6" selected>6</option>
+                <option value="6">6</option>
                 <option value="8">8</option>
                 <option value="10">10</option>
                 <option value="12">12</option>
@@ -1622,7 +1666,7 @@ HTML = r"""<!doctype html>
 
         <div id="fieldsImport" class="advanced-fields">
           <div>
-            <label for="importJsonPath">JSON devuelto por Codex/ChatGPT</label>
+            <label for="importJsonPath">JSON/CSV de correcciones</label>
             <select id="importJsonPath">
               <option value="C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json">correcciones_codex_combinadas.json</option>
               <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01_correccion.json">prompt_ud01cp01_correccion.json</option>
@@ -1653,11 +1697,12 @@ HTML = r"""<!doctype html>
       cache_course: 'Actualiza la cache local de recursos estables del curso.',
       check_openai: 'Comprueba que OPENAI_API_KEY y OPENAI_MODEL estan configurados.',
       check_codex: 'Comprueba que Codex CLI existe y que hay una sesion iniciada.',
-      prepare_carm_api: 'Descarga entregas desde CARM y corrige con OpenAI API.',
+      solve_prompts_api: 'Envia a OpenAI API los prompts ya preparados y genera el CSV revisable.',
+      prepare_carm_api: 'Descarga entregas desde CARM y corrige con OpenAI API en un solo paso.',
       prepare_carm_codex: 'Descarga desde CARM y genera prompts para Codex sin llamar a la API.',
       prepare_carm_codex_activity: 'Descarga y prepara prompts solo para el caso practico elegido.',
       prepare_local_prompts: 'Lee entregas ya descargadas y genera prompts usando un archivo de contexto local.',
-      import_codex: 'Importa un JSON de correcciones y crea salidas revisables por alumno.',
+      import_codex: 'Importa un JSON/CSV de correcciones y crea salidas revisables por alumno.',
       delete_cache: 'Borra la cache SQLite local del curso.'
     };
     const advancedLabels = {
@@ -1669,6 +1714,7 @@ HTML = r"""<!doctype html>
       cache_course: '--cachear-curso --unidad <unidad>',
       check_openai: '--comprobar-openai-api',
       check_codex: '--comprobar-codex-cli',
+      solve_prompts_api: '--corregir-prompts-openai',
       prepare_carm_api: '--extraer-carm --requerir-openai-api --unidad <unidad>',
       prepare_carm_codex: '--preparar-carm-codex --unidad <unidad> --max-entregas-por-prompt <n>',
       prepare_carm_codex_activity: '--preparar-carm-codex --actividad <caso> --max-entregas-por-prompt <n>',
@@ -1857,9 +1903,8 @@ HTML = r"""<!doctype html>
       const hasUnits = courseOptions.units.length > 0;
       const hasSelectedActivity = $('prepareMode').value !== 'activity' || Boolean($('actividad').value);
       $('prepareBtn').disabled = locked || !hasUnits || !hasSelectedActivity;
-      $('prepareBtn').textContent = authState.openai_api_configured && authState.correction_mode !== 'prompt'
-        ? 'Preparar con API'
-        : 'Generar prompts';
+      $('prepareBtn').textContent = 'Preparar prompts';
+      $('solveApiBtn').disabled = locked || !authState.openai_api_configured;
       $('previewBtn').disabled = locked;
       $('assistPublishBtn').disabled = locked || !$('publishCheck').checked;
       $('publishBtn').disabled = locked || !$('publishCheck').checked;
@@ -1871,7 +1916,7 @@ HTML = r"""<!doctype html>
     }
 
     function setWorkflow(status, state) {
-      const hasReviewFiles = state.combined.exists && state.revision_csv.exists;
+      const hasReviewFiles = state.revision_csv.exists && (state.pending_publication.rows > 0 || state.correction_source.exists);
       $('stepPrepare').className = 'step ' + (hasReviewFiles ? 'done' : 'active');
       $('stepReview').className = 'step ' + (hasReviewFiles ? 'active' : '');
       $('stepPublish').className = 'step ' + ($('publishCheck').checked ? 'active' : '');
@@ -1992,7 +2037,7 @@ HTML = r"""<!doctype html>
       await saveAutomation();
       if (stopCurrentScan) {
         const status = await api('/api/status');
-        if (status.running && ['detect_course', 'auto_correct'].includes(status.action)) {
+        if (status.running && ['detect_course', 'auto_prepare'].includes(status.action)) {
           await api('/api/stop', {method:'POST'});
         }
       }
@@ -2016,7 +2061,11 @@ HTML = r"""<!doctype html>
       setInputValue('autoScanInterval', state.auto_scan_interval_minutes);
       $('pauseScanBtn').textContent = state.auto_scan_interval_minutes > 0 ? 'Pausar autoescaneo' : 'Autoescaneo pausado';
       const jsonHtml = state.json_options.map(jsonOptionHtml).join('');
-      fillSelect($('jsonPath'), jsonHtml, $('jsonPath').value);
+      const selectedCorrectionSource = state.json_options.find((item) => item.path === $('jsonPath').value);
+      const correctionSourceValue = selectedCorrectionSource && selectedCorrectionSource.exists
+        ? selectedCorrectionSource.path
+        : state.correction_source.path;
+      fillSelect($('jsonPath'), jsonHtml, correctionSourceValue);
       fillSelect($('importJsonPath'), jsonHtml, $('importJsonPath').value);
       setInputValue('courseUrl', courseOptions.course_url || '');
       const detectedHtml = courseOptions.detected_courses.length
@@ -2044,12 +2093,16 @@ HTML = r"""<!doctype html>
           : 'Puedes usar Subida asistida para rellenar CARM y guardar manualmente.';
         showSystemNotice(`Hay ${pending.rows} calificacion(es) preparadas pendientes de subir. ${extra}`);
       }
-      setText('combinedPath', `${state.combined.path} · ${state.combined.exists ? 'listo' : 'pendiente'}`);
+      if (state.prompts.length && authState.openai_api_configured && !(state.pending_publication && state.pending_publication.pending)) {
+        showSystemNotice(`Hay ${state.prompts.length} prompt(s) preparados. Pulsa "Corregir prompts con API" cuando quieras gastar la API.`);
+      }
+      setText('combinedPath', `${state.correction_source.path} · ${state.correction_source.exists ? 'listo' : 'pendiente'}`);
       setText('revisionPath', `${state.revision_csv.path} · ${state.revision_csv.exists ? 'listo' : 'pendiente'}`);
       setHtml('promptsList', state.prompts.length ? state.prompts.map(fmtFile).join('') : '<span class="muted">Sin prompts</span>');
       setHtml('correctionsList', state.corrections.length ? state.corrections.map(fmtFile).join('') : '<span class="muted">Sin correcciones</span>');
+      setHtml('summariesList', state.summaries.length ? state.summaries.map(fmtFile).join('') : '<span class="muted">Sin resumenes</span>');
       setText('promptCount', String(state.prompts.length));
-      setText('correctionCount', String(state.corrections.length));
+      setText('correctionCount', String(state.pending_publication.rows || state.corrections.length));
       setWorkflow(status, state);
       setBusy(status.running);
       if (shouldRestoreScroll && (window.scrollX !== scrollX || window.scrollY !== scrollY)) {
@@ -2081,6 +2134,7 @@ HTML = r"""<!doctype html>
       actividad: $('actividad').value,
       max_entregas: $('maxEntregas').value
     });
+    $('solveApiBtn').onclick = () => run('solve_prompts_api');
     $('previewBtn').onclick = () => run('preview', {json_path: $('jsonPath').value});
     $('assistPublishBtn').onclick = () => {
       if (!$('publishCheck').checked) return alert('Marca la confirmación antes de iniciar la subida asistida.');
@@ -2350,21 +2404,17 @@ def build_args(action: str, body: dict) -> list[str]:
         modo = str(body.get("modo") or "unit").strip()
         unidad = str(body.get("unidad") or "ud01").strip()
         actividad = str(body.get("actividad") or "").strip()
-        max_entregas = str(body.get("max_entregas") or "6").strip()
+        max_entregas = str(body.get("max_entregas") or "0").strip()
         require_allowed(max_entregas, ALLOWED_MAX_ENTREGAS, "Entregas por prompt")
-        use_api = correction_mode() == "api" and openai_api_key_present()
         args = [
-            "--extraer-carm" if use_api else "--preparar-carm-codex",
+            "--preparar-carm-codex",
             "--pendientes",
             str(PENDIENTES_DIR),
             "--temporal",
             str(TEMPORAL_DIR),
+            "--max-entregas-por-prompt",
+            max_entregas,
         ]
-        if use_api:
-            args.insert(1, "--requerir-openai-api")
-            args.extend(["--max-entregas-por-prompt", max_entregas])
-        else:
-            args.extend(["--max-entregas-por-prompt", max_entregas])
         if modo == "activity":
             require_allowed(actividad, allowed_activities(), "Actividad")
             args.extend(["--actividad", actividad])
@@ -2374,7 +2424,11 @@ def build_args(action: str, body: dict) -> list[str]:
         return args
 
     if action in {"preview", "publish", "assist_publish"}:
-        json_path = require_allowed(str(body.get("json_path") or COMBINED_JSON), allowed_json_paths(), "JSON")
+        json_path = require_allowed(
+            str(body.get("json_path") or default_correction_source_path()),
+            allowed_json_paths(),
+            "Archivo de correcciones",
+        )
         args = ["--subir-correcciones-carm", str(json_path)]
         if action == "preview":
             args.extend(["--solo-primera-previsualizacion-carm", "--mantener-navegador"])
@@ -2400,7 +2454,7 @@ def build_args(action: str, body: dict) -> list[str]:
 
     if action in {"list_carm", "cache_course", "prepare_carm_api", "prepare_carm_codex"}:
         unidad = str(body.get("unidad") or "ud01").strip()
-        max_entregas = str(body.get("max_entregas") or "6").strip()
+        max_entregas = str(body.get("max_entregas") or "0").strip()
         require_allowed(unidad, allowed_units(), "Unidad")
         require_allowed(max_entregas, ALLOWED_MAX_ENTREGAS, "Entregas por prompt")
         if action == "list_carm":
@@ -2438,9 +2492,18 @@ def build_args(action: str, body: dict) -> list[str]:
     if action == "check_codex":
         return ["--comprobar-codex-cli"]
 
+    if action == "solve_prompts_api":
+        return [
+            "--pendientes",
+            str(PENDIENTES_DIR),
+            "--temporal",
+            str(TEMPORAL_DIR),
+            "--corregir-prompts-openai",
+        ]
+
     if action == "prepare_carm_codex_activity":
         actividad = str(body.get("actividad") or "").strip()
-        max_entregas = str(body.get("max_entregas") or "6").strip()
+        max_entregas = str(body.get("max_entregas") or "0").strip()
         require_allowed(actividad, allowed_activities(), "Actividad")
         require_allowed(max_entregas, ALLOWED_MAX_ENTREGAS, "Entregas por prompt")
         return [

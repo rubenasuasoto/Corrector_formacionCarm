@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import csv
 import getpass
 import hashlib
 import json
@@ -558,6 +559,12 @@ Evalúa en escala de 0 a 10. Devuelve JSON con este formato exacto:
 MAX_CONTEXTO_PROMPT_CHARS = 14000
 MAX_CONTEXTO_API_CHARS = 12000
 MAX_CONTEXTO_CACHE_CHARS = 24000
+OPENAI_PROMPT_TOKEN_WARN = _env_int("OPENAI_PROMPT_TOKEN_WARN", 100000)
+OPENAI_PROMPT_TOKEN_MAX = _env_int("OPENAI_PROMPT_TOKEN_MAX", 180000)
+
+
+def estimar_tokens_aprox(texto: str) -> int:
+    return max(1, (len(str(texto or "")) + 3) // 4)
 
 
 def _normalizar_linea_comparable(valor: str) -> str:
@@ -3371,13 +3378,31 @@ class GeneradorSalidas:
         elif estado in {"revision", "revisión", "revision manual", "revision_manual"}:
             estado = "revision_manual_necesaria"
         normalizada["estado"] = estado
-        normalizada["nota"] = float(normalizada.get("nota", 0) or 0)
+        normalizada["nota"] = float(str(normalizada.get("nota", 0) or 0).replace(",", "."))
         return normalizada
 
     def _leer_correcciones_codex(self, correcciones_path: Path) -> list[dict]:
         texto = self._leer_archivo_texto(correcciones_path).strip()
         if not texto:
             raise ValueError(f"No se pudo leer el archivo de correcciones: {correcciones_path}")
+
+        if correcciones_path.suffix.lower() == ".csv":
+            with correcciones_path.open("r", encoding="utf-8-sig", newline="") as handle:
+                filas = list(csv.DictReader(handle, delimiter=";"))
+            if not filas:
+                raise ValueError("El CSV de correcciones no contiene filas.")
+            correcciones_csv: list[dict] = []
+            for fila in filas:
+                correccion = {
+                    "alumno": (fila.get("alumno") or "").strip(),
+                    "actividad": (fila.get("actividad") or "").strip().lower(),
+                    "nota": fila.get("nota") or 0,
+                    "estado": (fila.get("estado") or "").strip(),
+                    "retroalimentacion": fila.get("retroalimentacion") or "",
+                    "archivo_correccion": fila.get("archivo_correccion") or "",
+                }
+                correcciones_csv.append(self._normalizar_correccion_importada(correccion))
+            return correcciones_csv
 
         match = re.search(r"```(?:json)?\s*(.*?)```", texto, flags=re.S | re.I)
         if match:
@@ -3734,6 +3759,99 @@ class GeneradorSalidas:
 
         return rutas_correcciones, revision_path
 
+    def corregir_prompts_con_openai(
+        self,
+        rutas_prompts: list[Path] | None = None,
+        output_dir: Path | None = None,
+        importar: bool = False,
+        warn_tokens_prompt: int = OPENAI_PROMPT_TOKEN_WARN,
+        max_tokens_prompt: int = OPENAI_PROMPT_TOKEN_MAX,
+    ) -> tuple[list[Path], Path | None]:
+        if OpenAI is None:
+            raise RuntimeError("El paquete openai no esta instalado en la venv.")
+        if not openai_api_key_configurada():
+            raise RuntimeError("Falta OPENAI_API_KEY en .env o conserva el valor de ejemplo.")
+
+        prompts_dir = self.temporal_dir / "prompts_codex"
+        prompts = [
+            ruta for ruta in (rutas_prompts or sorted(prompts_dir.glob("prompt_*.md")))
+            if ruta.suffix.lower() == ".md" and ruta.name.startswith("prompt_")
+        ]
+        if not prompts:
+            raise ValueError("No hay prompts .md preparados para enviar a OpenAI API.")
+
+        output_dir = output_dir or prompts_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for viejo in output_dir.glob("*_correccion.json"):
+            archivo_dir = output_dir / "archivados" / datetime.now().strftime("%Y%m%d_%H%M%S_pre_openai")
+            moved = _mover_si_existe(viejo, archivo_dir)
+            if moved:
+                logger.info("Correccion API anterior archivada antes de generar nueva salida: %s", moved)
+
+        cliente = OpenAI(api_key=os.getenv("OPENAI_API_KEY", "").strip())
+        modelo = os.getenv("OPENAI_MODEL", "gpt-5-mini").strip() or "gpt-5-mini"
+        rutas_correcciones: list[Path] = []
+
+        for prompt_path in prompts:
+            salida_path = output_dir / f"{prompt_path.stem}_correccion.json"
+            prompt_texto = normalizar_texto_para_cli(prompt_path.read_text(encoding="utf-8"))
+            instruccion = (
+                f"{prompt_texto}\n\n"
+                "IMPORTANTE: responde solo con JSON valido, sin markdown ni explicaciones fuera del JSON."
+            )
+            tokens_estimados = estimar_tokens_aprox(instruccion)
+            logger.info(
+                "Prompt preparado para OpenAI API: %s (%s caracteres, ~%s tokens estimados)",
+                prompt_path,
+                len(instruccion),
+                tokens_estimados,
+            )
+            if warn_tokens_prompt > 0 and tokens_estimados >= warn_tokens_prompt:
+                logger.warning(
+                    "Prompt grande para API (%s ~%s tokens). Si falla por limite, vuelve a preparar con menos entregas por prompt.",
+                    prompt_path.name,
+                    tokens_estimados,
+                )
+            if max_tokens_prompt > 0 and tokens_estimados >= max_tokens_prompt:
+                raise RuntimeError(
+                    f"Prompt {prompt_path.name} demasiado grande para enviarlo con seguridad "
+                    f"(~{tokens_estimados} tokens estimados, limite {max_tokens_prompt}). "
+                    "Vuelve a preparar con Entregas por prompt 3, 4 o 6."
+                )
+            logger.info("Enviando prompt preparado a OpenAI API: %s", prompt_path)
+            respuesta_api = cliente.chat.completions.create(
+                model=modelo,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Responde exclusivamente con JSON valido en espanol.",
+                    },
+                    {"role": "user", "content": instruccion},
+                ],
+                response_format={"type": "json_object"},
+                max_completion_tokens=16000,
+            )
+            contenido = respuesta_api.choices[0].message.content or "{}"
+            salida_path.write_text(contenido, encoding="utf-8")
+            rutas_correcciones.append(salida_path)
+            logger.info("Correccion API guardada en: %s", salida_path)
+
+        combinado_path = output_dir / "correcciones_codex_combinadas.json"
+        correcciones_combinadas: list[dict] = []
+        for ruta in rutas_correcciones:
+            correcciones_combinadas.extend(self._leer_correcciones_codex(ruta))
+        combinado_path.write_text(
+            json.dumps(correcciones_combinadas, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        rutas_correcciones.append(combinado_path)
+
+        revision_path: Path | None = None
+        if importar:
+            _, revision_path, _ = self.importar_correcciones_codex(combinado_path)
+
+        return rutas_correcciones, revision_path
+
 
 async def ejecutar_flujo(args) -> None:
     pendientes_dir = Path(args.pendientes)
@@ -3768,7 +3886,7 @@ async def ejecutar_flujo(args) -> None:
         args.preparar_carm_codex = True
         args.corregir_con_codex = True
         args.importar_tras_codex = True
-    if getattr(args, "requerir_openai_api", False):
+    if getattr(args, "requerir_openai_api", False) or getattr(args, "corregir_prompts_openai", False):
         try:
             estado_openai = comprobar_openai_api_configurada()
         except Exception as exc:
@@ -3858,6 +3976,32 @@ async def ejecutar_flujo(args) -> None:
             origen=correcciones_path,
             revision=revision_path,
         )
+        return
+
+    if getattr(args, "corregir_prompts_openai", False) and not (
+        getattr(args, "preparar_prompts_codex", False) or preparar_carm_codex
+    ):
+        salida = GeneradorSalidas(pendientes_dir, temporal_dir, actividad_codigo=args.actividad_codigo)
+        try:
+            rutas_correcciones, revision_path = salida.corregir_prompts_con_openai(
+                output_dir=Path(args.openai_output_dir) if getattr(args, "openai_output_dir", "") else None,
+                importar=getattr(args, "importar_tras_openai", True),
+                warn_tokens_prompt=getattr(args, "openai_warn_tokens_prompt", OPENAI_PROMPT_TOKEN_WARN),
+                max_tokens_prompt=getattr(args, "openai_max_tokens_prompt", OPENAI_PROMPT_TOKEN_MAX),
+            )
+        except Exception as e:
+            logger.error(f"No se pudieron corregir prompts con OpenAI API: {e}")
+            return
+        logger.info("Correcciones generadas por OpenAI API:")
+        for ruta in rutas_correcciones:
+            logger.info(f"- {ruta}")
+        if revision_path:
+            logger.info(f"Correcciones importadas. Hoja de revision: {revision_path}")
+        if not getattr(args, "conservar_pendientes", False):
+            manifiesto_path = temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
+            archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
+            if archivados:
+                logger.info("Entregas pendientes archivadas tras correccion API correcta: %s", archivados)
         return
 
     if getattr(args, "subir_correcciones_carm", ""):
@@ -4038,6 +4182,7 @@ async def ejecutar_flujo(args) -> None:
         archivar_tras_codex = (
             not getattr(args, "conservar_pendientes", False)
             and not getattr(args, "corregir_con_codex", False)
+            and not getattr(args, "corregir_prompts_openai", False)
         )
         if archivar_tras_codex:
             manifiesto_path = temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
@@ -4065,6 +4210,28 @@ async def ejecutar_flujo(args) -> None:
                 archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
                 if archivados:
                     logger.info("Entregas pendientes archivadas tras correccion Codex correcta: %s", archivados)
+        if getattr(args, "corregir_prompts_openai", False):
+            try:
+                rutas_correcciones, revision_path = salida.corregir_prompts_con_openai(
+                    rutas_prompts,
+                    output_dir=Path(args.openai_output_dir) if getattr(args, "openai_output_dir", "") else None,
+                    importar=getattr(args, "importar_tras_openai", True),
+                    warn_tokens_prompt=getattr(args, "openai_warn_tokens_prompt", OPENAI_PROMPT_TOKEN_WARN),
+                    max_tokens_prompt=getattr(args, "openai_max_tokens_prompt", OPENAI_PROMPT_TOKEN_MAX),
+                )
+            except Exception as e:
+                logger.error(f"No se pudieron corregir prompts con OpenAI API: {e}")
+                return
+            logger.info("Correcciones generadas por OpenAI API:")
+            for ruta in rutas_correcciones:
+                logger.info(f"- {ruta}")
+            if revision_path:
+                logger.info(f"Correcciones importadas. Hoja de revision: {revision_path}")
+            if not getattr(args, "conservar_pendientes", False):
+                manifiesto_path = temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
+                archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
+                if archivados:
+                    logger.info("Entregas pendientes archivadas tras correccion API correcta: %s", archivados)
         return
 
     corrector = CorrectorIA(
@@ -4108,7 +4275,7 @@ async def ejecutar_flujo(args) -> None:
             try:
                 max_entregas_api = getattr(args, "max_entregas_por_prompt", 0) or 0
                 if max_entregas_api <= 0:
-                    max_entregas_api = 2 if getattr(args, "requerir_openai_api", False) else len(entregas_automaticas)
+                    max_entregas_api = len(entregas_automaticas)
                 correcciones = []
                 for inicio in range(0, len(entregas_automaticas), max_entregas_api):
                     sublote = entregas_automaticas[inicio:inicio + max_entregas_api]
@@ -4311,6 +4478,34 @@ def parse_args() -> argparse.Namespace:
         "--importar-tras-codex",
         action="store_true",
         help="Con --corregir-con-codex, importa automaticamente el JSON combinado a temporal.",
+    )
+    parser.add_argument(
+        "--corregir-prompts-openai",
+        action="store_true",
+        help="Envia prompts .md ya preparados a OpenAI API, guarda JSON e importa salidas revisables.",
+    )
+    parser.add_argument(
+        "--importar-tras-openai",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Con --corregir-prompts-openai, importa automaticamente el JSON combinado a temporal.",
+    )
+    parser.add_argument(
+        "--openai-output-dir",
+        default="",
+        help="Carpeta donde guardar las respuestas JSON de OpenAI API. Por defecto temporal/prompts_codex.",
+    )
+    parser.add_argument(
+        "--openai-warn-tokens-prompt",
+        type=int,
+        default=OPENAI_PROMPT_TOKEN_WARN,
+        help="Aviso si un prompt preparado supera esta estimacion de tokens. 0 desactiva el aviso.",
+    )
+    parser.add_argument(
+        "--openai-max-tokens-prompt",
+        type=int,
+        default=OPENAI_PROMPT_TOKEN_MAX,
+        help="Bloquea el envio API si un prompt preparado supera esta estimacion de tokens. 0 desactiva el bloqueo.",
     )
     parser.add_argument(
         "--codex-output-dir",
