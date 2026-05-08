@@ -77,7 +77,7 @@ Superficie principal:
 
 - Arquitectura y modelo de amenazas: mantener este documento y actualizarlo cuando cambie el flujo.
 - Autenticacion y gestion de sesiones: credenciales CARM, sesion recordada, logout y futura proteccion DPAPI.
-- Control de acceso: endpoints locales solo con acciones permitidas y futuro token local.
+- Control de acceso: endpoints locales solo con acciones permitidas y token local.
 - Validacion de entrada: menus cerrados, allowlists, validacion de rutas y actividades.
 - Proteccion de datos: `.env`, cache, logs, CSV, JSON y datos de alumnos.
 - Comunicaciones: CARM siempre por HTTPS y sin registrar URLs sensibles completas si contienen tokens.

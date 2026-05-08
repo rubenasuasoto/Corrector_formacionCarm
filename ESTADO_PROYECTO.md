@@ -81,9 +81,9 @@ Lectura recomendada en este orden:
   - Soporta flags: `--flujo-correccion-carm`, `--subir-correcciones-carm`, `--publicar-carm`
 
 - **`interfaz_app.py`**: interfaz web local
-  - Servidor HTTP local en puerto 8000
+  - Servidor HTTP local en puerto 8765
   - Gestión de sesión con token
-  - Browea correcciones y publica desde navegador
+  - Navega correcciones y publica desde navegador
   - Controles CSRF activados
 
 - **`prueba_correcciones.py`**: pruebas offline sin CARM
@@ -416,7 +416,7 @@ Probado el 2026-05-07:
 
 **Alternativas activas**:
 1. Completar revisión y publicación de los 13 JSON existentes
-2. Migrar a OpenAI API (`OPENAI_API_KEY` + flag `--usar-openai-api`)
+2. Usar el flujo por API de OpenAI configurando `OPENAI_API_KEY` y ejecutando el corrector sin el flujo Codex CLI
 3. Validación manual sin IA (usando `prueba_correcciones.py`)
 4. Esperar reanudación de Codex CLI
 
@@ -434,7 +434,7 @@ Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por err
 
 ### Corto plazo (esta semana)
 
-1. **Revisar y publicar las 13 correcciones existentes**
+1. **Revisar y publicar las correcciones existentes**
    - Ubicación: `correcciones_validadas/`
    - Validar con `revision_pendiente.csv`
    - Publicar lotes con `--publicar-carm` tras revisión
@@ -524,8 +524,8 @@ Tambien se probo:
 
 Prioridad alta:
 
-- Probar una publicacion real con `--publicar-carm` en un lote controlado.
-- Validar que `Guardar cambios y mostrar siguiente` funciona en un lote completo de la misma actividad.
+- Validar una publicacion real completa con `--publicar-carm` en un lote controlado.
+- Confirmar que `Guardar cambios y mostrar siguiente` funciona en un lote completo de la misma actividad.
 - Mejorar la interfaz local: vista de revision por alumno antes de publicar.
 - Evitar que la interfaz lance publicacion si no existe JSON combinado o si hay errores en el CSV.
 
