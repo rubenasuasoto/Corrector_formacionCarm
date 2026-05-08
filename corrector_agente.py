@@ -21,11 +21,12 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import sys
 import unicodedata
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime
-from html import unescape
+from html import escape as html_escape, unescape
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -176,6 +177,19 @@ def sanitizar_feedback(texto: str, max_chars: int = 6000) -> str:
     if max_chars > 0 and len(limpio) > max_chars:
         limpio = limpio[:max_chars].rstrip() + "\n\n[Feedback recortado por limite de seguridad.]"
     return limpio
+
+
+def normalizar_texto_para_cli(texto: str) -> str:
+    reemplazos = {
+        "\ufb00": "ff",
+        "\ufb01": "fi",
+        "\ufb02": "fl",
+        "\ufb03": "ffi",
+        "\ufb04": "ffl",
+    }
+    for origen, destino in reemplazos.items():
+        texto = texto.replace(origen, destino)
+    return unicodedata.normalize("NFC", texto)
 
 
 class RedactingFilter(logging.Filter):
@@ -1599,7 +1613,12 @@ class ExtractorCarm:
             locator = page.locator(selector).first
             try:
                 if await locator.count():
+                    await locator.scroll_into_view_if_needed()
+                    await locator.click()
+                    await locator.press("Control+A")
+                    await locator.fill("")
                     await locator.fill(str(valor))
+                    await locator.dispatch_event("input")
                     await locator.dispatch_event("change")
                     return selector
             except Exception:
@@ -1701,6 +1720,11 @@ class ExtractorCarm:
 
     @staticmethod
     async def _rellenar_feedback_visible(page, feedback: str) -> str:
+        html = "".join(
+            f"<p>{html_escape(line.strip())}</p>"
+            for line in feedback.splitlines()
+            if line.strip()
+        ) or f"<p>{html_escape(feedback)}</p>"
         for selector in (
             "#id_assignfeedbackcomments_editoreditable",
             "#id_assignfeedbackcomments_editor_editable",
@@ -1712,9 +1736,14 @@ class ExtractorCarm:
             try:
                 if await locator.count():
                     await locator.scroll_into_view_if_needed()
-                    await locator.click()
-                    await page.keyboard.press("Control+A")
-                    await page.keyboard.type(feedback, delay=0)
+                    await locator.evaluate(
+                        """(el, html) => {
+                            el.innerHTML = html;
+                            el.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText'}));
+                            el.dispatchEvent(new Event('change', {bubbles: true}));
+                        }""",
+                        html,
+                    )
                     await locator.dispatch_event("input")
                     await locator.dispatch_event("change")
                     return f"visible:{selector}"
@@ -1734,9 +1763,16 @@ class ExtractorCarm:
                     and body_text
                 ):
                     continue
-                await editable.click()
-                await page.keyboard.press("Control+A")
-                await page.keyboard.type(feedback, delay=0)
+                await frame.evaluate(
+                    """(html) => {
+                        const el = document.querySelector('body[contenteditable="true"], body, [contenteditable="true"]');
+                        if (!el) return;
+                        el.innerHTML = html;
+                        el.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText'}));
+                        el.dispatchEvent(new Event('change', {bubbles: true}));
+                    }""",
+                    html,
+                )
                 return f"frame:{frame.name or frame.url or 'editor'}"
             except Exception:
                 continue
@@ -1855,6 +1891,18 @@ class ExtractorCarm:
         await page.wait_for_url(lambda url: url != url_inicial, timeout=0)
         await page.wait_for_load_state("networkidle")
 
+    @staticmethod
+    async def _esperar_revision_o_cierre(page, mensaje: str) -> None:
+        logger.info(mensaje)
+        logger.info("El navegador quedara abierto hasta que cierres la pestana o detengas la tarea desde la interfaz.")
+        while True:
+            try:
+                if page.is_closed():
+                    return
+                await page.wait_for_timeout(1000)
+            except Exception:
+                return
+
     async def _subir_correccion_actividad(
         self,
         page,
@@ -1941,6 +1989,7 @@ class ExtractorCarm:
         correcciones: list[dict],
         publicar: bool = False,
         asistida: bool = False,
+        solo_primera_previsualizacion: bool = False,
     ) -> list[dict]:
         if async_playwright is None:
             raise RuntimeError(
@@ -1962,16 +2011,20 @@ class ExtractorCarm:
                     for codigo, act in list(actividades_por_codigo.items()):
                         actividades_por_codigo[codigo] = self.cache.enriquecer_actividad(act)
 
-                total = len(correcciones)
-                for indice, correccion in enumerate(correcciones):
+                correcciones_a_procesar = correcciones
+                if solo_primera_previsualizacion and not publicar and not asistida:
+                    correcciones_a_procesar = correcciones[:1]
+
+                total = len(correcciones_a_procesar)
+                for indice, correccion in enumerate(correcciones_a_procesar):
                     actividad_codigo = str(
                         correccion.get("actividad") or correccion.get("actividad_codigo") or ""
                     ).strip().lower()
                     siguiente_codigo = ""
                     if indice + 1 < total:
                         siguiente_codigo = str(
-                            correcciones[indice + 1].get("actividad")
-                            or correcciones[indice + 1].get("actividad_codigo")
+                            correcciones_a_procesar[indice + 1].get("actividad")
+                            or correcciones_a_procesar[indice + 1].get("actividad_codigo")
                             or ""
                         ).strip().lower()
                     mostrar_siguiente = (publicar or asistida) and bool(siguiente_codigo) and siguiente_codigo == actividad_codigo
@@ -2003,8 +2056,7 @@ class ExtractorCarm:
                 return resultados
             finally:
                 if self.mantener_navegador:
-                    logger.info("Navegador abierto. Revisa la previsualizaciÃ³n y pulsa Enter en la consola para cerrarlo.")
-                    await asyncio.to_thread(input)
+                    await self._esperar_revision_o_cierre(page, "Navegador abierto para revision.")
                 await self._cerrar_contexto(context, page)
                 await context.close()
                 await browser.close()
@@ -2073,8 +2125,7 @@ class ExtractorCarm:
                 return contexto, todos_envios
             finally:
                 if self.mantener_navegador:
-                    logger.info("Navegador abierto. Pulsa Enter en la consola para cerrarlo.")
-                    await asyncio.to_thread(input)
+                    await self._esperar_revision_o_cierre(page, "Navegador abierto para revision.")
                 await self._cerrar_contexto(context, page)
                 await context.close()
                 await browser.close()
@@ -2111,8 +2162,7 @@ class ExtractorCarm:
                 return contexto, actividades
             finally:
                 if self.mantener_navegador:
-                    logger.info("Navegador abierto. Pulsa Enter en la consola para cerrarlo.")
-                    await asyncio.to_thread(input)
+                    await self._esperar_revision_o_cierre(page, "Navegador abierto para revision.")
                 await self._cerrar_contexto(context, page)
                 await context.close()
                 await browser.close()
@@ -2214,8 +2264,7 @@ class ExtractorCarm:
                 return diagnostico_path
             finally:
                 if self.mantener_navegador:
-                    logger.info("Navegador abierto. Pulsa Enter en la consola para cerrarlo.")
-                    await asyncio.to_thread(input)
+                    await self._esperar_revision_o_cierre(page, "Navegador abierto para revision.")
                 await self._cerrar_contexto(context, page)
                 await context.close()
                 await browser.close()
@@ -2976,14 +3025,23 @@ class GeneradorSalidas:
         timeout = timeout_segundos if timeout_segundos and timeout_segundos > 0 else None
         for prompt_path in prompts:
             salida_path = output_dir / f"{prompt_path.stem}_correccion.json"
-            prompt_texto = prompt_path.read_text(encoding="utf-8")
-            instruccion = (
+            prompt_texto = normalizar_texto_para_cli(prompt_path.read_text(encoding="utf-8"))
+            instruccion = normalizar_texto_para_cli(
                 f"{prompt_texto}\n\n"
                 "IMPORTANTE: responde solo con JSON valido, sin markdown, sin explicaciones fuera del JSON. "
                 "Usa una lista JSON de correcciones."
             )
             logger.info(f"Enviando prompt a Codex CLI: {prompt_path}")
             try:
+                env_codex = os.environ.copy()
+                env_codex.update(
+                    {
+                        "PYTHONIOENCODING": "utf-8",
+                        "PYTHONUTF8": "1",
+                        "LC_ALL": "C.UTF-8",
+                        "LANG": "C.UTF-8",
+                    }
+                )
                 resultado = subprocess.run(
                     [
                         "codex",
@@ -2998,9 +3056,12 @@ class GeneradorSalidas:
                     ],
                     input=instruccion,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     capture_output=True,
                     timeout=timeout,
                     check=False,
+                    env=env_codex,
                 )
             except FileNotFoundError as e:
                 raise RuntimeError("No se encontro el comando 'codex'. Abre Codex/VS Code o revisa PATH.") from e
@@ -3131,7 +3192,7 @@ async def ejecutar_flujo(args) -> None:
             usuario,
             contrasena,
             pendientes_dir,
-            mantener_navegador=getattr(args, "mantener_navegador", False) or not publicar,
+            mantener_navegador=getattr(args, "mantener_navegador", False),
             guardar_evidencias=getattr(args, "guardar_evidencias", False),
             unidades=unidades_filtro,
             actividades=actividades_filtro,
@@ -3143,6 +3204,7 @@ async def ejecutar_flujo(args) -> None:
                 correcciones,
                 publicar=publicar,
                 asistida=asistida,
+                solo_primera_previsualizacion=getattr(args, "solo_primera_previsualizacion_carm", False),
             )
         except Exception as e:
             logger.error(f"No se pudo completar la subida a CARM: {e}")
@@ -3532,6 +3594,11 @@ def parse_args() -> argparse.Namespace:
         "--subida-asistida-carm",
         action="store_true",
         help="Con --subir-correcciones-carm, rellena cada calificacion y espera a que el usuario pulse guardar.",
+    )
+    parser.add_argument(
+        "--solo-primera-previsualizacion-carm",
+        action="store_true",
+        help="Con --subir-correcciones-carm sin publicar, rellena solo la primera correccion para revisarla con calma.",
     )
     parser.add_argument(
         "--max-entregas-por-prompt",

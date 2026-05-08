@@ -1,5 +1,14 @@
 # Estado del proyecto: agente corrector CARM
 
+## Actualización operativa 2026-05-08
+
+- La previsualización desde la interfaz ya no intenta esperar `Enter` en un proceso sin consola. Rellena solo la primera corrección y deja Chromium abierto hasta que el usuario cierre la pestaña.
+- La subida asistida ya no activa el modo de espera por consola: rellena nota y retroalimentación, muestra la guía de revisión humana y espera a que el usuario guarde en CARM.
+- El relleno de CARM limpia primero la nota y la retroalimentación existentes antes de escribir los valores nuevos, contemplando reenvíos de alumnos o calificaciones previas.
+- El panel local deja de forzar el scroll del log si el usuario no está situado al final, evitando saltos visuales mientras revisa la interfaz.
+- El refresco automático del panel ya no reconstruye selects/listas/campos si no cambian y no pisa inputs enfocados. El botón "Pausar autoescaneo" queda disponible durante un escaneo inicial y detiene la detección en curso.
+- Los modos de revisión/previsualización ya no piden pulsar Enter para cerrar. El navegador queda abierto hasta cerrar la pestaña o detener la tarea; la interfaz lanza los subprocesos sin ventana de consola adicional en Windows.
+
 Última actualización: 7 de mayo de 2026
 
 ## Resumen ejecutivo
@@ -343,6 +352,8 @@ Controles incorporados:
 - Tras publicacion real o subida asistida completada, los prompts/JSON usados se archivan en `temporal/prompts_codex/archivados/` para evitar reutilizar archivos antiguos por error. La previsualizacion no archiva.
 - Tras generar prompts, las entregas usadas se mueven de `pendientes` a `pendientes/archivados_prompt/` para que no vuelvan a entrar en otro prompt accidentalmente. Se puede evitar con `--conservar-pendientes`.
 - Instalacion Windows automatizada con `instalar_windows.cmd` / `instalar_windows.ps1`: crea `.venv`, instala dependencias base, instala Chromium de Playwright y prepara `.env`. Inicio recomendado con `iniciar_app_windows.cmd`.
+- Arrancar en bandeja (`--tray`) no lanza correccion automatica. Solo se autocorrige si se indica expresamente `--auto-correct`.
+- Configuracion permite pausar autoescaneo (`0` minutos), reactivarlo a 60 minutos y lanzar escaneo manual. La tarea en curso se puede cancelar con `Detener`.
 
 Decisión: no activar purgas automáticas agresivas de entregas/notas mientras el flujo de descarga y revisión sigue en desarrollo. La purga de datos personales queda como acción manual confirmada; la cache didáctica sí puede purgarse automáticamente por `CARM_COURSE_END_DATE`.
 
