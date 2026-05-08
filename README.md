@@ -23,7 +23,7 @@ Lee estos archivos en este orden:
 1. `ESTADO_PROYECTO.md`: memoria viva del proyecto, decisiones tomadas y próximos pasos.
 2. `QUICKSTART.md`: comandos rápidos de instalación, prueba y uso.
 3. `SEGURIDAD_ASVS.md`: controles OWASP ASVS aplicables a esta app.
-4. `SEGURIDAD_CVSS.md`: criterio de priorizaciÃ³n de riesgos basado en CVSS v4.0.
+4. `SEGURIDAD_CVSS.md`: criterio de priorización de riesgos basado en CVSS v4.0.
 5. `prompts_correccion.json`: prompts editables por actividad.
 6. `corrector_agente.py`: flujo principal.
 
@@ -143,7 +143,7 @@ Se usa automáticamente cuando existe. Si `CARM_COURSE_END_DATE` ya pasó, se bo
 python corrector_agente.py --extraer-carm
 ```
 
-Este modo descarga entregas desde CARM a `C:\temp\vscodec\pendientes\<actividad>\` y después corrige por lotes. Es el siguiente punto importante a validar en real.
+Este modo descarga entregas desde CARM a `C:\temp\vscodec\pendientes\<actividad>\` y después corrige por lotes. Para uso real, conviene limitar por `--unidad` o `--actividad` y revisar las salidas antes de publicar.
 
 Para descargar desde CARM y generar solo prompts para Codex, sin API:
 
@@ -223,8 +223,8 @@ Todo queda en estado `borrador_pendiente_de_revision` salvo los casos que necesi
 
 ## Próximos pasos
 
-- Probar una publicación real con `--publicar-carm` en un lote controlado.
-- Validar que `Guardar cambios y mostrar siguiente` funciona en un lote completo de la misma actividad.
+- Validar una publicación real completa con `--publicar-carm` en un lote controlado.
+- Confirmar que `Guardar cambios y mostrar siguiente` funciona en un lote completo de la misma actividad.
 - Mejorar la interfaz local con una vista de revisión por alumno antes de publicar.
 - Instalar y probar dependencias opcionales de extracción.
 - Decidir si merece la pena añadir OCR con Tesseract.
