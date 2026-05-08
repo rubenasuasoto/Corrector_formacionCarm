@@ -27,7 +27,7 @@ Superficie principal:
 
 - La app no tendra login propio: solo configuracion de credenciales CARM.
 - Las credenciales CARM se verifican contra CARM antes de guardarse.
-- `Cerrar sesion CARM` debe borrar credenciales locales y sesion recordada.
+- `Borrar credenciales CARM` debe vaciar `CARM_USUARIO`/`CARM_CONTRASENA` y borrar la sesion recordada con confirmacion explicita.
 - La interfaz debe seguir escuchando solo en `127.0.0.1`.
 - Los endpoints locales deben aceptar acciones cerradas, no comandos arbitrarios.
 - Los selectores de actividad/unidad/rutas deben ser menus o listas permitidas.
@@ -56,16 +56,16 @@ Superficie principal:
 
 - [x] Validar tamano maximo y extension antes de leer archivos de alumnos.
 - [x] Endurecer ZIP: limite de numero de ficheros, tamano total y proteccion contra zip-slip.
-- [ ] Registrar auditoria local de acciones sensibles: descargar, corregir, previsualizar, publicar.
+- [x] Registrar auditoria local de acciones sensibles: descargar, corregir, previsualizar, publicar.
 - [x] Bloquear publicacion si hay `revision_manual_necesaria` o errores en CSV/JSON.
 - [ ] Confirmacion fuerte antes de `--publicar-carm`.
 - [ ] Timeouts y reintentos controlados para Playwright.
-- [ ] Sanitizar feedback antes de insertarlo en editores Moodle.
+- [x] Sanitizar feedback antes de insertarlo en editores Moodle.
 
 ### Prioridad Baja
 
 - [ ] Revisar permisos del directorio del proyecto y archivos generados.
-- [ ] Rotacion/limpieza de logs antiguos.
+- [x] Rotacion/limpieza de logs antiguos.
 - [ ] Modo exportacion de diagnostico seguro.
 - [ ] Pruebas automatizadas para endpoints locales.
 

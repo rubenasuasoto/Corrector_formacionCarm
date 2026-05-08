@@ -65,7 +65,9 @@ Lectura recomendada en este orden:
 3. **`QUICKSTART.md`**: comandos rápidos para instalar y usar.
 4. **`SEGURIDAD_ASVS.md`**: checklist OWASP ASVS 5.0.0 adaptado.
 5. **`SEGURIDAD_CVSS.md`**: priorización de riesgos con CVSS v4.0.
-6. **`prompts_correccion.json`**: rúbricas y prompts editables por actividad.
+6. **`ROADMAP_DESCARGA_SEGURA.md`**: fases para interfaz de descarga, seguridad local y despliegue gradual.
+7. **`CUMPLIMIENTO_NORMATIVO.md`**: RGPD/LOPDGDD/ENS/IA aplicados de forma practica al proyecto.
+8. **`prompts_correccion.json`**: rúbricas y prompts editables por actividad.
 
 📌 **Si hay conflicto entre documentos, manda este archivo (`ESTADO_PROYECTO.md`).**
 
@@ -321,6 +323,27 @@ Correcciones de prueba:
 - Se ajusto para subir solo la retroalimentacion final, no todo el bloque de criterios.
 
 ## Seguridad: Estado actual (2026-05-07)
+
+## Cumplimiento normativo: avance 2026-05-08
+
+Se añade `CUMPLIMIENTO_NORMATIVO.md` como marco práctico para RGPD, LOPDGDD, ENS, Reglamento europeo de IA, guías AEPD, ASVS y CVSS.
+
+Controles incorporados:
+
+- Auditoría local en `respuestas_extraidas/auditoria.jsonl` para acciones sensibles.
+- Redacción básica de emails, tokens, cookies, claves y contraseñas en logs/eventos.
+- Sanitizado de feedback antes de insertarlo en editores Moodle/CARM.
+- Retención local configurable de logs y auditoría (`LOG_RETENTION_DAYS`, `AUDIT_RETENTION_DAYS`).
+- Purga manual protegida de datos personales locales con `--purgar-datos-personales-locales --confirmar-purga-datos`.
+- Se mantiene revisión humana obligatoria antes de publicar notas y feedback.
+- Aviso al iniciar si hay correcciones preparadas pendientes de subir.
+- Modo `--subida-asistida-carm`: rellena nota/feedback en CARM, muestra guia de revision humana y espera a que el usuario pulse guardar.
+- Si faltan credenciales CARM, la interfaz bloquea el panel y solicita verificacion. En consola interactiva, los flujos CARM preguntan usuario/contrasena y esperan en vez de fallar directamente.
+- `Borrar credenciales CARM` vacia `CARM_USUARIO`/`CARM_CONTRASENA` en `.env`, no elimina las claves.
+
+Decisión: no activar purgas automáticas agresivas de entregas/notas mientras el flujo de descarga y revisión sigue en desarrollo. La purga de datos personales queda como acción manual confirmada; la cache didáctica sí puede purgarse automáticamente por `CARM_COURSE_END_DATE`.
+
+Decision de subida humana asistida: se prioriza el modo asistido frente a la publicacion totalmente automatica. La app puede detectar la ultima calificacion de un caso y recomendar `Guardar cambios` en vez de `Guardar cambios y mostrar siguiente`, pero la accion final de guardado sigue siendo humana.
 
 ### Implementado (Prioridad Alta completada)
 
