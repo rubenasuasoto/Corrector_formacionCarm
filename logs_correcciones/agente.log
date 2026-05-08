@@ -1535,3 +1535,463 @@ Una empresa de turismo activo en la Región de Murcia quiere utilizar una herram
 2026-05-08 14:06:33,042 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp04_correccion.json
 2026-05-08 14:06:33,043 - INFO - - C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json
 2026-05-08 14:06:33,043 - INFO - Correcciones importadas. Hoja de revision: C:\temp\vscodec\temporal\revision_pendiente.csv
+2026-05-08 16:24:52,895 - ERROR - Faltan CARM_USUARIO/CARM_CONTRASENA. Abre la interfaz para introducir credenciales CARM.
+2026-05-08 16:29:27,647 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-08 16:29:27,664 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-08 16:29:27,698 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-08 16:29:27,699 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-08 16:29:27,699 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-08 16:29:27,705 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-08 16:29:27,708 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-08 16:29:27,712 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-08 16:29:27,716 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-08 16:29:27,722 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-08 16:29:27,769 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-08 16:29:27,770 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-08 16:29:27,773 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-08 16:29:27,778 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-08 16:29:27,791 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-08 16:29:27,791 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-08 16:29:27,792 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-08 16:29:27,792 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-08 16:29:27,793 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-08 16:41:34,880 - INFO - Codex CLI localizado: c:\Users\ruben\.vscode\extensions\openai.chatgpt-26.506.21252-win32-x64\bin\windows-x86_64\codex.EXE
+2026-05-08 16:41:34,882 - INFO - Version Codex CLI: codex-cli 0.129.0-alpha.15
+2026-05-08 16:41:34,882 - ERROR - Sesion Codex CLI no iniciada: Not logged in
+2026-05-08 16:41:34,882 - ERROR - Inicia sesion con: & "c:\Users\ruben\.vscode\extensions\openai.chatgpt-26.506.21252-win32-x64\bin\windows-x86_64\codex.EXE" login
+2026-05-08 16:42:48,509 - ERROR - Faltan CARM_USUARIO/CARM_CONTRASENA. Abre la interfaz para introducir credenciales CARM.
+2026-05-08 16:43:25,656 - ERROR - Faltan CARM_USUARIO/CARM_CONTRASENA. Abre la interfaz para introducir credenciales CARM.
+2026-05-08 16:44:24,279 - ERROR - Faltan CARM_USUARIO/CARM_CONTRASENA. Abre la interfaz para introducir credenciales CARM.
+2026-05-08 16:44:57,627 - ERROR - Faltan CARM_USUARIO/CARM_CONTRASENA. Abre la interfaz para introducir credenciales CARM.
+2026-05-08 16:49:36,449 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 16:49:45,492 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 16:49:57,250 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 16:49:57,251 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:01,162 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 16:50:01,688 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 16:50:01,689 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:05,458 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:05,728 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 16:50:09,529 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:09,719 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:12,919 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 16:50:13,478 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:13,666 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:17,471 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:17,578 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:21,420 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:21,528 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:25,370 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:25,463 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:27,567 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 16:50:27,567 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:29,347 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:29,406 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:31,472 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 16:50:33,263 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:33,360 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:35,387 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:37,180 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:37,256 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:39,310 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:41,158 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:41,320 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:43,222 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:45,075 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:45,215 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:47,143 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:49,014 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:49,116 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:51,034 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:52,961 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:53,047 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:54,969 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:56,908 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:50:56,983 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:50:58,848 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:51:00,945 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:51:01,020 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:51:02,765 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:51:05,004 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:51:05,058 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:51:06,758 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:51:08,980 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:51:09,091 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:10,646 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:51:12,910 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:13,020 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:14,590 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:51:16,795 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:16,972 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:18,495 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:51:20,717 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:20,872 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:22,390 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:51:24,620 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:24,865 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:26,389 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:51:28,573 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:28,783 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:30,304 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:51:32,516 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:32,688 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:34,242 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:51:36,411 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:36,641 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:38,161 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:40,337 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:40,583 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:42,056 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:44,276 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:44,557 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:45,972 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:48,313 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:48,471 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:49,949 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:52,234 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:52,377 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:53,832 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:56,173 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:51:56,554 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:51:57,730 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:00,094 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:52:00,527 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:01,667 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:52:03,998 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:04,426 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:52:05,535 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:07,987 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:52:08,465 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:09,463 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:52:11,865 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:12,380 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:52:13,415 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:15,744 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:52:16,449 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:17,316 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:52:19,635 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:21,205 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:21,902 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 16:52:24,034 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 16:52:25,101 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:52:28,997 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:32,910 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:52:36,814 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:40,707 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 16:52:44,581 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 16:52:49,874 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 16:59:04,773 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 16:59:23,846 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 16:59:23,846 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:59:27,764 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 16:59:31,704 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:59:35,618 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:59:39,508 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:59:43,478 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:59:47,413 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:59:51,296 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 16:59:55,256 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 16:59:59,154 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:00:03,091 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:00:07,006 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:00:10,942 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:00:14,888 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:00:18,825 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:00:22,750 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:00:26,641 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:00:30,535 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:00:35,558 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:00:39,482 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:00:43,422 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:00:48,014 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:00:51,918 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:00:55,798 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:00:59,696 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:01:03,611 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:01:07,540 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:01:11,499 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:01:15,411 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:01:19,350 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:01:23,397 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:01:27,340 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:01:31,275 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:01:35,184 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:01:39,174 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:01:43,067 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:01:48,369 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 17:06:00,282 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-08 17:06:07,749 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-08 17:06:07,749 - INFO - Actividades prioritarias encontradas: 1
+2026-05-08 17:06:07,749 - INFO - Procesando grading ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:07:38,465 - WARNING - Entrega sin archivo descargable en ud01cp01: Sergio Grazini Sánchez (Enviado para calificar)
+2026-05-08 17:07:38,911 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 17:07:38,922 - WARNING - No hay archivos pendientes en C:\temp\vscodec\pendientes
+2026-05-08 17:08:40,999 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-08 17:08:50,851 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-08 17:08:50,851 - INFO - Actividades prioritarias encontradas: 1
+2026-05-08 17:08:50,852 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 17:10:21,891 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud01cp02\Elisabet Lopez Ros.pdf
+2026-05-08 17:10:22,153 - INFO - Descargado envio de Carolina Villa Marin: C:\temp\vscodec\pendientes\ud01cp02\Carolina Villa Marin.docx
+2026-05-08 17:10:23,155 - INFO - Descargado envio de Sofía Martínez Hernández: C:\temp\vscodec\pendientes\ud01cp02\Sofía Martínez Hernández.pdf
+2026-05-08 17:10:23,452 - INFO - Descargado envio de Sofia Penalva Garcia: C:\temp\vscodec\pendientes\ud01cp02\Sofia Penalva Garcia.docx
+2026-05-08 17:10:23,746 - INFO - Descargado envio de Lydia Quesada Gonzalez: C:\temp\vscodec\pendientes\ud01cp02\Lydia Quesada Gonzalez.pdf
+2026-05-08 17:10:24,278 - INFO - Descargado envio de Gabriela Mihaela Sima Sima: C:\temp\vscodec\pendientes\ud01cp02\Gabriela Mihaela Sima Sima.html
+2026-05-08 17:10:24,741 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 17:10:25,101 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-08 17:10:25,101 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp02.md
+2026-05-08 17:10:25,101 - INFO - - C:\temp\vscodec\temporal\prompts_codex\manifiesto_entregas.json
+2026-05-08 17:10:25,130 - INFO - Pendientes incluidos en prompts archivados en: C:\temp\vscodec\pendientes\archivados_prompt\20260508_171025
+2026-05-08 17:10:25,130 - INFO - Entregas pendientes archivadas tras generar prompt: 6
+2026-05-08 17:10:25,402 - INFO - Codex CLI localizado: C:\Users\ruben\.vscode\extensions\openai.chatgpt-26.506.21252-win32-x64\bin\windows-x86_64\codex.exe
+2026-05-08 17:10:25,517 - INFO - Enviando prompt a Codex CLI: C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp02.md
+2026-05-08 17:10:26,885 - ERROR - No se pudo corregir con Codex CLI: Codex CLI fallo con prompt_ud01cp02.md: OpenAI Codex v0.129.0-alpha.15 (research preview)
+--------
+workdir: C:\Users\ruben\OneDrive\Escritorio\agente
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: 019e0823-d565-7a92-b3c8-2b6e6b314217
+--------
+user
+# Prompt para Codex - ud01cp02
+
+Lote 1 de 1. Entregas en este lote: 3.
+
+## Instrucciones de sistema
+
+Eres un corrector experto en inteligencia artificial aplicada al turismo de Murcia. Responde SIEMPRE en JSON válido y en español con acentos. Sé justo: evalúa solo lo que el alumno ha escrito y no inventes méritos.
+
+## Rúbrica
+
+Corrige la entrega usando el enunciado extraído de CARM, el contexto de la unidad y la respuesta del alumno.
+
+Evalúa en una escala de 0 a 10 con esta distribución general:
+- Presentación del trabajo: 3 puntos.
+- Adecuación al enunciado y cumplimiento de lo pedido: 4 puntos.
+- Aplicación práctica, concreción y calidad de la respuesta: 3 puntos.
+
+Devuelve JSON con este formato exacto:
+{
+  "nota": 0-10,
+  "criterios": [
+    {"nombre": "Presentación del trabajo", "maximo": 3, "puntuacion": 0-3, "comentario": "..."},
+    {"nombre": "Adecuación al enunciado", "maximo": 4, "puntuacion": 0-4, "comentario": "..."},
+    {"nombre": "Aplicación práctica", "maximo": 3, "puntuacion": 0-3, "comentario": "..."}
+  ],
+  "retroalimentacion": "Feedback final, coloquial pero formal, adaptado al caso, al enunciado y a la unidad"
+}
+
+## Enunciado extraído de CARM
+
+No hay contexto didáctico limpio suficiente en cache. Usa el enunciado, la rúbrica y la respuesta del alumno.
+
+## Contexto didactico limpio desde cache
+
+La cache contiene una página índice de Moodle, no contenido didáctico útil. No se incluye para evitar ruido en la corrección.
+
+## Tarea
+
+Corrige todas las entregas legibles usando solo la rúbrica, el enunciado y el contexto didáctico anterior.
+Ignora cualquier rastro técnico, navegación de Moodle o metadatos que aparezcan accidentalmente.
+Evalúa solo lo que el alumno ha e
+2026-05-08 17:13:39,281 - INFO - Codex CLI localizado: c:\Users\ruben\.vscode\extensions\openai.chatgpt-26.506.21252-win32-x64\bin\windows-x86_64\codex.EXE
+2026-05-08 17:13:39,283 - INFO - Version Codex CLI: codex-cli 0.129.0-alpha.15
+2026-05-08 17:13:39,284 - ERROR - Sesion Codex CLI no iniciada: Not logged in
+2026-05-08 17:13:39,284 - ERROR - Inicia sesion con: & "c:\Users\ruben\.vscode\extensions\openai.chatgpt-26.506.21252-win32-x64\bin\windows-x86_64\codex.EXE" login
+2026-05-08 17:15:48,218 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 17:16:07,583 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 17:16:07,583 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:16:11,529 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 17:16:15,464 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:16:19,358 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:16:23,257 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:16:27,153 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:16:31,080 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:16:35,027 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:16:41,054 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:16:44,958 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:16:48,866 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:16:52,758 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:16:56,692 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:17:00,590 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:17:04,486 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:17:08,395 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:17:12,381 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:17:16,277 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:17:20,201 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:17:24,101 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:17:28,065 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:17:31,975 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:17:35,898 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:17:39,787 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:17:43,706 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:17:47,637 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:17:51,541 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:17:55,444 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:17:59,346 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:18:03,245 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:18:07,146 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:18:11,065 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:18:14,994 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:18:18,907 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:18:22,884 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:18:26,770 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:18:32,038 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 17:18:42,962 - INFO - Codex CLI preparado: C:\Users\ruben\.vscode\extensions\openai.chatgpt-26.506.21252-win32-x64\bin\windows-x86_64\codex.exe
+2026-05-08 17:18:42,965 - INFO - Version Codex CLI: codex-cli 0.129.0-alpha.15
+2026-05-08 17:18:42,967 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-08 17:18:51,557 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-08 17:18:51,557 - INFO - Actividades prioritarias encontradas: 1
+2026-05-08 17:18:51,557 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 17:20:22,700 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud01cp02\Elisabet Lopez Ros.pdf
+2026-05-08 17:20:22,963 - INFO - Descargado envio de Carolina Villa Marin: C:\temp\vscodec\pendientes\ud01cp02\Carolina Villa Marin.docx
+2026-05-08 17:20:23,304 - INFO - Descargado envio de Sofía Martínez Hernández: C:\temp\vscodec\pendientes\ud01cp02\Sofía Martínez Hernández.pdf
+2026-05-08 17:20:23,597 - INFO - Descargado envio de Sofia Penalva Garcia: C:\temp\vscodec\pendientes\ud01cp02\Sofia Penalva Garcia.docx
+2026-05-08 17:20:23,857 - INFO - Descargado envio de Lydia Quesada Gonzalez: C:\temp\vscodec\pendientes\ud01cp02\Lydia Quesada Gonzalez.pdf
+2026-05-08 17:20:24,413 - INFO - Descargado envio de Gabriela Mihaela Sima Sima: C:\temp\vscodec\pendientes\ud01cp02\Gabriela Mihaela Sima Sima.html
+2026-05-08 17:20:24,867 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 17:20:25,179 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-08 17:20:25,180 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp02.md
+2026-05-08 17:20:25,180 - INFO - - C:\temp\vscodec\temporal\prompts_codex\manifiesto_entregas.json
+2026-05-08 17:20:25,444 - INFO - Codex CLI localizado: C:\Users\ruben\.vscode\extensions\openai.chatgpt-26.506.21252-win32-x64\bin\windows-x86_64\codex.exe
+2026-05-08 17:20:25,555 - INFO - Enviando prompt a Codex CLI: C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp02.md
+2026-05-08 17:20:26,379 - ERROR - No se pudo corregir con Codex CLI: Codex CLI fallo con prompt_ud01cp02.md: model: gpt-5.5
+2026-05-08 17:30:24,553 - ERROR - OpenAI API no esta lista: Falta OPENAI_API_KEY en .env o conserva el valor de ejemplo.
+2026-05-08 17:30:31,039 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-08 17:30:31,043 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-08 17:30:31,066 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-08 17:30:31,067 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-08 17:30:31,067 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-08 17:30:31,071 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-08 17:30:31,074 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-08 17:30:31,077 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-08 17:30:31,081 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-08 17:30:31,086 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-08 17:30:31,112 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-08 17:30:31,112 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-08 17:30:31,116 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-08 17:30:31,119 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-08 17:30:31,129 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-08 17:30:31,129 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-08 17:30:31,129 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-08 17:30:31,130 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-08 17:30:31,130 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-08 17:32:38,423 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-08 17:32:38,427 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-08 17:32:38,442 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-08 17:32:38,443 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-08 17:32:38,443 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-08 17:32:38,448 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-08 17:32:38,450 - ERROR - OpenAI API no esta lista: Falta OPENAI_API_KEY en .env o conserva el valor de ejemplo.
+2026-05-08 17:32:38,451 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-08 17:32:38,454 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-08 17:32:38,458 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-08 17:32:38,465 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-08 17:32:38,493 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-08 17:32:38,494 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-08 17:32:38,497 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-08 17:32:38,501 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-08 17:32:38,515 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-08 17:32:38,516 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-08 17:32:38,516 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-08 17:32:38,516 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-08 17:32:38,517 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-08 17:45:44,063 - INFO - OpenAI API configurada correctamente.
+2026-05-08 17:45:44,065 - INFO - Modelo OpenAI configurado: gpt-5-mini
+2026-05-08 17:45:58,532 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-08 17:45:58,536 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-08 17:45:58,554 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-08 17:45:58,556 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-08 17:45:58,557 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-08 17:45:58,562 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-08 17:45:58,566 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-08 17:45:58,569 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-08 17:45:58,574 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-08 17:45:58,581 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-08 17:45:58,606 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-08 17:45:58,607 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-08 17:45:58,610 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-08 17:45:58,614 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-08 17:45:58,626 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-08 17:45:58,627 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-08 17:45:58,627 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-08 17:45:58,628 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-08 17:45:58,628 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-08 17:46:53,356 - INFO - OpenAI API configurada correctamente.
+2026-05-08 17:46:53,358 - INFO - Modelo OpenAI configurado: gpt-5.4-mini
+2026-05-08 17:47:30,308 - INFO - OpenAI API preparada. Modelo: gpt-5.4-mini
+2026-05-08 17:47:30,320 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-08 17:47:40,296 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-08 17:47:40,297 - INFO - Actividades prioritarias encontradas: 1
+2026-05-08 17:47:40,297 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 17:49:11,493 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud01cp02\Elisabet Lopez Ros.pdf
+2026-05-08 17:49:11,919 - INFO - Descargado envio de Carolina Villa Marin: C:\temp\vscodec\pendientes\ud01cp02\Carolina Villa Marin.docx
+2026-05-08 17:49:12,293 - INFO - Descargado envio de Sofía Martínez Hernández: C:\temp\vscodec\pendientes\ud01cp02\Sofía Martínez Hernández.pdf
+2026-05-08 17:49:12,613 - INFO - Descargado envio de Sofia Penalva Garcia: C:\temp\vscodec\pendientes\ud01cp02\Sofia Penalva Garcia.docx
+2026-05-08 17:49:12,896 - INFO - Descargado envio de Lydia Quesada Gonzalez: C:\temp\vscodec\pendientes\ud01cp02\Lydia Quesada Gonzalez.pdf
+2026-05-08 17:49:13,460 - INFO - Descargado envio de Gabriela Mihaela Sima Sima: C:\temp\vscodec\pendientes\ud01cp02\Gabriela Mihaela Sima Sima.html
+2026-05-08 17:50:41,357 - INFO - OpenAI API configurada correctamente.
+2026-05-08 17:50:41,359 - INFO - Modelo OpenAI configurado: gpt-5.4-mini
+2026-05-08 17:51:28,643 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 17:51:50,659 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 17:51:50,659 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:51:54,559 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 17:51:58,494 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:52:02,373 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:52:06,314 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:52:10,208 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:52:14,111 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:52:18,030 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:52:21,948 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:52:25,862 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:52:29,779 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:52:33,697 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:52:37,613 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:52:41,527 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:52:45,460 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:52:49,382 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:52:53,280 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 17:52:57,191 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 17:53:01,107 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:53:05,049 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:53:08,978 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:53:12,908 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:53:16,864 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:53:20,915 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:53:24,899 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:53:28,821 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:53:32,730 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:53:36,654 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:53:40,602 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:53:44,507 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:53:48,416 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:53:52,390 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:53:56,312 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:54:00,225 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:54:04,144 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 17:54:08,053 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 17:54:13,405 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 18:20:16,421 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 18:20:36,781 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 18:20:36,782 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 18:20:40,706 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 18:20:44,649 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 18:20:48,613 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 18:20:52,517 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 18:20:56,489 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 18:21:00,426 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 18:21:04,372 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 18:21:08,314 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 18:21:12,243 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 18:21:16,139 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 18:21:20,071 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 18:21:23,982 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 18:21:27,971 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 18:21:31,912 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 18:21:35,849 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 18:21:39,822 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 18:21:43,739 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 18:21:47,661 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea

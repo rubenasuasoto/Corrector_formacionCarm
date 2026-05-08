@@ -57,6 +57,30 @@ Los prompts de corrección están en `prompts_correccion.json`. Puedes editar `d
 
 No metas claves ni credenciales en archivos sueltos. Las credenciales locales van solo en `.env`, que no debe subirse al repositorio.
 
+### OpenAI API
+
+Para el flujo recomendado por API de OpenAI necesitas una clave real en `.env`:
+
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-5-mini
+CORRECTION_MODE=api
+```
+
+Comprueba la configuracion sin corregir nada:
+
+```powershell
+python corrector_agente.py --comprobar-openai-api
+```
+
+Si no tienes API key, usa el modo solo prompts:
+
+```env
+CORRECTION_MODE=prompt
+```
+
+En ese modo la app descarga entregas y genera archivos `.md` en `C:\temp\vscodec\temporal\prompts_codex`. Luego pegas el prompt en Codex/ChatGPT, guardas el JSON devuelto y lo importas desde la interfaz.
+
 ## 3. Probar sin CARM y sin IA
 
 ```powershell
@@ -80,6 +104,28 @@ Salidas:
 - `C:\temp\vscodec\temporal\prompts_codex\manifiesto_entregas.json`
 
 El archivo `.md` se copia entero en Codex/ChatGPT. Codex debe devolver un JSON con las correcciones.
+
+### Comprobar Codex CLI
+
+El flujo automatico sin API necesita que Codex CLI este instalado y con sesion iniciada en el usuario de Windows que ejecuta la app.
+
+```powershell
+python corrector_agente.py --comprobar-codex-cli
+```
+
+Si indica que no hay sesion iniciada, abre VS Code e inicia sesion en la extension ChatGPT/Codex, o ejecuta el comando que muestre el diagnostico:
+
+```powershell
+codex login
+```
+
+Si la app se ejecuta en bandeja y no encuentra `codex`, configura en `.env` la ruta absoluta:
+
+```env
+CODEX_CLI_PATH=C:\Users\tu_usuario\.vscode\extensions\openai.chatgpt-...\bin\windows-x86_64\codex.exe
+```
+
+Despues reinicia la app en bandeja.
 
 ## 5. Corregir archivos reales ya descargados
 
