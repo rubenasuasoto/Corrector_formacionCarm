@@ -4,6 +4,34 @@ Antes de tocar nada, revisa `ESTADO_PROYECTO.md`: ahí queda la memoria del trab
 
 ## 1. Instalar
 
+En Windows, usa el instalador del proyecto:
+
+```powershell
+.\instalar_windows.cmd
+```
+
+Esto crea `.venv`, instala dependencias, instala Chromium de Playwright y crea `.env` si no existe.
+
+Para dejar tambien el arranque automatico en bandeja:
+
+```powershell
+.\instalar_windows.cmd -InstalarArranque
+```
+
+Para instalar dependencias opcionales de lectura avanzada:
+
+```powershell
+.\instalar_windows.cmd -ConExtraccion
+```
+
+Despues inicia la app con:
+
+```powershell
+.\iniciar_app_windows.cmd
+```
+
+Instalacion manual equivalente:
+
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -248,6 +276,10 @@ python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json 
 Con varias correcciones de la misma actividad, se intenta usar `Guardar cambios y mostrar siguiente` entre alumnos. En la última corrección del lote usa `Guardar cambios` para no avanzar de más.
 
 Cada intento deja registro en `respuestas_extraidas\subida_carm_previsualizacion.json` o `respuestas_extraidas\subida_carm_publicada.json`.
+
+Tras una publicacion real o una subida asistida completada, los prompts y JSON usados se mueven a `temporal\prompts_codex\archivados\...` para no reutilizarlos por error. Una previsualizacion no archiva nada.
+
+Tras generar prompts, las entregas usadas se mueven a `pendientes\archivados_prompt\...`. Si necesitas repetir exactamente el mismo lote para una prueba, usa `--conservar-pendientes`.
 
 La extracción real deja auditoría en:
 
