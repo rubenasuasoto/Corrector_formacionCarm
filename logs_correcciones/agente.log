@@ -1458,3 +1458,80 @@ Una empresa de turismo activo en la Región de Murcia quiere utilizar una herram
 2026-05-08 12:38:25,497 - INFO - ud01cp04 persona_6dadeef411 8: previsualizado
 2026-05-08 12:38:25,497 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_previsualizacion.json
 2026-05-08 12:38:25,497 - INFO - Modo previsualizaciÃ³n: no se ha pulsado guardar en CARM.
+2026-05-08 12:48:56,643 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 12:49:16,858 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 12:49:16,858 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 12:49:20,798 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 12:49:24,789 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 12:49:28,747 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 12:49:32,744 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 12:49:36,703 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 12:49:40,662 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 12:49:44,651 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 12:49:48,681 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 12:49:52,647 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 12:49:56,721 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 12:50:00,723 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 12:50:04,872 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 12:50:08,928 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 12:50:12,904 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 12:50:16,922 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 12:50:21,355 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 12:50:25,417 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 12:50:29,406 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 12:50:33,451 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 12:50:37,429 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 12:50:41,398 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 12:50:45,392 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 12:50:49,376 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 12:50:53,312 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 12:50:57,280 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 12:51:01,250 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 12:51:05,250 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 12:51:09,245 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 12:51:13,256 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 12:51:17,261 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 12:51:21,245 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 12:51:25,254 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 12:51:29,310 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 12:51:33,327 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 12:51:37,365 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 12:51:41,689 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 12:51:52,407 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-08 12:52:03,292 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-08 12:52:03,292 - INFO - Actividades prioritarias encontradas: 1
+2026-05-08 12:52:03,292 - INFO - Procesando grading ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 12:53:34,329 - WARNING - Entrega sin archivo descargable en ud01cp01: Sergio Grazini Sánchez (Enviado para calificar)
+2026-05-08 12:53:34,801 - INFO - Descargado envio de Sofia Penalva Garcia: C:\temp\vscodec\pendientes\ud01cp01\Sofia Penalva Garcia.docx
+2026-05-08 12:53:35,284 - INFO - Descargado envio de Lydia Quesada Gonzalez: C:\temp\vscodec\pendientes\ud01cp01\Lydia Quesada Gonzalez.pdf
+2026-05-08 12:53:35,745 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 12:53:35,890 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-08 12:53:35,890 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01.md
+2026-05-08 12:53:35,891 - INFO - - C:\temp\vscodec\temporal\prompts_codex\manifiesto_entregas.json
+2026-05-08 12:53:35,907 - INFO - Pendientes incluidos en prompts archivados en: C:\temp\vscodec\pendientes\archivados_prompt\20260508_125335
+2026-05-08 12:53:35,908 - INFO - Entregas pendientes archivadas tras generar prompt: 2
+2026-05-08 12:53:35,911 - INFO - Correccion Codex anterior archivada antes de generar nueva salida: C:\temp\vscodec\temporal\prompts_codex\archivados\20260508_125335_pre_codex\prompt_ud01cp04_correccion.json
+2026-05-08 12:53:35,968 - INFO - Enviando prompt a Codex CLI: C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01.md
+2026-05-08 12:53:35,973 - ERROR - No se pudo corregir con Codex CLI: No se encontro el comando 'codex'. Abre Codex/VS Code o revisa PATH.
+2026-05-08 14:04:56,992 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-08 14:04:56,992 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01.md
+2026-05-08 14:04:56,992 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp04.md
+2026-05-08 14:04:56,992 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp01.md
+2026-05-08 14:04:56,992 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp04.md
+2026-05-08 14:04:56,992 - INFO - - C:\temp\vscodec\temporal\prompts_codex\manifiesto_entregas.json
+2026-05-08 14:04:57,014 - INFO - Codex CLI localizado: c:\Users\ruben\.vscode\extensions\openai.chatgpt-26.506.21252-win32-x64\bin\windows-x86_64\codex.EXE
+2026-05-08 14:04:57,025 - INFO - Enviando prompt a Codex CLI: C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01.md
+2026-05-08 14:05:16,208 - INFO - Correccion Codex guardada en: C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01_correccion.json
+2026-05-08 14:05:16,248 - INFO - Enviando prompt a Codex CLI: C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp04.md
+2026-05-08 14:05:42,261 - INFO - Correccion Codex guardada en: C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp04_correccion.json
+2026-05-08 14:05:42,312 - INFO - Enviando prompt a Codex CLI: C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp01.md
+2026-05-08 14:06:14,341 - INFO - Correccion Codex guardada en: C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp01_correccion.json
+2026-05-08 14:06:14,381 - INFO - Enviando prompt a Codex CLI: C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp04.md
+2026-05-08 14:06:32,977 - INFO - Correccion Codex guardada en: C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp04_correccion.json
+2026-05-08 14:06:33,027 - INFO - Correcciones generadas por Codex CLI:
+2026-05-08 14:06:33,042 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01_correccion.json
+2026-05-08 14:06:33,042 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp04_correccion.json
+2026-05-08 14:06:33,042 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp01_correccion.json
+2026-05-08 14:06:33,042 - INFO - - C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp04_correccion.json
+2026-05-08 14:06:33,043 - INFO - - C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json
+2026-05-08 14:06:33,043 - INFO - Correcciones importadas. Hoja de revision: C:\temp\vscodec\temporal\revision_pendiente.csv

@@ -8,8 +8,45 @@
 - El panel local deja de forzar el scroll del log si el usuario no está situado al final, evitando saltos visuales mientras revisa la interfaz.
 - El refresco automático del panel ya no reconstruye selects/listas/campos si no cambian y no pisa inputs enfocados. El botón "Pausar autoescaneo" queda disponible durante un escaneo inicial y detiene la detección en curso.
 - Los modos de revisión/previsualización ya no piden pulsar Enter para cerrar. El navegador queda abierto hasta cerrar la pestaña o detener la tarea; la interfaz lanza los subprocesos sin ventana de consola adicional en Windows.
+- Previsualización y subida asistida detectan si Moodle/CARM se queda en tabla o resumen y pulsan automáticamente "Calificar" para llegar al formulario antes de rellenar nota y feedback.
+- Codex CLI se resuelve de forma robusta: primero `CODEX_CLI_PATH`, luego `PATH`, y por último la extensión de VS Code `openai.chatgpt-*`. Esto evita fallos en la app de bandeja cuando Windows no hereda el PATH del terminal.
+- Los prompts para Codex limpian el contexto procedente de cache antes de incluirlo. Si la cache contiene una página índice/mapa de Moodle en vez de contenido didáctico real, se descarta para ahorrar tokens y evitar ruido.
 
-Última actualización: 7 de mayo de 2026
+Última actualización: 8 de mayo de 2026
+
+## Revisión completa 2026-05-08
+
+**Estado técnico actual**: backend e interfaz siguen operativos, con cambios recientes centrados en estabilidad de UI, subida asistida, resolución de Codex CLI y reducción de ruido en prompts.
+
+**Validación ejecutada en esta revisión**:
+
+```powershell
+.\.venv\Scripts\python.exe -m py_compile corrector_agente.py interfaz_app.py prueba_correcciones.py sincronizador_moodle.py
+```
+
+Resultado: OK.
+
+**Archivos modificados actualmente en git**:
+
+- `.env.example`: añade `CODEX_CLI_PATH` opcional.
+- `corrector_agente.py`: cambios de subida/previsualización, resolución de Codex CLI y limpieza de prompts.
+- `ESTADO_PROYECTO.md`: actualización de estado.
+- `logs_correcciones/agente.log`: log de ejecución local, ignorado por `.gitignore`.
+
+**Hallazgos importantes**:
+
+- Codex CLI ya se localiza aunque la app se lance desde bandeja y Windows no herede el `PATH` del terminal.
+- Los prompts actuales se han limpiado para no incluir navegación/JS/mapa de Moodle. Si la cache trae una página índice en vez de contenido didáctico real, el generador la descarta.
+- La cache didáctica aún no descarga/lee el PDF real de "Contenido imprimible"; ahora detecta el índice como ruido. Próximo paso claro: resolver enlaces a PDF de contenido imprimible y cachear texto didáctico real.
+- El flujo de previsualización/subida asistida ya no debe pedir `Enter`, debe intentar entrar automáticamente al formulario `Calificar`, y debe limpiar nota/feedback previos antes de rellenar.
+- En logs se observó solapamiento de cacheos al inicio; la UI ya permite pausar/detener autoescaneo, pero conviene probarlo tras reiniciar la app para verificar que no quedan procesos antiguos.
+
+**Riesgos abiertos**:
+
+- Falta una prueba real final de subida asistida completa en lote con varios alumnos de la misma actividad.
+- Falta confirmar en CARM que `Guardar cambios y mostrar siguiente` funciona en todos los formularios reales sin perder el último caso.
+- La cache didáctica debe mejorar para extraer PDFs/recursos enlazados, no solo `innerText` de páginas Moodle.
+- `sincronizador_moodle.py` sigue como referencia antigua; no es ruta principal y podría archivarse cuando la interfaz esté más madura.
 
 ## Resumen ejecutivo
 
@@ -434,7 +471,7 @@ Decision de subida humana asistida: se prioriza el modo asistido frente a la pub
 
 ### Validación en ejecución
 
-Probado el 2026-05-07:
+Probado entre el 2026-05-07 y el 2026-05-08:
 
 - `py_compile`: OK
 - `prueba_correcciones.py`: OK (datos sintéticos)
@@ -442,20 +479,20 @@ Probado el 2026-05-07:
 - Interfaz web: responde en `http://127.0.0.1:8765`
 - `/api/auth`: `configured: true`
 - Anti-CSRF: funcional
+- Codex CLI localizado desde extensión VS Code y probado con prompts reales.
+- Prompts actuales limpiados para descartar mapa/navegación de Moodle.
 
-## Limite de uso: Estado del servicio Codex CLI
+## Codex CLI: estado actual
 
-**Situación**: Se alcanzó el límite mensual de Codex CLI al 2026-05-05.
+**Situación 2026-05-08**: Codex CLI vuelve a estar operativo en este equipo. La app ya no depende solo del `PATH`; busca:
 
-- Últimas correcciones validadas: 4 lotes (timestamps 13:48-13:50)
-- Correcciones generadas: 13 JSON en `correcciones_validadas/`
-- Siguiente disponibilidad: próximo período de facturación
+1. `CODEX_CLI_PATH` en `.env`.
+2. `codex` / `codex.exe` en `PATH`.
+3. La extensión de VS Code `openai.chatgpt-*`.
 
-**Alternativas activas**:
-1. Completar revisión y publicación de los 13 JSON existentes
-2. Usar el flujo por API de OpenAI configurando `OPENAI_API_KEY` y ejecutando el corrector sin el flujo Codex CLI
-3. Validación manual sin IA (usando `prueba_correcciones.py`)
-4. Esperar reanudación de Codex CLI
+Prueba reciente correcta: `prompt_ud01cp01`, `prompt_ud01cp04`, `prompt_ud02cp01` y `prompt_ud02cp04` se corrigieron con Codex CLI y se importaron a `correcciones_codex_combinadas.json` y `revision_pendiente.csv`.
+
+Nota: el límite mensual detectado el 2026-05-05 queda como incidencia histórica, no como bloqueo actual.
 
 ## Prompts
 
@@ -471,30 +508,27 @@ Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por err
 
 ### Corto plazo (esta semana)
 
-1. **Revisar y publicar las correcciones existentes**
-   - Ubicación: `correcciones_validadas/`
-   - Validar con `revision_pendiente.csv`
-   - Publicar lotes con `--publicar-carm` tras revisión
-   - Impacto: Cierra primer ciclo de pruebas
+1. **Probar subida asistida real en lote controlado**
+   - Usar `correcciones_codex_combinadas.json` actual tras revisión.
+   - Confirmar que abre el formulario `Calificar`, limpia campos previos y rellena nota/feedback.
+   - El usuario debe pulsar guardar manualmente para cumplir revisión humana.
 
-2. **Implementar redacción de logs sensibles**
-   - Ofuscar nombres de alumnos, emails, URLs CARM
-   - Mantener timestamps, errores, estadísticas
-   - Archivo: `logs_correcciones/`
-   - Esfuerzo: bajo (regex de redacción)
+2. **Mejorar cache didáctica real**
+   - Detectar enlaces a PDF de "Contenido imprimible".
+   - Descargar/leer el PDF con dependencias opcionales.
+   - Guardar texto didáctico limpio en SQLite, no el mapa de Moodle.
 
-3. **Decidir sobre DPAPI para credenciales**
+3. **Revisar y publicar solo correcciones limpias**
+   - Validar `revision_pendiente.csv`.
+   - Comprobar incidencias como alumnos sin archivo.
+   - Usar subida asistida antes de cualquier publicación totalmente automática.
+
+4. **Decidir sobre DPAPI para credenciales**
    - ¿Guardar CARM con cifrado Windows?
    - ¿Mantener `.env` en texto plano?
    - Recomendación: DPAPI si /.env se comparte o se guarda en USB
 
 ### Mediano plazo (próximas 2-3 semanas)
-
-4. **Implementar auditoría local de acciones**
-   - Registro en `respuestas_extraidas/auditoria.json`
-   - Qué: descarga, corrección, publicación
-   - Cuándo: timestamps ISO
-   - Quién: sesión/token local
 
 5. **Refinar confirmación fuerte para publicar**
    - Botón bloqueado hasta revisión limpia
@@ -506,15 +540,19 @@ Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por err
    - Validar cache con `--refrescar-cache`
    - Probar filtros por actividad específica
 
+7. **Decidir destino de `sincronizador_moodle.py`**
+   - Mantener como referencia histórica o archivar/eliminar.
+   - Evitar que parezca una ruta activa duplicada.
+
 ### Largo plazo (mes siguiente)
 
-7. **Documentación de operador**
+8. **Documentación de operador**
    - Guía paso a paso: extracción → corrección → publicación
    - Troubleshooting de errores comunes
    - Video tutorial si es viable
 
-8. **Considerar migración a OpenAI API o modelo local**
-   - Si Codex no se reanuda
+9. **Considerar migración a OpenAI API o modelo local**
+   - Si Codex CLI vuelve a fallar o hay límites de uso
    - Evaluar costo-beneficio
    - Adaptar prompts si cambia el modelo
 
@@ -524,9 +562,9 @@ Este proyecto automatiza corrección de casos prácticos en CARM Formación:
 
 - **¿Qué?**: Descarga entregas de CARM, las corrige con IA (Codex CLI), genera revisiones locales, publica notas y feedback
 - **¿Dónde?**: `corrector_agente.py` es el motor principal; `interfaz_app.py` es la UI web
-- **¿Cuándo?**: Operacional, últimas pruebas el 2026-05-05; límite Codex alcanzado 2026-05-07
-- **¿Seguridad?**: Token anti-CSRF, bloqueo de publicación sin revisión, endurecimiento de ZIP, documentación ASVS/CVSS
-- **¿Próximos?**: Publicar correcciones existentes → redacción de logs → auditoría local
+- **¿Cuándo?**: Operacional, última revisión de proyecto el 2026-05-08
+- **¿Seguridad?**: Token anti-CSRF, bloqueo de publicación sin revisión, subida asistida con revisión humana, endurecimiento de ZIP, documentación ASVS/CVSS/RGPD
+- **¿Próximos?**: Probar subida asistida real en lote → mejorar cache didáctica con PDFs reales → revisar/publicar correcciones limpias
 
 Para empezar:
 ```powershell
@@ -561,14 +599,14 @@ Tambien se probo:
 
 Prioridad alta:
 
-- Validar una publicacion real completa con `--publicar-carm` en un lote controlado.
-- Confirmar que `Guardar cambios y mostrar siguiente` funciona en un lote completo de la misma actividad.
-- Mejorar la interfaz local: vista de revision por alumno antes de publicar.
-- Evitar que la interfaz lance publicacion si no existe JSON combinado o si hay errores en el CSV.
+- Validar una subida asistida real completa en un lote controlado, revisando cada guardado manual.
+- Confirmar que `Guardar cambios y mostrar siguiente` funciona en un lote completo de la misma actividad y que la última corrección usa `Guardar cambios`.
+- Mejorar cache didáctica: descargar/leer el PDF real de contenido imprimible en vez de guardar páginas índice de Moodle.
+- Mejorar la interfaz local: vista de revisión por alumno antes de publicar.
 
 Prioridad media:
 
-- Mejorar limpieza del contenido imprimible de Moodle para reducir ruido en prompts.
+- Añadir aviso visual cuando el contexto didáctico se descarta por ser índice/mapa de Moodle.
 - Revisar notas generadas por Codex para calibrar severidad.
 - Consolidar logs de subida con alumno, actividad, nota, boton usado y resultado.
 - Anadir pantalla de incidencias: alumnos sin archivo, formatos no legibles, errores de descarga.

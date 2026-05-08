@@ -265,7 +265,7 @@ Primero prueba en modo previsualización. Este modo abre CARM, busca el alumno y
 python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json
 ```
 
-El navegador queda abierto para revisar el formulario. Pulsa Enter en la consola para cerrar.
+El navegador queda abierto para revisar el formulario. Para terminar la previsualización, cierra la pestaña de Chromium o detén la tarea desde la interfaz.
 
 Cuando hayas comprobado que el formulario se rellena bien, publica de verdad con:
 
