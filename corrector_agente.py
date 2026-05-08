@@ -192,6 +192,41 @@ def normalizar_texto_para_cli(texto: str) -> str:
     return unicodedata.normalize("NFC", texto)
 
 
+def resolver_codex_cli() -> str:
+    configurado = os.getenv("CODEX_CLI_PATH", "").strip().strip('"')
+    candidatos: list[Path] = []
+    if configurado:
+        candidatos.append(Path(configurado))
+
+    encontrado = shutil.which("codex") or shutil.which("codex.exe")
+    if encontrado:
+        candidatos.append(Path(encontrado))
+
+    userprofile = os.getenv("USERPROFILE", "").strip()
+    if userprofile:
+        extensiones = Path(userprofile) / ".vscode" / "extensions"
+        if extensiones.exists():
+            candidatos.extend(
+                sorted(
+                    extensiones.glob("openai.chatgpt-*/bin/windows-x86_64/codex.exe"),
+                    key=lambda ruta: ruta.stat().st_mtime if ruta.exists() else 0,
+                    reverse=True,
+                )
+            )
+
+    for candidato in candidatos:
+        try:
+            if candidato.exists() and candidato.is_file():
+                return str(candidato)
+        except OSError:
+            continue
+
+    raise FileNotFoundError(
+        "No se encontro Codex CLI. Configura CODEX_CLI_PATH con la ruta de codex.exe "
+        "o abre la app desde un terminal donde 'codex' este en PATH."
+    )
+
+
 class RedactingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.msg = redactar_texto_sensible(record.getMessage())
@@ -1625,6 +1660,78 @@ class ExtractorCarm:
                 continue
         return ""
 
+    @staticmethod
+    async def _hay_formulario_calificacion(page) -> bool:
+        for selector in (
+            "input[name='grade']",
+            "#id_grade",
+            "input[id*='grade'][type='text']",
+            "input[name*='grade'][type='text']",
+        ):
+            try:
+                if await page.locator(selector).first.count():
+                    return True
+            except Exception:
+                continue
+        return False
+
+    async def _pulsar_calificar_en_fila(self, page, alumno: str) -> str:
+        alumno_norm = self._normalizar(alumno)
+        filas = await page.query_selector_all("table.generaltable tbody tr, tr")
+        for fila in filas:
+            texto_fila = self._normalizar(await fila.text_content() or "")
+            if alumno_norm not in texto_fila:
+                continue
+            for selector in (
+                "a[href*='action=grader'][href*='userid=']",
+                "a[href*='action=grader']",
+                "a:has-text('Calificar')",
+                "button:has-text('Calificar')",
+                "input[value*='Calificar']",
+            ):
+                try:
+                    enlace = await fila.query_selector(selector)
+                    if enlace is None:
+                        continue
+                    await enlace.scroll_into_view_if_needed()
+                    await enlace.click()
+                    await page.wait_for_load_state("networkidle")
+                    if await self._hay_formulario_calificacion(page):
+                        return f"fila:{selector}"
+                except Exception:
+                    continue
+        return ""
+
+    async def _abrir_formulario_calificacion(self, page, url_calificador: str, alumno: str) -> str:
+        await page.goto(url_calificador, wait_until="networkidle")
+        if await self._hay_formulario_calificacion(page):
+            return "url_directa"
+
+        origen = await self._pulsar_calificar_en_fila(page, alumno)
+        if origen:
+            return origen
+
+        for selector in (
+            "a[href*='action=grader'][href*='userid=']",
+            "a[href*='action=grader']",
+            "a:has-text('Calificar')",
+            "button:has-text('Calificar')",
+            "input[value*='Calificar']",
+            "a:has-text('Editar calificación')",
+            "button:has-text('Editar calificación')",
+        ):
+            locator = page.locator(selector).first
+            try:
+                if await locator.count():
+                    await locator.scroll_into_view_if_needed()
+                    await locator.click()
+                    await page.wait_for_load_state("networkidle")
+                    if await self._hay_formulario_calificacion(page):
+                        return f"fallback:{selector}"
+            except Exception:
+                continue
+        return ""
+
     async def _rellenar_feedback(self, page, feedback: str) -> str:
         await page.wait_for_timeout(500)
 
@@ -1928,7 +2035,7 @@ class ExtractorCarm:
                 "mensaje": "No se encontrÃ³ enlace de calificaciÃ³n para el alumno en la tabla.",
             }
 
-        await page.goto(url_calificador, wait_until="networkidle")
+        apertura_calificador = await self._abrir_formulario_calificacion(page, url_calificador, alumno)
         grade_selector = await self._rellenar_primero(
             page,
             [
@@ -1946,6 +2053,7 @@ class ExtractorCarm:
             "actividad": actividad_codigo,
             "nota": nota,
             "url_calificador": self._redactar_texto_sensible(url_calificador),
+            "apertura_calificador": apertura_calificador,
             "campo_nota": grade_selector,
             "campo_feedback": feedback_selector,
             "diagnostico_feedback": await self._diagnosticar_campos_feedback(page),
@@ -2275,6 +2383,7 @@ class GeneradorSalidas:
     MAX_ZIP_ENTRADAS = 40
     MAX_ZIP_TOTAL_BYTES = 50 * 1024 * 1024
     MAX_ZIP_ENTRADA_BYTES = 8 * 1024 * 1024
+    MAX_CONTEXTO_PROMPT_CHARS = 14000
     EXTENSIONES_TEXTO = {
         ".txt",
         ".md",
@@ -2544,6 +2653,111 @@ class GeneradorSalidas:
     def _sanitizar(nombre: str) -> str:
         limpio = re.sub(r"[\\/:*?\"<>|]", "_", nombre.strip())
         return re.sub(r"\s+", " ", limpio)[:120] or "alumno"
+
+    @staticmethod
+    def _limpiar_bloque_carm_para_prompt(texto: str, max_chars: int = MAX_CONTEXTO_PROMPT_CHARS) -> str:
+        texto = unescape(texto or "")
+        texto = re.sub(r"//<!\[CDATA\[.*?//\]\]>", "\n", texto, flags=re.S)
+        texto = re.sub(r"<script\b.*?</script>", "\n", texto, flags=re.S | re.I)
+        texto = texto.replace("\r", "\n")
+
+        def normalizar_linea(valor: str) -> str:
+            normalizado = unicodedata.normalize("NFKD", valor)
+            return "".join(c for c in normalizado if not unicodedata.combining(c)).lower()
+
+        patrones_ruido = (
+            "salta al contenido principal",
+            "panel lateral",
+            "notificaciones",
+            "no tienes notificaciones",
+            "ver todo",
+            "área personal",
+            "area personal",
+            "ver perfil",
+            "calificaciones",
+            "calendario",
+            "cambiar rol",
+            "cerrar sesión",
+            "cerrar sesion",
+            "administración del sitio",
+            "administracion del sitio",
+            "mis cursos",
+            "este curso",
+            "cuestionarios",
+            "foros",
+            "herramientas externas",
+            "paquetes scorm",
+            "manual uso de la plataforma",
+            "video tutorial",
+            "manual acogida",
+            "expediente",
+            "javascript",
+            "document.body",
+            "jsenabled",
+            "haga clic en",
+            "actividad previa",
+            "próxima actividad",
+            "proxima actividad",
+            "ir a...",
+            "avisos",
+            "notas importantes",
+            "readspeaker",
+            "tiempo invertido",
+            "novedades",
+            "dudas y consultas",
+            "glosario",
+            "hipervínculos",
+            "hipervinculos",
+            "guía didáctica",
+            "guia didactica",
+            "conexión",
+            "conexion",
+            "contenido multimedia",
+            "para saber más",
+            "para saber mas",
+            "cuestionario de evaluación",
+            "cuestionario de evaluacion",
+            "vídeo clase",
+            "video clase",
+        )
+
+        lineas_limpias: list[str] = []
+        vistas: set[str] = set()
+        for linea in texto.splitlines():
+            linea = re.sub(r"\s+", " ", linea).strip()
+            if not linea or len(linea) <= 2:
+                continue
+            normalizada = normalizar_linea(linea)
+            if any(normalizar_linea(patron) in normalizada for patron in patrones_ruido):
+                continue
+            if re.fullmatch(r"[{}()[\];,./\\|:_\-*=+<>!¡¿?\"'`~0-9\s]+", linea):
+                continue
+            if normalizada in vistas:
+                continue
+            vistas.add(normalizada)
+            lineas_limpias.append(linea)
+
+        casos_o_recursos = sum(
+            1
+            for linea in lineas_limpias
+            if re.search(r"\bud\d{2}\b|\bcaso práctico\b|contenido imprimible|contenido multimedia", linea, flags=re.I)
+        )
+        if casos_o_recursos >= 8 and len("\n".join(lineas_limpias)) < 8000:
+            return (
+                "La cache contiene una página índice de Moodle, no contenido didáctico útil. "
+                "No se incluye para evitar ruido en la corrección."
+            )
+
+        limpio = re.sub(r"\n{3,}", "\n\n", "\n".join(lineas_limpias)).strip()
+        if len(limpio) < 400:
+            return (
+                "No hay contexto didáctico limpio suficiente en cache. "
+                "Usa el enunciado, la rúbrica y la respuesta del alumno."
+            )
+        if max_chars > 0 and len(limpio) > max_chars:
+            limpio = limpio[:max_chars].rsplit("\n", 1)[0].strip()
+            limpio += "\n\n[Contexto didáctico recortado para ahorrar tokens.]"
+        return limpio or "No hay contexto didáctico limpio disponible en cache."
 
     def _codigo_para_archivo(self, path: Path) -> str:
         partes = [path.stem, path.parent.name]
@@ -2870,11 +3084,15 @@ class GeneradorSalidas:
         gestor_prompts = GestorPrompts(prompts_path)
         rutas: list[Path] = []
         manifiesto: list[dict] = []
+        contexto_limpio = self._limpiar_bloque_carm_para_prompt(contexto_unidad)
 
         for actividad_codigo, envios in sorted(pendientes_por_actividad.items()):
             entregas: list[dict] = []
             revision_manual: list[dict] = []
-            enunciado = next((e.actividad_enunciado for e in envios if e.actividad_enunciado), "")
+            enunciado = self._limpiar_bloque_carm_para_prompt(
+                next((e.actividad_enunciado for e in envios if e.actividad_enunciado), ""),
+                max_chars=5000,
+            )
 
             for idx, envio in enumerate(envios):
                 lectura = self.leer_entrega(envio.archivo)
@@ -2928,28 +3146,27 @@ class GeneradorSalidas:
                 "",
                 f"Lote {numero_lote} de {len(lotes)}. Entregas en este lote: {len(entregas_lote)}.",
                 "",
-                "Copia todo este archivo en Codex/ChatGPT y pide la corrección.",
-                "No hace falta usar la API de OpenAI para este paso.",
-                "",
                 "## Instrucciones de sistema",
                 "",
                 prompt_cfg["sistema"],
                 "",
-                "## Rúbrica y enunciado",
+                "## Rúbrica",
                 "",
                 prompt_cfg["criterios"],
                 "",
                 "## Enunciado extraído de CARM",
                 "",
-                enunciado or "No se pudo extraer un enunciado específico de CARM para esta actividad.",
+                enunciado if "No hay contexto didáctico limpio disponible" not in enunciado else "No se pudo extraer un enunciado específico de CARM para esta actividad. Usa la rúbrica y el contexto didáctico limpio.",
                 "",
-                "## Contexto de unidad",
+                "## Contexto didactico limpio desde cache",
                 "",
-                contexto_unidad,
+                contexto_limpio,
                 "",
                 "## Tarea",
                 "",
-                "Corrige todas las entregas legibles. Evalúa solo lo que el alumno ha escrito, sin inventar méritos.",
+                "Corrige todas las entregas legibles usando solo la rúbrica, el enunciado y el contexto didáctico anterior.",
+                "Ignora cualquier rastro técnico, navegación de Moodle o metadatos que aparezcan accidentalmente.",
+                "Evalúa solo lo que el alumno ha escrito, sin inventar méritos.",
                 "Devuelve únicamente JSON válido, sin Markdown, con este formato exacto:",
                 "",
                 "```json",
@@ -3023,6 +3240,8 @@ class GeneradorSalidas:
 
         rutas_correcciones: list[Path] = []
         timeout = timeout_segundos if timeout_segundos and timeout_segundos > 0 else None
+        codex_cli = resolver_codex_cli()
+        logger.info("Codex CLI localizado: %s", codex_cli)
         for prompt_path in prompts:
             salida_path = output_dir / f"{prompt_path.stem}_correccion.json"
             prompt_texto = normalizar_texto_para_cli(prompt_path.read_text(encoding="utf-8"))
@@ -3044,7 +3263,7 @@ class GeneradorSalidas:
                 )
                 resultado = subprocess.run(
                     [
-                        "codex",
+                        codex_cli,
                         "exec",
                         "-C",
                         str(Path.cwd()),
@@ -3064,7 +3283,7 @@ class GeneradorSalidas:
                     env=env_codex,
                 )
             except FileNotFoundError as e:
-                raise RuntimeError("No se encontro el comando 'codex'. Abre Codex/VS Code o revisa PATH.") from e
+                raise RuntimeError(str(e)) from e
 
             if resultado.returncode != 0:
                 stderr = (resultado.stderr or resultado.stdout or "").strip()
