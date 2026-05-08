@@ -439,6 +439,9 @@ class TaskRunner:
             env = os.environ.copy()
             if action in {"detect_course", "auto_correct", "check_playwright"}:
                 env["CARM_HEADLESS"] = "1"
+            popen_kwargs = {}
+            if os.name == "nt":
+                popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             self.process = subprocess.Popen(
                 [sys.executable, "corrector_agente.py", *args],
                 cwd=str(ROOT),
@@ -449,6 +452,7 @@ class TaskRunner:
                 encoding="utf-8",
                 errors="replace",
                 bufsize=1,
+                **popen_kwargs,
             )
             threading.Thread(target=self._read_output, daemon=True).start()
             return True, "Proceso iniciado."
@@ -1366,6 +1370,11 @@ HTML = r"""<!doctype html>
               </div>
             </div>
             <p class="hint">Usa 0 para desactivar el refresco periodico. Al iniciar, la app tambien puede actualizar datos si no usas `--no-startup-scan`.</p>
+            <div class="row">
+              <button id="scanNowBtn" type="button">Escanear ahora</button>
+              <button id="pauseScanBtn" type="button">Pausar autoescaneo</button>
+              <button id="resumeScanBtn" type="button">Reactivar 60 min</button>
+            </div>
           </div>
         </section>
 
@@ -1562,8 +1571,33 @@ HTML = r"""<!doctype html>
     }
 
     function fillSelect(select, html, current = '') {
-      select.innerHTML = html;
+      if (select.innerHTML !== html) {
+        const previous = select.value;
+        select.innerHTML = html;
+        if (previous && [...select.options].some((opt) => opt.value === previous)) select.value = previous;
+      }
       if (current && [...select.options].some((opt) => opt.value === current)) select.value = current;
+    }
+
+    function setText(id, value) {
+      const el = $(id);
+      if (el.textContent !== value) el.textContent = value;
+    }
+
+    function setHtml(id, value) {
+      const el = $(id);
+      if (el.innerHTML !== value) el.innerHTML = value;
+    }
+
+    function setInputValue(id, value) {
+      const el = $(id);
+      if (document.activeElement === el) return;
+      if (el.value !== String(value ?? '')) el.value = String(value ?? '');
+    }
+
+    function isEditingControl() {
+      const tag = (document.activeElement?.tagName || '').toLowerCase();
+      return ['input', 'select', 'textarea', 'button'].includes(tag);
     }
 
     function activitiesForUnit(unit) {
@@ -1633,6 +1667,9 @@ HTML = r"""<!doctype html>
       $('publishBtn').disabled = locked || !$('publishCheck').checked;
       $('stopBtn').disabled = !running;
       $('runAdvancedBtn').disabled = locked;
+      $('scanNowBtn').disabled = locked;
+      $('pauseScanBtn').disabled = !authState.configured;
+      $('resumeScanBtn').disabled = running || !authState.configured;
     }
 
     function setWorkflow(status, state) {
@@ -1730,7 +1767,22 @@ HTML = r"""<!doctype html>
       await refresh();
     }
 
+    async function setAutomationInterval(minutes, stopCurrentScan = false) {
+      $('autoScanInterval').value = String(minutes);
+      await saveAutomation();
+      if (stopCurrentScan) {
+        const status = await api('/api/status');
+        if (status.running && ['detect_course', 'auto_correct'].includes(status.action)) {
+          await api('/api/stop', {method:'POST'});
+        }
+      }
+      await safeRefresh();
+    }
+
     async function refresh() {
+      const scrollX = window.scrollX;
+      const scrollY = window.scrollY;
+      const shouldRestoreScroll = !isEditingControl();
       await loadAuth();
       if (!authState.configured) {
         setBusy(false);
@@ -1739,28 +1791,32 @@ HTML = r"""<!doctype html>
       const status = await api('/api/status');
       const state = await api('/api/state');
       await loadOptions();
-      $('pendientesDir').value = state.pendientes_dir;
-      $('temporalDir').value = state.temporal_dir;
-      $('autoScanInterval').value = state.auto_scan_interval_minutes;
+      setInputValue('pendientesDir', state.pendientes_dir);
+      setInputValue('temporalDir', state.temporal_dir);
+      setInputValue('autoScanInterval', state.auto_scan_interval_minutes);
+      $('pauseScanBtn').textContent = state.auto_scan_interval_minutes > 0 ? 'Pausar autoescaneo' : 'Autoescaneo pausado';
       const jsonHtml = state.json_options.map(jsonOptionHtml).join('');
       fillSelect($('jsonPath'), jsonHtml, $('jsonPath').value);
       fillSelect($('importJsonPath'), jsonHtml, $('importJsonPath').value);
-      $('courseUrl').value = courseOptions.course_url || '';
+      setInputValue('courseUrl', courseOptions.course_url || '');
       const detectedHtml = courseOptions.detected_courses.length
         ? courseOptions.detected_courses.map(courseOptionHtml).join('')
         : '<option value="">Sin cursos detectados todavia</option>';
       fillSelect($('detectedCourse'), detectedHtml, courseOptions.course_url || '');
       $('useDetectedCourseBtn').disabled = !courseOptions.detected_courses.length;
-      $('courseMessage').textContent = courseOptions.cache_path
+      setText('courseMessage', courseOptions.cache_path
         ? `Curso ${courseOptions.course_id} · cache: ${courseOptions.cache_path}`
-        : `Curso ${courseOptions.course_id || 'sin ID'} · sin cache didactica. Ejecuta "Actualizar datos didacticos desde CARM".`;
+        : `Curso ${courseOptions.course_id || 'sin ID'} · sin cache didactica. Ejecuta "Actualizar datos didacticos desde CARM".`);
       const badge = $('statusBadge');
       const failed = status.has_error || (status.exit_code && status.exit_code !== 0);
       badge.className = 'badge ' + (status.running ? '' : (failed ? 'err' : 'idle'));
-      badge.textContent = status.running ? 'Ejecutando' : (status.permission_error ? 'Permisos Windows' : (failed ? 'Error' : 'Parado'));
-      $('elapsed').textContent = status.running ? `${status.action} · ${status.elapsed}s` : '';
-      $('logBox').textContent = (status.lines || []).join('\n') || (state.agent_log || []).join('\n');
-      $('logBox').scrollTop = $('logBox').scrollHeight;
+      setText('statusBadge', status.running ? 'Ejecutando' : (status.permission_error ? 'Permisos Windows' : (failed ? 'Error' : 'Parado')));
+      setText('elapsed', status.running ? `${status.action} · ${status.elapsed}s` : '');
+      const logBox = $('logBox');
+      const wasAtLogBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 24;
+      const nextLog = (status.lines || []).join('\n') || (state.agent_log || []).join('\n');
+      if (logBox.textContent !== nextLog) logBox.textContent = nextLog;
+      if (wasAtLogBottom) logBox.scrollTop = logBox.scrollHeight;
       if (state.pending_publication && state.pending_publication.pending) {
         const pending = state.pending_publication;
         const extra = pending.blocking
@@ -1768,14 +1824,17 @@ HTML = r"""<!doctype html>
           : 'Puedes usar Subida asistida para rellenar CARM y guardar manualmente.';
         showSystemNotice(`Hay ${pending.rows} calificacion(es) preparadas pendientes de subir. ${extra}`);
       }
-      $('combinedPath').textContent = `${state.combined.path} · ${state.combined.exists ? 'listo' : 'pendiente'}`;
-      $('revisionPath').textContent = `${state.revision_csv.path} · ${state.revision_csv.exists ? 'listo' : 'pendiente'}`;
-      $('promptsList').innerHTML = state.prompts.length ? state.prompts.map(fmtFile).join('') : '<span class="muted">Sin prompts</span>';
-      $('correctionsList').innerHTML = state.corrections.length ? state.corrections.map(fmtFile).join('') : '<span class="muted">Sin correcciones</span>';
-      $('promptCount').textContent = state.prompts.length;
-      $('correctionCount').textContent = state.corrections.length;
+      setText('combinedPath', `${state.combined.path} · ${state.combined.exists ? 'listo' : 'pendiente'}`);
+      setText('revisionPath', `${state.revision_csv.path} · ${state.revision_csv.exists ? 'listo' : 'pendiente'}`);
+      setHtml('promptsList', state.prompts.length ? state.prompts.map(fmtFile).join('') : '<span class="muted">Sin prompts</span>');
+      setHtml('correctionsList', state.corrections.length ? state.corrections.map(fmtFile).join('') : '<span class="muted">Sin correcciones</span>');
+      setText('promptCount', String(state.prompts.length));
+      setText('correctionCount', String(state.corrections.length));
       setWorkflow(status, state);
       setBusy(status.running);
+      if (shouldRestoreScroll && (window.scrollX !== scrollX || window.scrollY !== scrollY)) {
+        requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
+      }
     }
 
     async function safeRefresh() {
@@ -1850,6 +1909,12 @@ HTML = r"""<!doctype html>
     $('saveFoldersBtn').onclick = saveFolders;
     $('saveCourseBtn').onclick = () => saveCourse();
     $('saveAutomationBtn').onclick = saveAutomation;
+    $('scanNowBtn').onclick = () => {
+      toggleSettings(false);
+      run('detect_course');
+    };
+    $('pauseScanBtn').onclick = () => setAutomationInterval(0, true);
+    $('resumeScanBtn').onclick = () => setAutomationInterval(60);
     $('useDetectedCourseBtn').onclick = () => {
       if (!$('detectedCourse').value) return;
       saveCourse($('detectedCourse').value);
@@ -2052,6 +2117,8 @@ def build_args(action: str, body: dict) -> list[str]:
     if action in {"preview", "publish", "assist_publish"}:
         json_path = require_allowed(str(body.get("json_path") or COMBINED_JSON), allowed_json_paths(), "JSON")
         args = ["--subir-correcciones-carm", str(json_path)]
+        if action == "preview":
+            args.extend(["--solo-primera-previsualizacion-carm", "--mantener-navegador"])
         if action == "publish":
             revisar_publicacion_segura()
             args.append("--publicar-carm")
@@ -2154,7 +2221,7 @@ def install_startup() -> Path:
     cmd_path.write_text(
         "@echo off\n"
         f'cd /d "{ROOT}"\n'
-        f'start "" "{runner}" "{ROOT / "interfaz_app.py"}" --tray --auto-correct --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser\n',
+        f'start "" "{runner}" "{ROOT / "interfaz_app.py"}" --tray --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser\n',
         encoding="utf-8",
     )
     return cmd_path
@@ -2271,7 +2338,7 @@ def main() -> None:
     )
     args = parser.parse_args()
     global AUTO_CORRECT_AFTER_SCAN
-    AUTO_CORRECT_AFTER_SCAN = (args.tray or args.auto_correct) and not args.no_auto_correct
+    AUTO_CORRECT_AFTER_SCAN = args.auto_correct and not args.no_auto_correct
 
     if args.install_startup:
         path = install_startup()
