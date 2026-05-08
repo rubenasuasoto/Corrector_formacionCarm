@@ -27,6 +27,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from html import escape as html_escape, unescape
+from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -554,6 +555,108 @@ Evalúa en escala de 0 a 10. Devuelve JSON con este formato exacto:
 }
 """.strip()
 
+MAX_CONTEXTO_PROMPT_CHARS = 14000
+MAX_CONTEXTO_API_CHARS = 12000
+MAX_CONTEXTO_CACHE_CHARS = 24000
+
+
+def _normalizar_linea_comparable(valor: str) -> str:
+    normalizado = unicodedata.normalize("NFKD", str(valor or ""))
+    return "".join(c for c in normalizado if not unicodedata.combining(c)).lower()
+
+
+def limpiar_bloque_carm_para_prompt(texto: str, max_chars: int = MAX_CONTEXTO_PROMPT_CHARS) -> str:
+    texto = unescape(texto or "")
+    texto = re.sub(r"//<!\[CDATA\[.*?//\]\]>", "\n", texto, flags=re.S)
+    texto = re.sub(r"<script\b.*?</script>", "\n", texto, flags=re.S | re.I)
+    texto = texto.replace("\r", "\n")
+
+    patrones_ruido = (
+        "salta al contenido principal",
+        "panel lateral",
+        "notificaciones",
+        "no tienes notificaciones",
+        "ver todo",
+        "area personal",
+        "ver perfil",
+        "calificaciones",
+        "calendario",
+        "cambiar rol",
+        "cerrar sesion",
+        "administracion del sitio",
+        "mis cursos",
+        "este curso",
+        "cuestionarios",
+        "foros",
+        "herramientas externas",
+        "paquetes scorm",
+        "manual uso de la plataforma",
+        "video tutorial",
+        "manual acogida",
+        "expediente",
+        "javascript",
+        "document.body",
+        "jsenabled",
+        "haga clic en",
+        "actividad previa",
+        "proxima actividad",
+        "ir a...",
+        "avisos",
+        "notas importantes",
+        "readspeaker",
+        "tiempo invertido",
+        "novedades",
+        "dudas y consultas",
+        "glosario",
+        "hipervinculos",
+        "guia didactica",
+        "conexion",
+        "contenido multimedia",
+        "para saber mas",
+        "cuestionario de evaluacion",
+        "video clase",
+    )
+    patrones_normalizados = tuple(_normalizar_linea_comparable(p) for p in patrones_ruido)
+
+    lineas_limpias: list[str] = []
+    vistas: set[str] = set()
+    for linea in texto.splitlines():
+        linea = re.sub(r"\s+", " ", linea).strip()
+        if not linea or len(linea) <= 2:
+            continue
+        normalizada = _normalizar_linea_comparable(linea)
+        if any(patron in normalizada for patron in patrones_normalizados):
+            continue
+        if re.fullmatch(r"[{}()[\];,./\\|:_\-*=+<>!Â¡Â¿?\"'`~0-9\s]+", linea):
+            continue
+        if normalizada in vistas:
+            continue
+        vistas.add(normalizada)
+        lineas_limpias.append(linea)
+
+    casos_o_recursos = sum(
+        1
+        for linea in lineas_limpias
+        if re.search(r"\bud\d{2}\b|\bcaso pr[Ã¡a]ctico\b|contenido imprimible|contenido multimedia", linea, flags=re.I)
+    )
+    if casos_o_recursos >= 8 and len("\n".join(lineas_limpias)) < 8000:
+        return (
+            "La cache contiene una pagina indice de Moodle, no contenido didactico util. "
+            "No se incluye para evitar ruido en la correccion."
+        )
+
+    limpio = re.sub(r"\n{3,}", "\n\n", "\n".join(lineas_limpias)).strip()
+    if len(limpio) < 400:
+        return (
+            "No hay contexto didactico limpio suficiente en cache. "
+            "Usa el enunciado, la rubrica y la respuesta del alumno."
+        )
+    if max_chars > 0 and len(limpio) > max_chars:
+        recortado = limpio[:max_chars].rsplit("\n", 1)[0].strip()
+        limpio = recortado or limpio[:max_chars].strip()
+        limpio += "\n\n[Contexto didactico recortado para ahorrar tokens.]"
+    return limpio or "No hay contexto didactico limpio disponible en cache."
+
 
 @dataclass
 class EnvioPendiente:
@@ -571,6 +674,45 @@ class LecturaEntrega:
     texto: str
     requiere_revision_manual: bool = False
     motivo: str = ""
+    advertencia: str = ""
+
+
+class TextoVisibleHTMLParser(HTMLParser):
+    BLOQUES_OCULTOS = {"script", "style", "noscript", "svg", "canvas", "template", "head", "meta", "link"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._oculto = 0
+        self.fragmentos: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        tag = tag.lower()
+        if tag in self.BLOQUES_OCULTOS:
+            self._oculto += 1
+        if tag in {"p", "div", "br", "li", "h1", "h2", "h3", "h4", "tr", "section", "article"}:
+            self.fragmentos.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if tag in self.BLOQUES_OCULTOS and self._oculto:
+            self._oculto -= 1
+        if tag in {"p", "div", "li", "h1", "h2", "h3", "h4", "tr", "section", "article"}:
+            self.fragmentos.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if self._oculto:
+            return
+        texto = data.strip()
+        if texto:
+            self.fragmentos.append(texto)
+
+    def texto(self) -> str:
+        unido = " ".join(self.fragmentos)
+        unido = unescape(unido)
+        unido = re.sub(r"[ \t\r\f\v]+", " ", unido)
+        unido = re.sub(r"\n\s*", "\n", unido)
+        unido = re.sub(r"\n{3,}", "\n\n", unido)
+        return unido.strip()
 
 
 class CacheCursoCarm:
@@ -680,6 +822,11 @@ class CacheCursoCarm:
     def guardar_unidad(self, codigo: str, nombre: str = "", contenido_imprimible: str = "") -> None:
         if not codigo:
             return
+        contenido_limpio = (
+            limpiar_bloque_carm_para_prompt(contenido_imprimible, max_chars=MAX_CONTEXTO_CACHE_CHARS)
+            if str(contenido_imprimible or "").strip()
+            else ""
+        )
         with self._conectar() as con:
             con.execute(
                 """
@@ -690,7 +837,14 @@ class CacheCursoCarm:
                     contenido_imprimible=COALESCE(NULLIF(excluded.contenido_imprimible, ''), unidad.contenido_imprimible),
                     actualizado_en=excluded.actualizado_en
                 """,
-                (self.course_id, codigo, nombre, contenido_imprimible, self._ahora()),
+                (self.course_id, codigo, nombre, contenido_limpio, self._ahora()),
+            )
+        if contenido_imprimible and len(contenido_limpio) + 1000 < len(contenido_imprimible):
+            logger.info(
+                "Contexto didactico optimizado al guardar %s: %s -> %s caracteres.",
+                codigo,
+                len(contenido_imprimible),
+                len(contenido_limpio),
             )
 
     def guardar_actividad(self, actividad: dict) -> None:
@@ -754,9 +908,35 @@ class CacheCursoCarm:
                     (self.course_id,),
                 ).fetchall()
         partes = []
+        actualizaciones: list[tuple[str, str]] = []
         for codigo, nombre, contenido in rows:
             if contenido:
-                partes.append(f"## {codigo.upper()} - {nombre or 'Contenido imprimible'}\n{contenido}")
+                contenido_limpio = limpiar_bloque_carm_para_prompt(
+                    contenido,
+                    max_chars=MAX_CONTEXTO_CACHE_CHARS,
+                )
+                if contenido_limpio != contenido:
+                    actualizaciones.append((contenido_limpio, codigo))
+                    logger.info(
+                        "Contexto didactico cache optimizado para %s: %s -> %s caracteres.",
+                        codigo,
+                        len(contenido),
+                        len(contenido_limpio),
+                    )
+                partes.append(f"## {codigo.upper()} - {nombre or 'Contenido imprimible'}\n{contenido_limpio}")
+        if actualizaciones:
+            with self._conectar() as con:
+                con.executemany(
+                    """
+                    UPDATE unidad
+                    SET contenido_imprimible = ?, actualizado_en = ?
+                    WHERE course_id = ? AND codigo = ?
+                    """,
+                    [
+                        (contenido_limpio, self._ahora(), self.course_id, codigo)
+                        for contenido_limpio, codigo in actualizaciones
+                    ],
+                )
         return "\n\n".join(partes)
 
     def enriquecer_actividad(self, actividad: dict) -> dict:
@@ -856,11 +1036,13 @@ class CorrectorIA:
             return self._correccion_respaldo()
 
         prompt_cfg = self.prompts.obtener(actividad_codigo)
+        contexto_api = limpiar_bloque_carm_para_prompt(contexto_unidad, max_chars=MAX_CONTEXTO_API_CHARS)
+        enunciado_api = limpiar_bloque_carm_para_prompt(enunciado_actividad, max_chars=5000) if enunciado_actividad else ""
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
             f"ACTIVIDAD: {actividad_codigo}\n\n"
-            f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_actividad or 'No disponible'}\n\n"
-            f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_unidad}\n\n"
+            f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_api or 'No disponible'}\n\n"
+            f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_api}\n\n"
             f"RESPUESTA DEL ALUMNO A EVALUAR:\n{respuesta}"
         )
 
@@ -922,11 +1104,13 @@ class CorrectorIA:
         enunciado_actividad = next((envio.actividad_enunciado for envio, _ in entregas if envio.actividad_enunciado), "")
 
         prompt_cfg = self.prompts.obtener(actividad_codigo)
+        contexto_api = limpiar_bloque_carm_para_prompt(contexto_unidad, max_chars=MAX_CONTEXTO_API_CHARS)
+        enunciado_api = limpiar_bloque_carm_para_prompt(enunciado_actividad, max_chars=5000) if enunciado_actividad else ""
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
             f"ACTIVIDAD: {actividad_codigo}\n\n"
-            f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_actividad or 'No disponible'}\n\n"
-            f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_unidad}\n\n"
+            f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_api or 'No disponible'}\n\n"
+            f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_api}\n\n"
             "Corrige todas las entregas siguientes en una sola respuesta. "
             "Devuelve JSON con este formato exacto:\n"
             "{\n"
@@ -1411,12 +1595,16 @@ class ExtractorCarm:
                 await page.goto(href, wait_until="domcontentloaded")
                 body = await page.text_content("body")
                 if body and body.strip():
-                    contexto_partes.append(body.strip())
+                    contexto_limpio = limpiar_bloque_carm_para_prompt(
+                        body.strip(),
+                        max_chars=MAX_CONTEXTO_CACHE_CHARS,
+                    )
+                    contexto_partes.append(contexto_limpio)
                     if self.cache and unidad_codigo:
                         self.cache.guardar_unidad(
                             unidad_codigo,
                             nombre=nombre,
-                            contenido_imprimible=body.strip(),
+                            contenido_imprimible=contexto_limpio,
                         )
             except Exception as e:
                 logger.warning(f"No se pudo leer contenido imprimible {href}: {e}")
@@ -2501,7 +2689,7 @@ class GeneradorSalidas:
     MAX_ZIP_ENTRADAS = 40
     MAX_ZIP_TOTAL_BYTES = 50 * 1024 * 1024
     MAX_ZIP_ENTRADA_BYTES = 8 * 1024 * 1024
-    MAX_CONTEXTO_PROMPT_CHARS = 14000
+    MAX_CONTEXTO_PROMPT_CHARS = MAX_CONTEXTO_PROMPT_CHARS
     EXTENSIONES_TEXTO = {
         ".txt",
         ".md",
@@ -2560,6 +2748,113 @@ class GeneradorSalidas:
 
         return ""
 
+    @staticmethod
+    def _limpiar_texto_extraido(texto: str) -> str:
+        lineas: list[str] = []
+        vistos: set[str] = set()
+        patrones_ruido = (
+            "gemini puede cometer errores",
+            "google apps",
+            "privacy policy",
+            "terms of service",
+            "activar modo oscuro",
+            "new chat",
+            "saved from url",
+            "appsgm",
+            "mat-icon",
+            "aria-label",
+        )
+        for linea in str(texto or "").splitlines():
+            limpia = re.sub(r"\s+", " ", linea).strip()
+            if len(limpia) < 3:
+                continue
+            baja = limpia.lower()
+            if any(p in baja for p in patrones_ruido):
+                continue
+            if len(limpia) > 4000:
+                continue
+            clave = baja[:240]
+            if clave in vistos:
+                continue
+            vistos.add(clave)
+            lineas.append(limpia)
+        return "\n".join(lineas).strip()
+
+    @staticmethod
+    def _leer_html(path: Path) -> str:
+        raw = GeneradorSalidas._leer_archivo_texto(path)
+        if not raw:
+            return ""
+        raw = re.sub(r"<!--.*?-->", " ", raw, flags=re.S)
+        raw = re.sub(r"<(script|style|noscript|svg|canvas|template|head)\b[^>]*>.*?</\1>", " ", raw, flags=re.I | re.S)
+        parser = TextoVisibleHTMLParser()
+        try:
+            parser.feed(raw)
+            texto = parser.texto()
+        except Exception:
+            texto = re.sub(r"<[^>]+>", " ", raw)
+            texto = unescape(texto)
+        texto = GeneradorSalidas._limpiar_texto_extraido(texto)
+        texto = GeneradorSalidas._recortar_html_conversacion_ia(texto)
+        if len(texto) > 120000:
+            texto = texto[:120000].rstrip() + "\n\n[HTML recortado tras extraer texto visible.]"
+        return texto
+
+    @staticmethod
+    def _html_limpieza_insuficiente(texto: str, raw_size: int) -> bool:
+        limpio = str(texto or "").strip()
+        if not limpio:
+            return True
+        if raw_size > 500_000 and len(limpio) > 120_000:
+            return True
+        if raw_size > 500_000 and len(limpio) < 300:
+            return True
+        ruido = sum(
+            limpio.lower().count(patron)
+            for patron in (
+                "function(",
+                "webpack",
+                "appsgm",
+                "aria-label",
+                "mat-icon",
+                ".css",
+                "{color:",
+                "data:image",
+            )
+        )
+        if ruido >= 8:
+            return True
+        palabras = re.findall(r"\w+", limpio, flags=re.UNICODE)
+        return raw_size > 500_000 and len(palabras) < 80
+
+    @staticmethod
+    def _recortar_html_conversacion_ia(texto: str) -> str:
+        marcas = (
+            "Tu ai spus",
+            "Tú dijiste",
+            "You said",
+            "Conversația cu Gemini",
+            "Conversación con Gemini",
+            "Chat with Gemini",
+        )
+        inicio = -1
+        for marca in marcas:
+            idx = texto.find(marca)
+            if idx >= 0:
+                inicio = idx if inicio < 0 else min(inicio, idx)
+        actividad = re.search(r"\bUD\s*0?\d+\s*-\s*CASO\s+PR[ÁA]CTICO\s+\d+", texto, flags=re.I)
+        if actividad:
+            inicio = actividad.start() if inicio < 0 else min(inicio, actividad.start())
+        if inicio > 0:
+            texto = texto[inicio:]
+        lineas = []
+        for linea in texto.splitlines():
+            limpia = linea.strip()
+            if limpia.lower() in {"gemini", "chat nou", "new chat", "articolele mele", "gems", "chaturi"}:
+                continue
+            lineas.append(limpia)
+        return "\n".join(lineas).strip()
+
     def leer_entrega(self, path: Path) -> LecturaEntrega:
         if not path.exists() or not path.is_file():
             return LecturaEntrega("", True, "El archivo no existe o no es un archivo válido.")
@@ -2584,7 +2879,19 @@ class GeneradorSalidas:
             )
 
         try:
-            if ext in self.EXTENSIONES_TEXTO or not ext:
+            advertencia = ""
+            if ext in {".html", ".htm"}:
+                texto = self._leer_html(path)
+                raw_size = path.stat().st_size
+                if self._html_limpieza_insuficiente(texto, raw_size):
+                    return LecturaEntrega(
+                        "",
+                        True,
+                        "HTML exportado demasiado grande o con mucho ruido tras limpieza; requiere revision manual.",
+                    )
+                if raw_size > 500_000:
+                    advertencia = f"HTML limpiado automaticamente desde {raw_size} bytes."
+            elif ext in self.EXTENSIONES_TEXTO or not ext:
                 texto = self._leer_archivo_texto(path)
             elif ext == ".docx":
                 texto = self._leer_docx(path)
@@ -2620,7 +2927,7 @@ class GeneradorSalidas:
         if not texto.strip():
             return LecturaEntrega("", False, "El archivo está vacío o no contiene texto legible.")
 
-        return LecturaEntrega(texto)
+        return LecturaEntrega(texto, advertencia=advertencia)
 
     def _validar_archivo_entrega(self, path: Path, ext: str) -> str:
         try:
@@ -3782,15 +4089,43 @@ async def ejecutar_flujo(args) -> None:
                 correcciones_por_archivo[envio.archivo] = corrector.correccion_revision_manual(lectura.motivo)
                 logger.warning(f"Entrega marcada para revisión manual: {envio.archivo} ({lectura.motivo})")
             else:
-                entregas_automaticas.append((envio, lectura.texto))
+                if lectura.advertencia:
+                    logger.warning("%s: %s", envio.archivo, lectura.advertencia)
+                texto_entrega = lectura.texto
+                max_chars = getattr(args, "max_caracteres_entrega", 0) or 0
+                if max_chars <= 0 and getattr(args, "requerir_openai_api", False):
+                    max_chars = 60000
+                if max_chars > 0 and len(texto_entrega) > max_chars:
+                    texto_entrega = texto_entrega[:max_chars].rstrip()
+                    logger.warning(
+                        "Entrega recortada para controlar tokens API: %s (%s caracteres)",
+                        envio.archivo,
+                        max_chars,
+                    )
+                entregas_automaticas.append((envio, texto_entrega))
 
         if entregas_automaticas:
             try:
-                correcciones = corrector.corregir_lote(
-                    entregas_automaticas,
-                    contexto_unidad,
-                    actividad_codigo,
-                )
+                max_entregas_api = getattr(args, "max_entregas_por_prompt", 0) or 0
+                if max_entregas_api <= 0:
+                    max_entregas_api = 2 if getattr(args, "requerir_openai_api", False) else len(entregas_automaticas)
+                correcciones = []
+                for inicio in range(0, len(entregas_automaticas), max_entregas_api):
+                    sublote = entregas_automaticas[inicio:inicio + max_entregas_api]
+                    logger.info(
+                        "Corrigiendo sublote API %s: %s entrega(s) (%s/%s)",
+                        actividad_codigo,
+                        len(sublote),
+                        inicio + 1,
+                        len(entregas_automaticas),
+                    )
+                    correcciones.extend(
+                        corrector.corregir_lote(
+                            sublote,
+                            contexto_unidad,
+                            actividad_codigo,
+                        )
+                    )
             except Exception as exc:
                 logger.error("No se pudo corregir %s con OpenAI API: %s", actividad_codigo, exc)
                 return
