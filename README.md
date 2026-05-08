@@ -32,11 +32,11 @@ El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_P
 ## Instalación
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-playwright install chromium
+.\instalar_windows.cmd
+.\iniciar_app_windows.cmd
 ```
+
+El instalador crea `.venv`, instala dependencias, instala Chromium de Playwright y deja `.env` preparado si no existe.
 
 Dependencias opcionales para leer PDF, PPTX, XLSX, ZIP e imágenes con OCR:
 

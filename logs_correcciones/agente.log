@@ -792,3 +792,232 @@ PermissionError: [WinError 5] Acceso denegado
 2026-05-08 08:24:00,589 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
 2026-05-08 08:24:04,785 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
 2026-05-08 09:07:40,674 - ERROR - Faltan CARM_USUARIO/CARM_CONTRASENA en .env para subir correcciones a CARM
+2026-05-08 09:27:55,898 - INFO - Navegador abierto. Revisa la previsualizaciÃ³n y pulsa Enter en la consola para cerrarlo.
+2026-05-08 10:10:13,670 - INFO - ud01cp02 persona_c6a8c00ee6 9: error
+2026-05-08 10:10:13,670 - INFO - ud01cp02 persona_143a689835 8.2: error
+2026-05-08 10:10:13,670 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_previsualizacion.json
+2026-05-08 10:10:13,670 - INFO - Modo previsualizaciÃ³n: no se ha pulsado guardar en CARM.
+2026-05-08 10:15:51,598 - INFO - Prompts/correcciones usados archivados en: tmp_prueba\archive_test\prompts_codex\archivados\20260508_101551
+2026-05-08 10:21:15,386 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 10:21:45,694 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 10:21:45,694 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:21:49,667 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 10:21:53,736 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:21:57,720 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:22:01,709 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:22:05,679 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:22:09,669 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:22:13,770 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:22:17,758 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:22:21,762 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:22:25,748 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:22:29,753 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:22:33,756 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:22:37,762 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:22:41,795 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:22:45,782 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:22:49,773 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:22:53,772 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:22:57,741 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:23:01,710 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:23:05,714 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:23:09,703 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:23:13,704 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:23:17,763 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:23:21,781 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:23:25,817 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:23:29,821 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:23:33,808 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:23:37,946 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:23:41,965 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:23:46,020 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:23:50,057 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:23:50,123 - WARNING - No se pudo leer manifiesto para archivar pendientes: Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)
+2026-05-08 10:23:54,076 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:23:58,080 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:24:02,081 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:24:06,066 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:24:10,308 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 10:27:26,150 - INFO - Pendientes incluidos en prompts archivados en: tmp_prueba\pendientes_archive_test\archivados_prompt\20260508_102726
+2026-05-08 10:30:40,531 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 10:31:01,406 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 10:31:01,406 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:31:05,388 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 10:31:09,386 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:31:13,397 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:31:17,449 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:31:21,431 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:31:25,422 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:31:29,469 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:31:33,444 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:31:37,465 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:31:41,464 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:31:45,424 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:31:49,411 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:31:53,433 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:31:57,436 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:32:01,456 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:32:05,477 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:32:09,498 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:32:13,528 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:32:15,685 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 10:32:17,605 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:32:21,624 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:32:27,002 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:32:31,076 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:32:35,156 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:32:37,503 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 10:32:37,503 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:32:39,248 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:32:41,474 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 10:32:43,293 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:32:45,500 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:32:47,415 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:32:49,480 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:32:51,522 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:32:53,667 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:32:55,540 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:32:57,686 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:32:59,542 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:33:01,685 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:33:03,529 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:33:05,681 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:33:07,498 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:33:09,623 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:33:11,504 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:33:13,622 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:33:15,491 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:33:17,623 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:33:19,469 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:33:21,595 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:33:23,443 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:33:25,597 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:33:27,747 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 10:33:29,551 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:33:33,588 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:33:37,625 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:33:41,664 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:33:45,699 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:33:49,736 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:33:53,732 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:33:57,679 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:34:01,662 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:34:07,418 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:34:11,411 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:34:15,491 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:34:19,478 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:34:23,493 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:34:27,473 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:34:31,430 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:34:35,391 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:34:39,339 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:34:43,293 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:34:47,500 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:34:51,479 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:34:57,537 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:35:01,505 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:35:05,689 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 10:35:17,639 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-08 10:35:26,252 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-08 10:35:26,252 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 10:35:26,252 - INFO - Procesando grading ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:36:32,045 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 10:36:54,691 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 10:36:54,691 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:36:58,733 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 10:37:03,042 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:37:07,062 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:37:11,034 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:37:14,989 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:37:19,008 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:37:23,028 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:37:27,015 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:37:31,002 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:37:34,974 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:37:38,931 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:37:42,934 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:37:46,911 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:37:50,863 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:37:54,882 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:37:58,838 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:38:02,813 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:38:06,810 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:38:10,802 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:38:14,785 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:38:18,769 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:38:22,770 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:38:27,788 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:38:31,786 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:38:35,772 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:38:39,828 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:38:43,799 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:38:47,831 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:38:51,851 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:38:55,823 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:38:59,780 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:39:03,763 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:39:07,880 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:39:13,237 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:39:17,259 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:39:21,470 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-08 10:39:33,205 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-08 10:39:41,425 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-08 10:39:41,425 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 10:39:41,425 - INFO - Procesando grading ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:41:12,491 - WARNING - Entrega sin archivo descargable en ud01cp01: Agustín Ausó Méndez (Sin entrega)
+2026-05-08 10:41:12,553 - WARNING - Entrega sin archivo descargable en ud01cp01: Agustin Gabriel Carcas Serantes (Sin entrega)
+2026-05-08 10:41:12,633 - WARNING - Entrega sin archivo descargable en ud01cp01: Alberto Giner Muñoz (Sin entrega)
+2026-05-08 10:41:12,699 - WARNING - Entrega sin archivo descargable en ud01cp01: Alejandro González González (Sin entrega)
+2026-05-08 10:41:12,741 - WARNING - Entrega sin archivo descargable en ud01cp01: Alvaro Segura Camacho (Sin entrega)
+2026-05-08 10:41:12,803 - WARNING - Entrega sin archivo descargable en ud01cp01: Amparo Megina Navarro (Sin entrega)
+2026-05-08 10:41:12,866 - WARNING - Entrega sin archivo descargable en ud01cp01: Andrea Alcaraz Garcia (Sin entrega)
+2026-05-08 10:41:12,932 - WARNING - Entrega sin archivo descargable en ud01cp01: Antonio Ignacio Fernandez Fernandez (Sin entrega)
+2026-05-08 10:41:12,986 - WARNING - Entrega sin archivo descargable en ud01cp01: Antonio Javier Santos Marco (Sin entrega)
+2026-05-08 10:41:13,040 - WARNING - Entrega sin archivo descargable en ud01cp01: Arianna Belén Guamán Ramos (Sin entrega)
+2026-05-08 10:41:13,040 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 10:42:44,087 - WARNING - Entrega sin archivo descargable en ud01cp02: Agustín Ausó Méndez (Sin entrega)
+2026-05-08 10:42:44,140 - WARNING - Entrega sin archivo descargable en ud01cp02: Agustin Gabriel Carcas Serantes (Sin entrega)
+2026-05-08 10:42:44,192 - WARNING - Entrega sin archivo descargable en ud01cp02: Alberto Giner Muñoz (Sin entrega)
+2026-05-08 10:42:44,239 - WARNING - Entrega sin archivo descargable en ud01cp02: Alejandro González González (Sin entrega)
+2026-05-08 10:42:44,290 - WARNING - Entrega sin archivo descargable en ud01cp02: Alvaro Segura Camacho (Sin entrega)
+2026-05-08 10:42:44,336 - WARNING - Entrega sin archivo descargable en ud01cp02: Amparo Megina Navarro (Sin entrega)
+2026-05-08 10:42:44,392 - WARNING - Entrega sin archivo descargable en ud01cp02: Andrea Alcaraz Garcia (Sin entrega)
+2026-05-08 10:42:44,443 - WARNING - Entrega sin archivo descargable en ud01cp02: Andres Castellar Sanchez (Sin entrega)
+2026-05-08 10:42:44,498 - WARNING - Entrega sin archivo descargable en ud01cp02: Antonio Ignacio Fernandez Fernandez (Sin entrega)
+2026-05-08 10:42:44,569 - WARNING - Entrega sin archivo descargable en ud01cp02: Antonio Javier Santos Marco (Sin entrega)
+2026-05-08 10:42:44,569 - INFO - Procesando grading ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:43:35,269 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 10:43:57,137 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 10:43:57,138 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:44:01,208 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 10:44:05,181 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:44:09,124 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:44:13,150 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:44:17,188 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:44:21,192 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:44:25,144 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:44:29,113 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:44:33,064 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:44:37,021 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:44:40,995 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:44:45,057 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:44:49,049 - INFO - Cacheando actividad ud07cp02: UD07 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:44:53,048 - INFO - Cacheando actividad ud08cp01: UD08 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:44:57,066 - INFO - Cacheando actividad ud08cp02: UD08 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:45:01,035 - INFO - Cacheando actividad ud09cp01: UD09 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 10:45:05,063 - INFO - Cacheando actividad ud09cp02: UD09 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 10:45:09,097 - INFO - Cacheando actividad ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:45:13,067 - INFO - Cacheando actividad ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:45:17,075 - INFO - Cacheando actividad ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:45:21,112 - INFO - Cacheando actividad ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:45:25,085 - INFO - Cacheando actividad ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:45:29,038 - INFO - Cacheando actividad ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:45:33,095 - INFO - Cacheando actividad ud04cp03: UD04 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:45:37,067 - INFO - Cacheando actividad ud04cp04: UD04 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:45:41,034 - INFO - Cacheando actividad ud05cp03: UD05 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:45:45,021 - INFO - Cacheando actividad ud05cp04: UD05 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:45:49,005 - INFO - Cacheando actividad ud06cp03: UD06 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:45:52,978 - INFO - Cacheando actividad ud06cp04: UD06 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:45:57,039 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:46:01,039 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:46:05,066 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea

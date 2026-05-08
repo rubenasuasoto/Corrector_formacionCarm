@@ -127,6 +127,9 @@ def json_options() -> list[dict]:
     paths = [COMBINED_JSON]
     if PROMPTS_DIR.exists():
         paths.extend(sorted(PROMPTS_DIR.glob("*_correccion.json")))
+        corrections_dir = PROMPTS_DIR / "correcciones_codex"
+        if corrections_dir.exists():
+            paths.extend(sorted(corrections_dir.glob("*_correccion.json")))
     seen: set[str] = set()
     options: list[dict] = []
     for path in paths:
@@ -142,6 +145,14 @@ def allowed_json_paths() -> set[str]:
     allowed = {item["path"] for item in json_options()}
     allowed.update(
         str(PROMPTS_DIR / name)
+        for name in (
+            "prompt_ud01cp01_correccion.json",
+            "prompt_ud01cp02_correccion.json",
+            "prompt_ud02cp03_correccion.json",
+        )
+    )
+    allowed.update(
+        str(PROMPTS_DIR / "correcciones_codex" / name)
         for name in (
             "prompt_ud01cp01_correccion.json",
             "prompt_ud01cp02_correccion.json",
@@ -2170,7 +2181,12 @@ def tray_image():
 def run_tray(server: ThreadingHTTPServer, url: str, startup_scan: bool) -> None:
     global TRAY_ICON
     if pystray is None:
-        print("pystray/Pillow no estan instalados; la interfaz queda en segundo plano sin icono de bandeja.")
+        message = (
+            "pystray/Pillow no estan instalados en la venv; no se puede crear icono de bandeja. "
+            "Instala requirements.txt y reinicia la app."
+        )
+        print(message)
+        notify("Corrector CARM", message)
         if startup_scan and carm_credentials_present():
             RUNNER.start("detect_course", ["--cachear-curso", "--refrescar-cache"])
         server.serve_forever()

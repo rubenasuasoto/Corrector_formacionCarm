@@ -264,6 +264,108 @@ def purgar_datos_personales_locales(pendientes_dir: Path, temporal_dir: Path) ->
     return resumen
 
 
+def _mover_si_existe(origen: Path, destino_dir: Path) -> Path | None:
+    if not origen.exists():
+        return None
+    destino_dir.mkdir(parents=True, exist_ok=True)
+    destino = destino_dir / origen.name
+    if destino.exists():
+        destino = destino_dir / f"{origen.stem}_{datetime.now().strftime('%H%M%S')}{origen.suffix}"
+    return shutil.move(str(origen), str(destino)) and destino
+
+
+def archivar_prompt_y_correccion_usados(correcciones_path: Path, temporal_dir: Path, modo: str) -> Path:
+    prompts_dir = temporal_dir / "prompts_codex"
+    archivo_dir = prompts_dir / "archivados" / datetime.now().strftime("%Y%m%d_%H%M%S")
+    movidos: list[str] = []
+
+    for path in (
+        correcciones_path,
+        prompts_dir / "correcciones_codex_combinadas.json",
+        prompts_dir / "manifiesto_entregas.json",
+    ):
+        moved = _mover_si_existe(path, archivo_dir)
+        if moved:
+            movidos.append(str(moved))
+
+    nombre = correcciones_path.name
+    match = re.search(r"(ud\d{2}cp\d{2})", nombre, flags=re.I)
+    if match:
+        codigo = match.group(1).lower()
+        for path in prompts_dir.glob(f"*{codigo}*"):
+            if path.is_file() and path.parent != archivo_dir:
+                moved = _mover_si_existe(path, archivo_dir)
+                if moved:
+                    movidos.append(str(moved))
+
+    registrar_auditoria(
+        "archivar_prompt_correccion_usados",
+        modo=modo,
+        origen=correcciones_path,
+        destino=archivo_dir,
+        archivos=len(movidos),
+    )
+    logger.info("Prompts/correcciones usados archivados en: %s", archivo_dir)
+    return archivo_dir
+
+
+def archivar_pendientes_con_prompt(manifiesto_path: Path, pendientes_dir: Path) -> int:
+    if not manifiesto_path.exists():
+        return 0
+    try:
+        datos = json.loads(manifiesto_path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:
+        logger.warning("No se pudo leer manifiesto para archivar pendientes: %s", exc)
+        return 0
+    if isinstance(datos, dict):
+        datos = [datos]
+    if not isinstance(datos, list):
+        return 0
+
+    archivo_dir = pendientes_dir / "archivados_prompt" / datetime.now().strftime("%Y%m%d_%H%M%S")
+    movidos = 0
+    for item in datos:
+        if not isinstance(item, dict):
+            continue
+        origen = Path(str(item.get("archivo") or ""))
+        try:
+            origen_resuelto = origen.resolve()
+            pendientes_resuelto = pendientes_dir.resolve()
+        except Exception:
+            continue
+        if not origen.exists() or not origen.is_file():
+            continue
+        if pendientes_resuelto not in origen_resuelto.parents and origen_resuelto != pendientes_resuelto:
+            logger.warning("No se archiva pendiente fuera de la carpeta permitida: %s", origen)
+            continue
+        actividad = str(item.get("actividad") or "sin_actividad").strip() or "sin_actividad"
+        destino_dir = archivo_dir / actividad
+        destino_dir.mkdir(parents=True, exist_ok=True)
+        destino = destino_dir / origen.name
+        if destino.exists():
+            destino = destino_dir / f"{origen.stem}_{movidos + 1}{origen.suffix}"
+        shutil.move(str(origen), str(destino))
+        movidos += 1
+
+    for carpeta in sorted(pendientes_dir.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if carpeta.is_dir() and carpeta != pendientes_dir and "archivados_prompt" not in carpeta.parts:
+            try:
+                if not any(carpeta.iterdir()):
+                    carpeta.rmdir()
+            except Exception:
+                continue
+
+    registrar_auditoria(
+        "archivar_pendientes_con_prompt",
+        manifiesto=manifiesto_path,
+        destino=archivo_dir,
+        archivos=movidos,
+    )
+    if movidos:
+        logger.info("Pendientes incluidos en prompts archivados en: %s", archivo_dir)
+    return movidos
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -2864,6 +2966,11 @@ class GeneradorSalidas:
 
         output_dir = output_dir or (self.temporal_dir / "prompts_codex")
         output_dir.mkdir(parents=True, exist_ok=True)
+        for viejo in output_dir.glob("*_correccion.json"):
+            archivo_dir = output_dir / "archivados" / datetime.now().strftime("%Y%m%d_%H%M%S_pre_codex")
+            moved = _mover_si_existe(viejo, archivo_dir)
+            if moved:
+                logger.info("Correccion Codex anterior archivada antes de generar nueva salida: %s", moved)
 
         rutas_correcciones: list[Path] = []
         timeout = timeout_segundos if timeout_segundos and timeout_segundos > 0 else None
@@ -3065,6 +3172,12 @@ async def ejecutar_flujo(args) -> None:
                 resultado.get("estado", ""),
             )
         logger.info(f"Registro de subida CARM generado en: {salida_path}")
+        if publicar or asistida:
+            archivar_prompt_y_correccion_usados(
+                correcciones_path=correcciones_path,
+                temporal_dir=temporal_dir,
+                modo="publicada" if publicar else "asistida",
+            )
         if not publicar:
             logger.info("Modo previsualizaciÃ³n: no se ha pulsado guardar en CARM.")
         return
@@ -3172,6 +3285,11 @@ async def ejecutar_flujo(args) -> None:
         logger.info("Prompts para Codex generados sin llamar a la API:")
         for ruta in rutas_prompts:
             logger.info(f"- {ruta}")
+        if not getattr(args, "conservar_pendientes", False):
+            manifiesto_path = temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
+            archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
+            if archivados:
+                logger.info("Entregas pendientes archivadas tras generar prompt: %s", archivados)
         if getattr(args, "corregir_con_codex", False):
             try:
                 rutas_correcciones, revision_path = salida.corregir_prompts_con_codex(
