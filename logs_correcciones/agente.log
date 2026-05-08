@@ -1021,3 +1021,7 @@ PermissionError: [WinError 5] Acceso denegado
 2026-05-08 10:45:57,039 - INFO - Cacheando actividad ud07cp03: UD07 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
 2026-05-08 10:46:01,039 - INFO - Cacheando actividad ud07cp04: UD07 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
 2026-05-08 10:46:05,066 - INFO - Cacheando actividad ud08cp03: UD08 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:46:09,052 - INFO - Cacheando actividad ud08cp04: UD08 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:46:13,074 - INFO - Cacheando actividad ud09cp03: UD09 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-08 10:46:17,240 - INFO - Cacheando actividad ud09cp04: UD09 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-08 10:46:21,999 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
