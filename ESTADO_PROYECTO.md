@@ -172,17 +172,18 @@ Lectura recomendada en este orden:
 |------|------------|
 | `pendientes/` | 📥 Entregas descargadas desde CARM |
 | `temporal/` | 📤 Salidas generadas (alumno, actividad, resúmenes) |
-| `temporal/prompts_codex/` | 🤖 Prompts, JSON de correcciones y manifiesto |
+| `pendientes/prompts_codex/` | 🤖 Prompts pendientes de resolver, JSON de correcciones y manifiesto |
 
 ### Archivos clave generados en salida
 
 ```
-C:\temp\vscodec\temporal\
-├── prompts_codex/
-│   ├── prompt_udXXcpYY.md                      # Prompt limpio
-│   ├── prompt_udXXcpYY_correccion.json         # Respuesta de Codex
-│   ├── correcciones_codex_combinadas.json      # JSON COMBINADO final
-│   └── manifiesto_entregas.json                # Inventario de entregas
+C:\temp\vscodec\
+├── pendientes\
+│   └── prompts_codex\
+│       ├── prompt_udXXcpYY.md                  # Prompt pendiente de resolver
+│       ├── prompt_udXXcpYY_correccion.json     # Respuesta JSON individual
+│       └── manifiesto_entregas.json            # Inventario de entregas
+├── temporal\
 ├── revision_pendiente.csv                      # Resumen + scores para revisar
 ├── <nombre_alumno>/
 │   ├── ud01cp01.txt                            # Entrega original
@@ -194,7 +195,7 @@ C:\temp\vscodec\temporal\
 **Workflow de revisión**:
 1. Revisar `revision_pendiente.csv` (notas rápidas)
 2. Explorar `temporal/<alumno>/` (correcciones por actividad)
-3. Validar `revision_pendiente.csv` como archivo principal de subida en modo API, o `correcciones_codex_combinadas.json` en modo prompts/Codex
+3. Validar `revision_pendiente.csv` como archivo principal de subida; en modo prompts/Codex se importan los `*_correccion.json` individuales
 4. Si todo OK → subida asistida o `--publicar-carm`
 
 En modo API desde la interfaz, el flujo queda en dos fases: preparar prompts acumulados sin gastar API y, cuando el usuario lo confirme, ejecutar `--corregir-prompts-openai` para generar JSON, CSV revisable y salidas listas para subir.
@@ -221,7 +222,7 @@ En modo API desde la interfaz, el flujo queda en dos fases: preparar prompts acu
 **Salida final**:
 ```
 C:\temp\vscodec\temporal\revision_pendiente.csv
-C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json
+C:\temp\vscodec\pendientes\prompts_codex\prompt_udXXcpYY_correccion.json
 ```
 
 **Flags opcionales**:
@@ -232,7 +233,7 @@ C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json
 ### Comando secundario: Publicar tras revisar
 
 ```powershell
-.\.venv\Scripts\python.exe corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json --publicar-carm
+.\.venv\Scripts\python.exe corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\revision_pendiente.csv --publicar-carm
 ```
 
 **Qué hace**:
@@ -390,7 +391,7 @@ Controles incorporados:
 - Modo `--subida-asistida-carm`: rellena nota/feedback en CARM, muestra guia de revision humana y espera a que el usuario pulse guardar.
 - Si faltan credenciales CARM, la interfaz bloquea el panel y solicita verificacion. En consola interactiva, los flujos CARM preguntan usuario/contrasena y esperan en vez de fallar directamente.
 - `Borrar credenciales CARM` vacia `CARM_USUARIO`/`CARM_CONTRASENA` en `.env`, no elimina las claves.
-- Tras publicacion real o subida asistida completada, los prompts/JSON usados se archivan en `temporal/prompts_codex/archivados/` para evitar reutilizar archivos antiguos por error. La previsualizacion no archiva.
+- Tras publicacion real o subida asistida completada, los prompts/JSON usados se archivan en `pendientes/prompts_codex/archivados/` para evitar reutilizar archivos antiguos por error. La previsualizacion no archiva.
 - Tras generar prompts, las entregas usadas se mueven de `pendientes` a `pendientes/archivados_prompt/` para que no vuelvan a entrar en otro prompt accidentalmente. Se puede evitar con `--conservar-pendientes`.
 - Instalacion Windows automatizada con `instalar_windows.cmd` / `instalar_windows.ps1`: crea `.venv`, instala dependencias base, instala Chromium de Playwright y prepara `.env`. Inicio recomendado con `iniciar_app_windows.cmd`.
 - Arrancar en bandeja (`--tray`) no lanza correccion automatica. Solo se autocorrige si se indica expresamente `--auto-correct`.
@@ -494,7 +495,7 @@ Probado entre el 2026-05-07 y el 2026-05-08:
 2. `codex` / `codex.exe` en `PATH`.
 3. La extensión de VS Code `openai.chatgpt-*`.
 
-Prueba reciente correcta: `prompt_ud01cp01`, `prompt_ud01cp04`, `prompt_ud02cp01` y `prompt_ud02cp04` se corrigieron con Codex CLI y se importaron a `correcciones_codex_combinadas.json` y `revision_pendiente.csv`.
+Prueba reciente correcta: `prompt_ud01cp01`, `prompt_ud01cp04`, `prompt_ud02cp01` y `prompt_ud02cp04` se corrigieron con Codex CLI y se importaron a `revision_pendiente.csv`.
 
 Nota: el límite mensual detectado el 2026-05-05 queda como incidencia histórica, no como bloqueo actual.
 
@@ -513,7 +514,7 @@ Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por err
 ### Corto plazo (esta semana)
 
 1. **Probar subida asistida real en lote controlado**
-   - Usar `correcciones_codex_combinadas.json` actual tras revisión.
+   - Usar `revision_pendiente.csv` actual tras revisión.
    - Confirmar que abre el formulario `Calificar`, limpia campos previos y rellena nota/feedback.
    - El usuario debe pulsar guardar manualmente para cumplir revisión humana.
 
