@@ -55,7 +55,7 @@ ACTIVITY_RE = re.compile(r"^ud\d{2}cp\d{2}$")
 COURSE_URL_RE = re.compile(r"^https://formacion\.carm\.es/course/view\.php\?id=\d+$")
 TRAY_ICON = None
 AUTO_CORRECT_AFTER_SCAN = False
-AUTO_CORRECT_ARGS = ["--flujo-correccion-carm", "--max-entregas-por-prompt", "6"]
+AUTO_CORRECT_ARGS = ["--extraer-carm", "--requerir-openai-api"]
 DEFAULT_SCAN_INTERVAL_MINUTES = 60
 API_TOKEN = secrets.token_urlsafe(32)
 DEFAULT_HOST = "127.0.0.1"
@@ -280,10 +280,26 @@ def carm_credentials_present() -> bool:
     return bool(env.get("CARM_USUARIO") and env.get("CARM_CONTRASENA"))
 
 
+def openai_api_key_present() -> bool:
+    api_key = read_env_values().get("OPENAI_API_KEY", "").strip()
+    return bool(api_key and api_key.lower() not in {"tu_api_key_aqui", "sk-...", "none", "null"})
+
+
+def correction_mode() -> str:
+    env = read_env_values()
+    raw = env.get("CORRECTION_MODE", "").strip().lower()
+    if raw in {"api", "prompt"}:
+        return raw
+    return "api" if openai_api_key_present() else "prompt"
+
+
 def auth_status() -> dict:
     return {
         "configured": carm_credentials_present(),
         "session_saved": CARM_STORAGE_STATE.exists(),
+        "openai_api_configured": openai_api_key_present(),
+        "correction_mode": correction_mode(),
+        "openai_model": read_env_values().get("OPENAI_MODEL", "gpt-5-mini") or "gpt-5-mini",
     }
 
 
@@ -326,6 +342,64 @@ def save_carm_credentials(usuario: str, contrasena: str) -> tuple[bool, str]:
         }
     )
     return True, "Credenciales CARM guardadas y verificadas."
+
+
+def save_openai_config(api_key: str, model: str, mode: str) -> tuple[bool, str]:
+    mode = (mode or "prompt").strip().lower()
+    if mode not in {"api", "prompt"}:
+        return False, "Modo de correccion no valido."
+    model = (model or "gpt-5-mini").strip() or "gpt-5-mini"
+    current = read_env_values()
+    api_key = (api_key or "").strip()
+    updates: dict[str, str] = {
+        "CORRECTION_MODE": mode,
+        "OPENAI_MODEL": model,
+    }
+    if api_key:
+        mode = "api"
+        updates["CORRECTION_MODE"] = "api"
+        updates["OPENAI_API_KEY"] = api_key
+    if mode == "api":
+        candidate = api_key or current.get("OPENAI_API_KEY", "")
+        if not candidate or candidate.lower() in {"tu_api_key_aqui", "sk-...", "none", "null"}:
+            return False, "Para modo API necesitas introducir OPENAI_API_KEY."
+        ok, message = verify_openai_api(candidate, model)
+        if not ok:
+            return False, message
+    write_env_values(updates)
+    return True, "Configuracion OpenAI guardada." if mode == "api" else "Modo solo prompts guardado."
+
+
+def verify_openai_api(api_key: str, model: str) -> tuple[bool, str]:
+    api_key = (api_key or "").strip()
+    model = (model or "gpt-5-mini").strip() or "gpt-5-mini"
+    if not api_key or api_key.lower() in {"tu_api_key_aqui", "sk-...", "none", "null"}:
+        return False, "Introduce una OPENAI_API_KEY real."
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key)
+        client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "Responde solo OK."},
+                {"role": "user", "content": "OK"},
+            ],
+            max_completion_tokens=4,
+        )
+        return True, f"OpenAI API verificada correctamente con {model}."
+    except Exception as exc:
+        raw = str(exc)
+        low = raw.lower()
+        if "insufficient_quota" in low or "quota" in low or "billing" in low or "credit" in low:
+            return False, "La API key parece valida, pero la cuenta no tiene saldo/cuota disponible o billing activo."
+        if "invalid_api_key" in low or "incorrect api key" in low or "401" in low or "unauthorized" in low:
+            return False, "OPENAI_API_KEY no es valida o no pertenece al proyecto correcto."
+        if "model" in low and ("not found" in low or "does not exist" in low or "404" in low):
+            return False, f"El modelo {model} no esta disponible para esta cuenta. Prueba gpt-5-mini."
+        if "rate limit" in low or "429" in low:
+            return False, "La API key funciona, pero ahora mismo hay limite de uso/rate limit. Espera o revisa Limits."
+        return False, f"No se pudo verificar OpenAI API: {raw[:500]}"
 
 
 def logout_carm() -> None:
@@ -500,8 +574,11 @@ class TaskRunner:
             notify("Corrector CARM", "Permisos de navegador recuperados. Repito el escaneo de CARM.")
             threading.Timer(1.0, lambda: self.start("detect_course", ["--cachear-curso", "--refrescar-cache"])).start()
         if should_auto_correct:
-            notify("Corrector CARM", "CARM revisado. Empiezo a preparar correcciones automaticamente.")
-            threading.Timer(1.0, lambda: self.start("auto_correct", AUTO_CORRECT_ARGS)).start()
+            if correction_mode() == "api" and openai_api_key_present():
+                notify("Corrector CARM", "CARM revisado. Empiezo a preparar correcciones automaticamente.")
+                threading.Timer(1.0, lambda: self.start("auto_correct", AUTO_CORRECT_ARGS)).start()
+            else:
+                notify("Corrector CARM", "CARM revisado. No hay API key: abre la interfaz para generar prompts manuales.")
 
     def _notify_line(self, line: str) -> None:
         lowered = line.lower()
@@ -1145,7 +1222,7 @@ HTML = r"""<!doctype html>
       <div class="workflow" aria-label="Flujo principal">
         <div class="step active" id="stepPrepare">
           <div class="step-num">1</div>
-          <div><strong>Preparar</strong><small>CARM y Codex</small></div>
+          <div><strong>Preparar</strong><small>CARM y OpenAI API</small></div>
         </div>
         <div class="step" id="stepReview">
           <div class="step-num">2</div>
@@ -1195,7 +1272,7 @@ HTML = r"""<!doctype html>
           </div>
         </div>
         <div class="button-row">
-          <button class="primary" id="prepareBtn">Preparar con Codex</button>
+          <button class="primary" id="prepareBtn">Preparar con API</button>
           <button class="danger" id="stopBtn">Detener</button>
         </div>
       </section>
@@ -1287,7 +1364,7 @@ HTML = r"""<!doctype html>
         <span id="authSubtitle" class="muted">Acceso requerido</span>
       </div>
       <div class="stack" style="margin-top:12px">
-        <p class="hint">Introduce tus credenciales de CARM. La app las comprobara en CARM antes de guardarlas localmente.</p>
+        <p class="hint">Introduce tus credenciales de CARM. Despues elige si la app corrige con OpenAI API o si solo genera prompts para pegarlos manualmente en Codex/ChatGPT.</p>
         <div class="grid2">
           <div>
             <label for="carmUser">Usuario CARM</label>
@@ -1297,6 +1374,29 @@ HTML = r"""<!doctype html>
             <label for="carmPass">Contrasena CARM</label>
             <input id="carmPass" type="password" autocomplete="current-password">
           </div>
+        </div>
+        <div class="grid2">
+          <div>
+            <label for="correctionMode">Modo de correccion</label>
+            <select id="correctionMode">
+              <option value="api">OpenAI API: corregir automaticamente</option>
+              <option value="prompt">Solo prompts: corregir manualmente fuera</option>
+            </select>
+          </div>
+          <div>
+            <label for="openaiModel">Modelo OpenAI</label>
+            <select id="openaiModel">
+              <option value="gpt-5-mini">gpt-5-mini</option>
+              <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+              <option value="gpt-5.2">gpt-5.2</option>
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label for="openaiKey">OpenAI API key</label>
+          <input id="openaiKey" type="password" autocomplete="off" placeholder="sk-...">
+          <p class="hint">Opcional si eliges solo prompts. Si ya hay una key guardada puedes dejar este campo vacio.</p>
         </div>
         <div class="path" id="authMessage">Pendiente de configurar.</div>
         <div class="row">
@@ -1378,6 +1478,43 @@ HTML = r"""<!doctype html>
           </div>
         </section>
 
+        <section style="box-shadow:none">
+          <div class="section-head">
+            <h2>OpenAI</h2>
+            <p>Con API key la app corrige automaticamente. Sin API key genera prompts para corregir fuera e importar el JSON.</p>
+          </div>
+          <div class="stack">
+            <div class="grid2">
+              <div>
+                <label for="settingsCorrectionMode">Modo de correccion</label>
+                <select id="settingsCorrectionMode">
+                  <option value="api">OpenAI API: corregir automaticamente</option>
+                  <option value="prompt">Solo prompts: corregir manualmente fuera</option>
+                </select>
+              </div>
+              <div>
+                <label for="settingsOpenaiModel">Modelo OpenAI</label>
+                <select id="settingsOpenaiModel">
+                  <option value="gpt-5-mini">gpt-5-mini</option>
+                  <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+                  <option value="gpt-5.2">gpt-5.2</option>
+                  <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label for="settingsOpenaiKey">OpenAI API key</label>
+              <input id="settingsOpenaiKey" type="password" autocomplete="off" placeholder="sk-...">
+              <p class="hint">Si introduces una key, la app la verifica con una llamada minima y activa el modo API. Deja el campo vacio para conservar la key actual.</p>
+            </div>
+            <div class="path" id="openaiMessage">OpenAI pendiente de comprobar.</div>
+            <div class="row">
+              <button class="primary" id="saveOpenaiBtn" type="button">Guardar OpenAI</button>
+              <button id="checkOpenaiBtn" type="button">Comprobar API</button>
+            </div>
+          </div>
+        </section>
+
         <div>
           <label for="advancedAction">Comando</label>
           <select id="advancedAction">
@@ -1387,6 +1524,9 @@ HTML = r"""<!doctype html>
             <option value="diagnose_evidence">Diagnosticar CARM con evidencias</option>
             <option value="list_carm">Listar entregas pendientes</option>
             <option value="cache_course">Cachear curso</option>
+            <option value="check_openai">Comprobar OpenAI API</option>
+            <option value="check_codex">Comprobar Codex CLI</option>
+            <option value="prepare_carm_api">Corregir desde CARM con API</option>
             <option value="prepare_carm_codex">Preparar prompts desde CARM</option>
             <option value="prepare_carm_codex_activity">Preparar prompts de un caso desde CARM</option>
             <option value="prepare_local_prompts">Preparar prompts desde archivos locales</option>
@@ -1471,6 +1611,9 @@ HTML = r"""<!doctype html>
       detect_course: 'Entra en CARM y actualiza la cache didactica con unidades, casos practicos, enunciados y contenido estable.',
       list_carm: 'Lista entregas que requieren calificacion sin descargar archivos.',
       cache_course: 'Actualiza la cache local de recursos estables del curso.',
+      check_openai: 'Comprueba que OPENAI_API_KEY y OPENAI_MODEL estan configurados.',
+      check_codex: 'Comprueba que Codex CLI existe y que hay una sesion iniciada.',
+      prepare_carm_api: 'Descarga entregas desde CARM y corrige con OpenAI API.',
       prepare_carm_codex: 'Descarga desde CARM y genera prompts para Codex sin llamar a la API.',
       prepare_carm_codex_activity: 'Descarga y prepara prompts solo para el caso practico elegido.',
       prepare_local_prompts: 'Lee entregas ya descargadas y genera prompts usando un archivo de contexto local.',
@@ -1484,6 +1627,9 @@ HTML = r"""<!doctype html>
       detect_course: '--cachear-curso --refrescar-cache',
       list_carm: '--solo-listar-carm --unidad <unidad>',
       cache_course: '--cachear-curso --unidad <unidad>',
+      check_openai: '--comprobar-openai-api',
+      check_codex: '--comprobar-codex-cli',
+      prepare_carm_api: '--extraer-carm --requerir-openai-api --unidad <unidad>',
       prepare_carm_codex: '--preparar-carm-codex --unidad <unidad> --max-entregas-por-prompt <n>',
       prepare_carm_codex_activity: '--preparar-carm-codex --actividad <caso> --max-entregas-por-prompt <n>',
       prepare_local_prompts: '--contexto-unidad <archivo> --preparar-prompts-codex --actividad-codigo <actividad>',
@@ -1622,6 +1768,15 @@ HTML = r"""<!doctype html>
     async function loadAuth() {
       authState = await api('/api/auth');
       $('logoutBtn').disabled = !authState.configured;
+      if ($('correctionMode')) $('correctionMode').value = authState.correction_mode || 'prompt';
+      if ($('openaiModel')) $('openaiModel').value = authState.openai_model || 'gpt-5-mini';
+      if ($('settingsCorrectionMode')) $('settingsCorrectionMode').value = authState.correction_mode || 'prompt';
+      if ($('settingsOpenaiModel')) $('settingsOpenaiModel').value = authState.openai_model || 'gpt-5-mini';
+      if ($('openaiMessage')) {
+        $('openaiMessage').textContent = authState.openai_api_configured
+          ? `API configurada. Modo: ${authState.correction_mode || 'api'}. Modelo: ${authState.openai_model || 'gpt-5-mini'}.`
+          : `Sin API key. Modo: ${authState.correction_mode || 'prompt'}.`;
+      }
       setAuthLocked(!authState.configured);
       return authState;
     }
@@ -1662,6 +1817,9 @@ HTML = r"""<!doctype html>
       const hasUnits = courseOptions.units.length > 0;
       const hasSelectedActivity = $('prepareMode').value !== 'activity' || Boolean($('actividad').value);
       $('prepareBtn').disabled = locked || !hasUnits || !hasSelectedActivity;
+      $('prepareBtn').textContent = authState.openai_api_configured && authState.correction_mode !== 'prompt'
+        ? 'Preparar con API'
+        : 'Generar prompts';
       $('previewBtn').disabled = locked;
       $('assistPublishBtn').disabled = locked || !$('publishCheck').checked;
       $('publishBtn').disabled = locked || !$('publishCheck').checked;
@@ -1695,8 +1853,8 @@ HTML = r"""<!doctype html>
       toggleAuth(locked);
       $('authSubtitle').textContent = locked ? 'Acceso requerido' : 'Credenciales configuradas';
       if (locked) {
-        $('authMessage').textContent = 'Introduce y verifica credenciales CARM para usar el panel.';
-        showSystemNotice('Panel bloqueado: faltan credenciales CARM verificadas.');
+        $('authMessage').textContent = 'Introduce CARM y elige API o solo prompts para usar el panel.';
+        showSystemNotice('Panel bloqueado: falta configuracion inicial.');
       }
     }
 
@@ -1709,7 +1867,7 @@ HTML = r"""<!doctype html>
     function updateAdvancedForm() {
       const action = $('advancedAction').value;
       $('advancedHint').textContent = advancedHints[action] || '';
-      $('fieldsUnidad').classList.toggle('active', ['list_carm', 'cache_course', 'prepare_carm_codex'].includes(action));
+      $('fieldsUnidad').classList.toggle('active', ['list_carm', 'cache_course', 'prepare_carm_api', 'prepare_carm_codex'].includes(action));
       $('fieldsActivity').classList.toggle('active', action === 'prepare_carm_codex_activity');
       $('fieldsLocal').classList.toggle('active', action === 'prepare_local_prompts');
       $('fieldsImport').classList.toggle('active', action === 'import_codex');
@@ -1765,6 +1923,28 @@ HTML = r"""<!doctype html>
       $('courseMessage').textContent = result.message || (result.ok ? 'Automatizacion guardada.' : 'No se pudo guardar.');
       $('saveAutomationBtn').disabled = false;
       await refresh();
+    }
+
+    async function saveOpenAIConfig(checkOnly = false) {
+      $('saveOpenaiBtn').disabled = true;
+      $('checkOpenaiBtn').disabled = true;
+      $('openaiMessage').textContent = checkOnly ? 'Comprobando API...' : 'Guardando OpenAI...';
+      const result = await api('/api/config/openai', {
+        method: 'POST',
+        body: JSON.stringify({
+          correction_mode: checkOnly ? 'api' : $('settingsCorrectionMode').value,
+          openai_api_key: $('settingsOpenaiKey').value,
+          openai_model: $('settingsOpenaiModel').value,
+          check_only: checkOnly
+        })
+      });
+      $('openaiMessage').textContent = result.message || (result.ok ? 'OpenAI configurado.' : 'No se pudo comprobar OpenAI.');
+      $('saveOpenaiBtn').disabled = false;
+      $('checkOpenaiBtn').disabled = false;
+      if (result.ok && !checkOnly) {
+        $('settingsOpenaiKey').value = '';
+        await refresh();
+      }
     }
 
     async function setAutomationInterval(minutes, stopCurrentScan = false) {
@@ -1883,12 +2063,19 @@ HTML = r"""<!doctype html>
       $('authMessage').textContent = 'Verificando credenciales en CARM...';
       const result = await api('/api/auth/save', {
         method: 'POST',
-        body: JSON.stringify({usuario: $('carmUser').value, contrasena: $('carmPass').value})
+        body: JSON.stringify({
+          usuario: $('carmUser').value,
+          contrasena: $('carmPass').value,
+          correction_mode: $('correctionMode').value,
+          openai_api_key: $('openaiKey').value,
+          openai_model: $('openaiModel').value
+        })
       });
       $('authMessage').textContent = result.message || (result.ok ? 'Guardado.' : 'No se pudo guardar.');
       $('saveAuthBtn').disabled = false;
       if (result.ok) {
         $('carmPass').value = '';
+        $('openaiKey').value = '';
         setAuthLocked(false);
         await refresh();
       }
@@ -1909,6 +2096,8 @@ HTML = r"""<!doctype html>
     $('saveFoldersBtn').onclick = saveFolders;
     $('saveCourseBtn').onclick = () => saveCourse();
     $('saveAutomationBtn').onclick = saveAutomation;
+    $('saveOpenaiBtn').onclick = () => saveOpenAIConfig(false);
+    $('checkOpenaiBtn').onclick = () => saveOpenAIConfig(true);
     $('scanNowBtn').onclick = () => {
       toggleSettings(false);
       run('detect_course');
@@ -1993,6 +2182,13 @@ class Handler(BaseHTTPRequestHandler):
                     str(body.get("usuario") or ""),
                     str(body.get("contrasena") or ""),
                 )
+                if ok:
+                    ok, openai_message = save_openai_config(
+                        str(body.get("openai_api_key") or ""),
+                        str(body.get("openai_model") or ""),
+                        str(body.get("correction_mode") or ""),
+                    )
+                    message = f"{message} {openai_message}" if ok else openai_message
                 audit_ui_event("guardar_credenciales_carm", "ok" if ok else "error", usuario=body.get("usuario", ""))
                 send_json(self, {"ok": ok, "message": message}, 200 if ok else 400)
             except Exception as exc:
@@ -2071,6 +2267,25 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 send_json(self, {"ok": False, "message": str(exc)}, 400)
             return
+        if parsed.path == "/api/config/openai":
+            try:
+                body = read_json_body(self)
+                mode = str(body.get("correction_mode") or "")
+                api_key = str(body.get("openai_api_key") or "")
+                model = str(body.get("openai_model") or "")
+                if bool(body.get("check_only")):
+                    candidate = api_key or read_env_values().get("OPENAI_API_KEY", "")
+                    ok, message = verify_openai_api(candidate, model or read_env_values().get("OPENAI_MODEL", "gpt-5-mini"))
+                    audit_ui_event("comprobar_openai_api", "ok" if ok else "error")
+                    send_json(self, {"ok": ok, "message": message}, 200 if ok else 400)
+                    return
+                ok, message = save_openai_config(api_key, model, mode)
+                audit_ui_event("configurar_openai", "ok" if ok else "error", mode=mode)
+                send_json(self, {"ok": ok, "message": message}, 200 if ok else 400)
+            except Exception as exc:
+                audit_ui_event("configurar_openai", "error", error=exc)
+                send_json(self, {"ok": False, "message": str(exc)}, 400)
+            return
         if parsed.path != "/api/run":
             send_json(self, {"error": "not_found"}, 404)
             return
@@ -2097,15 +2312,18 @@ def build_args(action: str, body: dict) -> list[str]:
         actividad = str(body.get("actividad") or "").strip()
         max_entregas = str(body.get("max_entregas") or "6").strip()
         require_allowed(max_entregas, ALLOWED_MAX_ENTREGAS, "Entregas por prompt")
+        use_api = correction_mode() == "api" and openai_api_key_present()
         args = [
-            "--flujo-correccion-carm",
+            "--extraer-carm" if use_api else "--preparar-carm-codex",
             "--pendientes",
             str(PENDIENTES_DIR),
             "--temporal",
             str(TEMPORAL_DIR),
-            "--max-entregas-por-prompt",
-            max_entregas,
         ]
+        if use_api:
+            args.insert(1, "--requerir-openai-api")
+        else:
+            args.extend(["--max-entregas-por-prompt", max_entregas])
         if modo == "activity":
             require_allowed(actividad, allowed_activities(), "Actividad")
             args.extend(["--actividad", actividad])
@@ -2139,7 +2357,7 @@ def build_args(action: str, body: dict) -> list[str]:
     if action == "check_playwright":
         return ["--comprobar-login-carm"]
 
-    if action in {"list_carm", "cache_course", "prepare_carm_codex"}:
+    if action in {"list_carm", "cache_course", "prepare_carm_api", "prepare_carm_codex"}:
         unidad = str(body.get("unidad") or "ud01").strip()
         max_entregas = str(body.get("max_entregas") or "6").strip()
         require_allowed(unidad, allowed_units(), "Unidad")
@@ -2148,6 +2366,17 @@ def build_args(action: str, body: dict) -> list[str]:
             return ["--solo-listar-carm", "--unidad", unidad]
         if action == "cache_course":
             return ["--cachear-curso", "--unidad", unidad]
+        if action == "prepare_carm_api":
+            return [
+                "--extraer-carm",
+                "--requerir-openai-api",
+                "--pendientes",
+                str(PENDIENTES_DIR),
+                "--temporal",
+                str(TEMPORAL_DIR),
+                "--unidad",
+                unidad,
+            ]
         return [
             "--preparar-carm-codex",
             "--pendientes",
@@ -2159,6 +2388,12 @@ def build_args(action: str, body: dict) -> list[str]:
             "--max-entregas-por-prompt",
             max_entregas,
         ]
+
+    if action == "check_openai":
+        return ["--comprobar-openai-api"]
+
+    if action == "check_codex":
+        return ["--comprobar-codex-cli"]
 
     if action == "prepare_carm_codex_activity":
         actividad = str(body.get("actividad") or "").strip()

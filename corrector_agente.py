@@ -192,6 +192,24 @@ def normalizar_texto_para_cli(texto: str) -> str:
     return unicodedata.normalize("NFC", texto)
 
 
+def openai_api_key_configurada() -> bool:
+    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    return bool(api_key and api_key.lower() not in {"tu_api_key_aqui", "sk-...", "none", "null"})
+
+
+def comprobar_openai_api_configurada() -> dict[str, object]:
+    if OpenAI is None:
+        raise RuntimeError("El paquete openai no esta instalado en la venv.")
+    if not openai_api_key_configurada():
+        raise RuntimeError("Falta OPENAI_API_KEY en .env o conserva el valor de ejemplo.")
+    modelo = (os.getenv("OPENAI_MODEL") or "gpt-5-mini").strip()
+    return {
+        "api_key_present": True,
+        "model": modelo,
+        "package": "openai",
+    }
+
+
 def resolver_codex_cli() -> str:
     configurado = os.getenv("CODEX_CLI_PATH", "").strip().strip('"')
     candidatos: list[Path] = []
@@ -204,15 +222,18 @@ def resolver_codex_cli() -> str:
 
     userprofile = os.getenv("USERPROFILE", "").strip()
     if userprofile:
-        extensiones = Path(userprofile) / ".vscode" / "extensions"
-        if extensiones.exists():
-            candidatos.extend(
-                sorted(
-                    extensiones.glob("openai.chatgpt-*/bin/windows-x86_64/codex.exe"),
-                    key=lambda ruta: ruta.stat().st_mtime if ruta.exists() else 0,
-                    reverse=True,
+        for raiz_extensiones in (
+            Path(userprofile) / ".vscode" / "extensions",
+            Path(userprofile) / ".cursor" / "extensions",
+        ):
+            if raiz_extensiones.exists():
+                candidatos.extend(
+                    sorted(
+                        raiz_extensiones.glob("openai.chatgpt-*/bin/windows-x86_64/codex.exe"),
+                        key=lambda ruta: ruta.stat().st_mtime if ruta.exists() else 0,
+                        reverse=True,
+                    )
                 )
-            )
 
     for candidato in candidatos:
         try:
@@ -225,6 +246,91 @@ def resolver_codex_cli() -> str:
         "No se encontro Codex CLI. Configura CODEX_CLI_PATH con la ruta de codex.exe "
         "o abre la app desde un terminal donde 'codex' este en PATH."
     )
+
+
+def comprobar_codex_cli_listo() -> dict[str, object]:
+    codex_cli = resolver_codex_cli()
+    version = subprocess.run(
+        [codex_cli, "--version"],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    if version.returncode != 0:
+        salida = (version.stderr or version.stdout or "").strip()
+        raise RuntimeError(f"Codex CLI existe pero no responde correctamente: {salida[:1000]}")
+
+    login = subprocess.run(
+        [codex_cli, "login", "status"],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    login_output = (login.stdout or login.stderr or "").strip()
+    return {
+        "path": codex_cli,
+        "version": (version.stdout or version.stderr or "").strip(),
+        "logged_in": login.returncode == 0,
+        "login_status": login_output,
+    }
+
+
+def asegurar_codex_cli_listo() -> str:
+    try:
+        estado = comprobar_codex_cli_listo()
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            f"{exc}\n"
+            "Opciones: instala la extension oficial ChatGPT/Codex en VS Code, instala Codex CLI "
+            "en PATH, o configura CODEX_CLI_PATH en .env con la ruta absoluta a codex.exe."
+        ) from exc
+
+    codex_cli = str(estado["path"])
+    if not estado["logged_in"]:
+        raise RuntimeError(
+            "Codex CLI esta instalado, pero no hay sesion iniciada.\n"
+            f"Ruta detectada: {codex_cli}\n"
+            f"Estado: {estado.get('login_status') or 'No autenticado'}\n"
+            "Solucion: abre VS Code e inicia sesion en ChatGPT/Codex, o ejecuta en PowerShell:\n"
+            f'  & "{codex_cli}" login\n'
+            "Despues reinicia la app en bandeja para que herede la sesion."
+        )
+    return codex_cli
+
+
+def resumir_error_codex(salida: str, limite: int = 1800) -> str:
+    lineas_utiles: list[str] = []
+    for linea in str(salida or "").splitlines():
+        limpia = linea.strip()
+        if not limpia:
+            continue
+        baja = limpia.lower()
+        if baja.startswith("user") or baja.startswith("# prompt para codex"):
+            break
+        if (
+            "error" in baja
+            or "warn" in baja
+            or "not logged in" in baja
+            or "reconnecting" in baja
+            or "failed" in baja
+            or "denied" in baja
+            or "unauthorized" in baja
+            or "forbidden" in baja
+            or "timeout" in baja
+            or "modelo" in baja
+            or "model" in baja
+        ):
+            lineas_utiles.append(limpia)
+    resumen = "\n".join(lineas_utiles[-12:]).strip()
+    if not resumen:
+        resumen = str(salida or "").strip()
+    if len(resumen) > limite:
+        resumen = resumen[-limite:]
+    return resumen or "Codex CLI termino con error sin detalle."
 
 
 class RedactingFilter(logging.Filter):
@@ -723,9 +829,13 @@ class CorrectorIA:
         modelo: str | None = None,
         usar_ia: bool = True,
         prompts_path: str | Path | None = None,
+        requerir_ia: bool = False,
     ):
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.modelo = modelo or os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+        self.api_key = (api_key or os.getenv("OPENAI_API_KEY") or "").strip()
+        if self.api_key.lower() in {"tu_api_key_aqui", "sk-...", "none", "null"}:
+            self.api_key = ""
+        self.modelo = modelo or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+        self.requerir_ia = requerir_ia
         self.cliente = OpenAI(api_key=self.api_key) if (usar_ia and OpenAI and self.api_key) else None
         self.prompts = GestorPrompts(prompts_path)
 
@@ -740,6 +850,8 @@ class CorrectorIA:
             return self._correccion_vacia()
 
         if self.cliente is None:
+            if self.requerir_ia:
+                raise RuntimeError("OPENAI_API_KEY o paquete openai no disponible; correccion API bloqueada.")
             logger.warning("OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo")
             return self._correccion_respaldo()
 
@@ -769,6 +881,8 @@ class CorrectorIA:
             data.setdefault("retroalimentacion", "Sin retroalimentación generada.")
             return data
         except Exception as e:
+            if self.requerir_ia:
+                raise RuntimeError(f"Error corrigiendo con OpenAI API: {e}") from e
             logger.error(f"Error corrigiendo con IA: {e}")
             return {
                 "nota": 0,
@@ -786,6 +900,8 @@ class CorrectorIA:
             return []
 
         if self.cliente is None:
+            if self.requerir_ia:
+                raise RuntimeError("OPENAI_API_KEY o paquete openai no disponible; correccion API bloqueada.")
             logger.warning(
                 "OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote"
             )
@@ -855,6 +971,8 @@ class CorrectorIA:
                 for idx, _ in enumerate(entregas)
             ]
         except Exception as e:
+            if self.requerir_ia:
+                raise RuntimeError(f"Error corrigiendo lote {actividad_codigo} con OpenAI API: {e}") from e
             logger.error(f"Error corrigiendo lote {actividad_codigo} con IA: {e}")
             return [
                 self.corregir(
@@ -3240,7 +3358,7 @@ class GeneradorSalidas:
 
         rutas_correcciones: list[Path] = []
         timeout = timeout_segundos if timeout_segundos and timeout_segundos > 0 else None
-        codex_cli = resolver_codex_cli()
+        codex_cli = asegurar_codex_cli_listo()
         logger.info("Codex CLI localizado: %s", codex_cli)
         for prompt_path in prompts:
             salida_path = output_dir / f"{prompt_path.stem}_correccion.json"
@@ -3287,7 +3405,7 @@ class GeneradorSalidas:
 
             if resultado.returncode != 0:
                 stderr = (resultado.stderr or resultado.stdout or "").strip()
-                raise RuntimeError(f"Codex CLI fallo con {prompt_path.name}: {stderr[:2000]}")
+                raise RuntimeError(f"Codex CLI fallo con {prompt_path.name}: {resumir_error_codex(stderr)}")
             if not salida_path.exists() or not salida_path.read_text(encoding="utf-8").strip():
                 salida_path.write_text(resultado.stdout or "", encoding="utf-8")
             rutas_correcciones.append(salida_path)
@@ -3313,11 +3431,55 @@ class GeneradorSalidas:
 async def ejecutar_flujo(args) -> None:
     pendientes_dir = Path(args.pendientes)
     temporal_dir = Path(args.temporal)
+    if getattr(args, "comprobar_openai_api", False):
+        try:
+            estado_openai = comprobar_openai_api_configurada()
+        except Exception as exc:
+            logger.error("OpenAI API no esta lista: %s", exc)
+            return
+        logger.info("OpenAI API configurada correctamente.")
+        logger.info("Modelo OpenAI configurado: %s", estado_openai["model"])
+        return
+
+    if getattr(args, "comprobar_codex_cli", False):
+        try:
+            estado_codex = comprobar_codex_cli_listo()
+        except Exception as exc:
+            logger.error("Codex CLI no esta listo: %s", exc)
+            return
+        logger.info("Codex CLI localizado: %s", estado_codex["path"])
+        logger.info("Version Codex CLI: %s", estado_codex.get("version") or "desconocida")
+        if estado_codex["logged_in"]:
+            logger.info("Sesion Codex CLI: iniciada.")
+        else:
+            logger.error("Sesion Codex CLI no iniciada: %s", estado_codex.get("login_status") or "sin detalle")
+            logger.error('Inicia sesion con: & "%s" login', estado_codex["path"])
+        return
+
     flujo_correccion_carm = getattr(args, "flujo_correccion_carm", False)
     if flujo_correccion_carm:
         args.preparar_carm_codex = True
         args.corregir_con_codex = True
         args.importar_tras_codex = True
+    if getattr(args, "requerir_openai_api", False):
+        try:
+            estado_openai = comprobar_openai_api_configurada()
+        except Exception as exc:
+            logger.error("OpenAI API requerida pero no configurada: %s", exc)
+            return
+        logger.info("OpenAI API preparada. Modelo: %s", estado_openai["model"])
+    if getattr(args, "corregir_con_codex", False):
+        try:
+            estado_codex = comprobar_codex_cli_listo()
+        except Exception as exc:
+            logger.error("Codex CLI no esta listo: %s", exc)
+            return
+        logger.info("Codex CLI preparado: %s", estado_codex["path"])
+        logger.info("Version Codex CLI: %s", estado_codex.get("version") or "desconocida")
+        if not estado_codex["logged_in"]:
+            logger.error("Sesion Codex CLI no iniciada: %s", estado_codex.get("login_status") or "sin detalle")
+            logger.error('Inicia sesion con: & "%s" login', estado_codex["path"])
+            return
     preparar_carm_codex = getattr(args, "preparar_carm_codex", False)
     unidades_filtro = {
         ExtractorCarm._normalizar_codigo_unidad(valor)
@@ -3566,7 +3728,11 @@ async def ejecutar_flujo(args) -> None:
         logger.info("Prompts para Codex generados sin llamar a la API:")
         for ruta in rutas_prompts:
             logger.info(f"- {ruta}")
-        if not getattr(args, "conservar_pendientes", False):
+        archivar_tras_codex = (
+            not getattr(args, "conservar_pendientes", False)
+            and not getattr(args, "corregir_con_codex", False)
+        )
+        if archivar_tras_codex:
             manifiesto_path = temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
             archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
             if archivados:
@@ -3587,9 +3753,18 @@ async def ejecutar_flujo(args) -> None:
                 logger.info(f"- {ruta}")
             if revision_path:
                 logger.info(f"Correcciones importadas. Hoja de revision: {revision_path}")
+            if not getattr(args, "conservar_pendientes", False):
+                manifiesto_path = temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
+                archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
+                if archivados:
+                    logger.info("Entregas pendientes archivadas tras correccion Codex correcta: %s", archivados)
         return
 
-    corrector = CorrectorIA(usar_ia=not args.sin_ia, prompts_path=args.prompts)
+    corrector = CorrectorIA(
+        usar_ia=not args.sin_ia,
+        prompts_path=args.prompts,
+        requerir_ia=getattr(args, "requerir_openai_api", False),
+    )
 
     resultados: list[dict] = []
     trazas: list[dict] = []
@@ -3610,11 +3785,15 @@ async def ejecutar_flujo(args) -> None:
                 entregas_automaticas.append((envio, lectura.texto))
 
         if entregas_automaticas:
-            correcciones = corrector.corregir_lote(
-                entregas_automaticas,
-                contexto_unidad,
-                actividad_codigo,
-            )
+            try:
+                correcciones = corrector.corregir_lote(
+                    entregas_automaticas,
+                    contexto_unidad,
+                    actividad_codigo,
+                )
+            except Exception as exc:
+                logger.error("No se pudo corregir %s con OpenAI API: %s", actividad_codigo, exc)
+                return
             for (envio, _), correccion in zip(entregas_automaticas, correcciones):
                 correcciones_por_archivo[envio.archivo] = correccion
 
@@ -3759,6 +3938,16 @@ def parse_args() -> argparse.Namespace:
         help="Ejecuta el flujo con corrección de respaldo, sin llamar a OpenAI. Útil para probar carpetas y salidas.",
     )
     parser.add_argument(
+        "--requerir-openai-api",
+        action="store_true",
+        help="Falla antes de corregir si OPENAI_API_KEY no esta configurada. Evita usar correcciones de respaldo por accidente.",
+    )
+    parser.add_argument(
+        "--comprobar-openai-api",
+        action="store_true",
+        help="Comprueba que OPENAI_API_KEY y OPENAI_MODEL estan configurados para el flujo por API.",
+    )
+    parser.add_argument(
         "--preparar-prompts-codex",
         action="store_true",
         help="Lee o extrae entregas y genera prompts para pegar en Codex/ChatGPT, sin llamar a la API.",
@@ -3777,6 +3966,11 @@ def parse_args() -> argparse.Namespace:
         "--corregir-con-codex",
         action="store_true",
         help="Tras generar prompts, los envia a Codex CLI con codex exec y guarda las correcciones JSON.",
+    )
+    parser.add_argument(
+        "--comprobar-codex-cli",
+        action="store_true",
+        help="Comprueba que Codex CLI existe y tiene una sesion iniciada.",
     )
     parser.add_argument(
         "--importar-tras-codex",

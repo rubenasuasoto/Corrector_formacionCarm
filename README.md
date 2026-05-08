@@ -54,7 +54,7 @@ Copia `.env.example` a `.env` y rellena credenciales:
 CARM_USUARIO=tu_usuario_carm
 CARM_CONTRASENA=tu_contrasena_carm
 OPENAI_API_KEY=tu_api_key_aqui
-OPENAI_MODEL=gpt-4.1-mini
+OPENAI_MODEL=gpt-5-mini
 CARM_COURSE_URL=https://formacion.carm.es/course/view.php?id=1592
 ```
 
@@ -81,6 +81,18 @@ python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --preparar-
 ```
 
 El agente lee las entregas, las agrupa por actividad y genera archivos en `C:\temp\vscodec\temporal\prompts_codex`. Copia el `.md` de la actividad en Codex/ChatGPT y pide que devuelva el JSON de correcciones.
+
+Para el flujo automatico sin API hace falta Codex CLI instalado y autenticado:
+
+```powershell
+python corrector_agente.py --comprobar-codex-cli
+```
+
+Opciones soportadas:
+
+- Iniciar sesion en la extension oficial ChatGPT/Codex de VS Code.
+- Ejecutar `codex login` en PowerShell.
+- Configurar `CODEX_CLI_PATH` en `.env` si la app en bandeja no hereda el `PATH`.
 
 ## Uso con entregas locales
 
