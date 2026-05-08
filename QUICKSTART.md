@@ -79,7 +79,7 @@ Si no tienes API key, usa el modo solo prompts:
 CORRECTION_MODE=prompt
 ```
 
-En ese modo la app descarga entregas y genera archivos `.md` en `C:\temp\vscodec\temporal\prompts_codex`. Luego pegas el prompt en Codex/ChatGPT, guardas el JSON devuelto y lo importas desde la interfaz.
+En ese modo la app descarga entregas y genera archivos `.md` pendientes de resolver en `C:\temp\vscodec\pendientes\prompts_codex`. Luego pegas el prompt en Codex/ChatGPT, guardas el JSON devuelto en esa misma carpeta y lo importas desde la interfaz.
 
 ## 3. Probar sin CARM y sin IA
 
@@ -99,9 +99,9 @@ python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --preparar-
 
 Salidas:
 
-- `C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01.md`
-- `C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp03.md`
-- `C:\temp\vscodec\temporal\prompts_codex\manifiesto_entregas.json`
+- `C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01.md`
+- `C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03.md`
+- `C:\temp\vscodec\pendientes\prompts_codex\manifiesto_entregas.json`
 
 El archivo `.md` se copia entero en Codex/ChatGPT. Codex debe devolver un JSON con las correcciones.
 
@@ -269,16 +269,16 @@ Primero prepara las correcciones sin publicar en CARM:
 python corrector_agente.py --flujo-correccion-carm --unidad ud01 --max-entregas-por-prompt 6
 ```
 
-Esto entra en CARM, descarga entregas, genera prompts, corrige con Codex CLI e importa las salidas locales. No publica en CARM. El JSON combinado queda en `C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json`.
+Esto entra en CARM, descarga entregas, genera prompts pendientes, corrige con Codex CLI e importa las salidas locales. No publica en CARM. Los prompts y JSON de correccion quedan en `C:\temp\vscodec\pendientes\prompts_codex`.
 
 Después, cuando hayas revisado, sube a CARM. En modo API directo puedes usar el CSV de revisión; en modo prompts/Codex puedes usar el JSON combinado:
 
 ```powershell
 python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\revision_pendiente.csv --subida-asistida-carm
-python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json --publicar-carm
+python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\revision_pendiente.csv --publicar-carm
 ```
 
-Las respuestas de Codex quedan en `C:\temp\vscodec\temporal\prompts_codex\`. Este flujo usa tu sesión de Codex CLI, no `OPENAI_API_KEY`.
+Las respuestas de Codex quedan en `C:\temp\vscodec\pendientes\prompts_codex\`. Este flujo usa tu sesión de Codex CLI, no `OPENAI_API_KEY`.
 
 También puedes abrir la interfaz local:
 
@@ -334,7 +334,7 @@ Con varias correcciones de la misma actividad, se intenta usar `Guardar cambios 
 
 Cada intento deja registro en `respuestas_extraidas\subida_carm_previsualizacion.json` o `respuestas_extraidas\subida_carm_publicada.json`.
 
-Tras una publicacion real o una subida asistida completada, los prompts y JSON usados se mueven a `temporal\prompts_codex\archivados\...` para no reutilizarlos por error. Una previsualizacion no archiva nada.
+Tras una publicacion real o una subida asistida completada, los prompts y JSON usados se mueven a `pendientes\prompts_codex\archivados\...` para no reutilizarlos por error. Una previsualizacion no archiva nada.
 
 Tras generar prompts, las entregas usadas se mueven a `pendientes\archivados_prompt\...`. Si necesitas repetir exactamente el mismo lote para una prueba, usa `--conservar-pendientes`.
 

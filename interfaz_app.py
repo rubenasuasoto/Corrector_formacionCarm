@@ -35,7 +35,7 @@ DEFAULT_PENDIENTES_DIR = Path(r"C:\temp\vscodec\pendientes")
 DEFAULT_TEMPORAL_DIR = Path(r"C:\temp\vscodec\temporal")
 PENDIENTES_DIR = DEFAULT_PENDIENTES_DIR
 TEMPORAL_DIR = DEFAULT_TEMPORAL_DIR
-PROMPTS_DIR = TEMPORAL_DIR / "prompts_codex"
+PROMPTS_DIR = PENDIENTES_DIR / "prompts_codex"
 COMBINED_JSON = PROMPTS_DIR / "correcciones_codex_combinadas.json"
 REVISION_CSV = TEMPORAL_DIR / "revision_pendiente.csv"
 AGENTE_LOG = ROOT / "logs_correcciones" / "agente.log"
@@ -96,7 +96,10 @@ def _normalize_dir(path: str | Path, fallback: Path) -> Path:
 
 def ensure_work_dirs() -> None:
     for path in (PENDIENTES_DIR, TEMPORAL_DIR, PROMPTS_DIR, ROOT / "cache_carm", ROOT / "logs_correcciones"):
-        path.mkdir(parents=True, exist_ok=True)
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            continue
 
 
 def configure_work_dirs(pendientes: str | Path | None = None, temporal: str | Path | None = None, persist: bool = False) -> None:
@@ -104,7 +107,7 @@ def configure_work_dirs(pendientes: str | Path | None = None, temporal: str | Pa
     current = load_app_config()
     PENDIENTES_DIR = _normalize_dir(pendientes or current.get("pendientes_dir"), DEFAULT_PENDIENTES_DIR)
     TEMPORAL_DIR = _normalize_dir(temporal or current.get("temporal_dir"), DEFAULT_TEMPORAL_DIR)
-    PROMPTS_DIR = TEMPORAL_DIR / "prompts_codex"
+    PROMPTS_DIR = PENDIENTES_DIR / "prompts_codex"
     COMBINED_JSON = PROMPTS_DIR / "correcciones_codex_combinadas.json"
     REVISION_CSV = TEMPORAL_DIR / "revision_pendiente.csv"
     ensure_work_dirs()
@@ -124,7 +127,7 @@ def save_automation_config(interval_minutes: str | int) -> int:
 
 
 def correction_source_options() -> list[dict]:
-    paths = [REVISION_CSV, COMBINED_JSON]
+    paths = [REVISION_CSV]
     if PROMPTS_DIR.exists():
         paths.extend(sorted(PROMPTS_DIR.glob("*_correccion.json")))
         corrections_dir = PROMPTS_DIR / "correcciones_codex"
@@ -1363,10 +1366,9 @@ HTML = r"""<!doctype html>
         <label for="jsonPath">Archivo de correcciones</label>
         <select id="jsonPath">
           <option value="C:\temp\vscodec\temporal\revision_pendiente.csv">revision_pendiente.csv</option>
-          <option value="C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json">correcciones_codex_combinadas.json</option>
-          <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01_correccion.json">prompt_ud01cp01_correccion.json</option>
-          <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp02_correccion.json">prompt_ud01cp02_correccion.json</option>
-          <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp03_correccion.json">prompt_ud02cp03_correccion.json</option>
+          <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01_correccion.json">prompt_ud01cp01_correccion.json</option>
+          <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02_correccion.json">prompt_ud01cp02_correccion.json</option>
+          <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03_correccion.json">prompt_ud02cp03_correccion.json</option>
         </select>
         <div class="button-row three">
           <button id="previewBtn">Previsualizar</button>
@@ -1668,10 +1670,9 @@ HTML = r"""<!doctype html>
           <div>
             <label for="importJsonPath">JSON/CSV de correcciones</label>
             <select id="importJsonPath">
-              <option value="C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json">correcciones_codex_combinadas.json</option>
-              <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp01_correccion.json">prompt_ud01cp01_correccion.json</option>
-              <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp02_correccion.json">prompt_ud01cp02_correccion.json</option>
-              <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp03_correccion.json">prompt_ud02cp03_correccion.json</option>
+              <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01_correccion.json">prompt_ud01cp01_correccion.json</option>
+              <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02_correccion.json">prompt_ud01cp02_correccion.json</option>
+              <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03_correccion.json">prompt_ud02cp03_correccion.json</option>
             </select>
           </div>
         </div>

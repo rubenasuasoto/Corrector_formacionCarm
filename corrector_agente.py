@@ -431,8 +431,22 @@ def _mover_si_existe(origen: Path, destino_dir: Path) -> Path | None:
     return shutil.move(str(origen), str(destino)) and destino
 
 
-def archivar_prompt_y_correccion_usados(correcciones_path: Path, temporal_dir: Path, modo: str) -> Path:
-    prompts_dir = temporal_dir / "prompts_codex"
+def prompts_pendientes_dir(pendientes_dir: Path) -> Path:
+    return pendientes_dir / "prompts_codex"
+
+
+def archivar_prompt_y_correccion_usados(
+    correcciones_path: Path,
+    temporal_dir: Path,
+    modo: str,
+    pendientes_dir: Path | None = None,
+) -> Path:
+    if correcciones_path.parent.name == "prompts_codex":
+        prompts_dir = correcciones_path.parent
+    elif pendientes_dir is not None:
+        prompts_dir = prompts_pendientes_dir(pendientes_dir)
+    else:
+        prompts_dir = temporal_dir / "prompts_codex"
     archivo_dir = prompts_dir / "archivados" / datetime.now().strftime("%Y%m%d_%H%M%S")
     movidos: list[str] = []
 
@@ -445,15 +459,31 @@ def archivar_prompt_y_correccion_usados(correcciones_path: Path, temporal_dir: P
         if moved:
             movidos.append(str(moved))
 
-    nombre = correcciones_path.name
-    match = re.search(r"(ud\d{2}cp\d{2})", nombre, flags=re.I)
-    if match:
-        codigo = match.group(1).lower()
-        for path in prompts_dir.glob(f"*{codigo}*"):
-            if path.is_file() and path.parent != archivo_dir:
-                moved = _mover_si_existe(path, archivo_dir)
-                if moved:
-                    movidos.append(str(moved))
+    codigos: set[str] = set(re.findall(r"(ud\d{2}cp\d{2})", correcciones_path.name, flags=re.I))
+    if correcciones_path.suffix.lower() == ".csv" and correcciones_path.exists():
+        try:
+            with correcciones_path.open("r", encoding="utf-8-sig", newline="") as handle:
+                for row in csv.DictReader(handle, delimiter=";"):
+                    actividad = str(row.get("actividad") or "").strip().lower()
+                    if re.fullmatch(r"ud\d{2}cp\d{2}", actividad):
+                        codigos.add(actividad)
+        except Exception as exc:
+            logger.warning("No se pudo leer CSV para archivar prompts usados: %s", exc)
+
+    if codigos:
+        for codigo in {codigo.lower() for codigo in codigos}:
+            for path in prompts_dir.glob(f"*{codigo}*"):
+                if path.is_file() and archivo_dir not in path.parents:
+                    moved = _mover_si_existe(path, archivo_dir)
+                    if moved:
+                        movidos.append(str(moved))
+    else:
+        for patron in ("prompt_*.md", "prompt_*_correccion.json"):
+            for path in prompts_dir.glob(patron):
+                if path.is_file() and archivo_dir not in path.parents:
+                    moved = _mover_si_existe(path, archivo_dir)
+                    if moved:
+                        movidos.append(str(moved))
 
     registrar_auditoria(
         "archivar_prompt_correccion_usados",
@@ -3204,6 +3234,12 @@ class GeneradorSalidas:
         pendientes: list[EnvioPendiente] = []
         for f in sorted(self.pendientes_dir.rglob("*")):
             if f.is_file():
+                try:
+                    partes_relativas = {parte.lower() for parte in f.relative_to(self.pendientes_dir).parts}
+                except ValueError:
+                    partes_relativas = set()
+                if partes_relativas & {"prompts_codex", "archivados_prompt"}:
+                    continue
                 codigo = self._codigo_para_archivo(f)
                 alumno = self._sanitizar(re.sub(r"[_ -]*ud\d{2}cp\d{2}[_ -]*", " ", f.stem, flags=re.I))
                 pendientes.append(
@@ -3431,7 +3467,10 @@ class GeneradorSalidas:
         return [item for item in datos if isinstance(item, dict)]
 
     def _leer_manifiesto_codex(self) -> list[dict]:
-        manifiesto_path = self.temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
+        manifiesto_path = prompts_pendientes_dir(self.pendientes_dir) / "manifiesto_entregas.json"
+        if not manifiesto_path.exists():
+            legado_path = self.temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
+            manifiesto_path = legado_path
         if not manifiesto_path.exists():
             return []
         try:
@@ -3528,7 +3567,7 @@ class GeneradorSalidas:
         max_entregas_por_prompt: int = 8,
         max_caracteres_entrega: int = 0,
     ) -> list[Path]:
-        prompts_dir = self.temporal_dir / "prompts_codex"
+        prompts_dir = prompts_pendientes_dir(self.pendientes_dir)
         prompts_dir.mkdir(parents=True, exist_ok=True)
 
         gestor_prompts = GestorPrompts(prompts_path)
@@ -3680,7 +3719,7 @@ class GeneradorSalidas:
         if not prompts:
             raise ValueError("No hay prompts .md para enviar a Codex.")
 
-        output_dir = output_dir or (self.temporal_dir / "prompts_codex")
+        output_dir = output_dir or prompts_pendientes_dir(self.pendientes_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         for viejo in output_dir.glob("*_correccion.json"):
             archivo_dir = output_dir / "archivados" / datetime.now().strftime("%Y%m%d_%H%M%S_pre_codex")
@@ -3772,7 +3811,9 @@ class GeneradorSalidas:
         if not openai_api_key_configurada():
             raise RuntimeError("Falta OPENAI_API_KEY en .env o conserva el valor de ejemplo.")
 
-        prompts_dir = self.temporal_dir / "prompts_codex"
+        prompts_dir = prompts_pendientes_dir(self.pendientes_dir)
+        if not prompts_dir.exists():
+            prompts_dir = self.temporal_dir / "prompts_codex"
         prompts = [
             ruta for ruta in (rutas_prompts or sorted(prompts_dir.glob("prompt_*.md")))
             if ruta.suffix.lower() == ".md" and ruta.name.startswith("prompt_")
@@ -3998,7 +4039,7 @@ async def ejecutar_flujo(args) -> None:
         if revision_path:
             logger.info(f"Correcciones importadas. Hoja de revision: {revision_path}")
         if not getattr(args, "conservar_pendientes", False):
-            manifiesto_path = temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
+            manifiesto_path = prompts_pendientes_dir(pendientes_dir) / "manifiesto_entregas.json"
             archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
             if archivados:
                 logger.info("Entregas pendientes archivadas tras correccion API correcta: %s", archivados)
@@ -4071,6 +4112,7 @@ async def ejecutar_flujo(args) -> None:
                 correcciones_path=correcciones_path,
                 temporal_dir=temporal_dir,
                 modo="publicada" if publicar else "asistida",
+                pendientes_dir=pendientes_dir,
             )
         if not publicar:
             logger.info("Modo previsualizaciÃ³n: no se ha pulsado guardar en CARM.")
@@ -4185,7 +4227,7 @@ async def ejecutar_flujo(args) -> None:
             and not getattr(args, "corregir_prompts_openai", False)
         )
         if archivar_tras_codex:
-            manifiesto_path = temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
+            manifiesto_path = prompts_pendientes_dir(pendientes_dir) / "manifiesto_entregas.json"
             archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
             if archivados:
                 logger.info("Entregas pendientes archivadas tras generar prompt: %s", archivados)
@@ -4206,7 +4248,7 @@ async def ejecutar_flujo(args) -> None:
             if revision_path:
                 logger.info(f"Correcciones importadas. Hoja de revision: {revision_path}")
             if not getattr(args, "conservar_pendientes", False):
-                manifiesto_path = temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
+                manifiesto_path = prompts_pendientes_dir(pendientes_dir) / "manifiesto_entregas.json"
                 archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
                 if archivados:
                     logger.info("Entregas pendientes archivadas tras correccion Codex correcta: %s", archivados)
@@ -4228,7 +4270,7 @@ async def ejecutar_flujo(args) -> None:
             if revision_path:
                 logger.info(f"Correcciones importadas. Hoja de revision: {revision_path}")
             if not getattr(args, "conservar_pendientes", False):
-                manifiesto_path = temporal_dir / "prompts_codex" / "manifiesto_entregas.json"
+                manifiesto_path = prompts_pendientes_dir(pendientes_dir) / "manifiesto_entregas.json"
                 archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
                 if archivados:
                     logger.info("Entregas pendientes archivadas tras correccion API correcta: %s", archivados)
@@ -4493,7 +4535,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--openai-output-dir",
         default="",
-        help="Carpeta donde guardar las respuestas JSON de OpenAI API. Por defecto temporal/prompts_codex.",
+        help="Carpeta donde guardar las respuestas JSON de OpenAI API. Por defecto pendientes/prompts_codex.",
     )
     parser.add_argument(
         "--openai-warn-tokens-prompt",
@@ -4510,7 +4552,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--codex-output-dir",
         default="",
-        help="Carpeta donde guardar las respuestas JSON de Codex CLI. Por defecto temporal/prompts_codex.",
+        help="Carpeta donde guardar las respuestas JSON de Codex CLI. Por defecto pendientes/prompts_codex.",
     )
     parser.add_argument(
         "--codex-timeout",
