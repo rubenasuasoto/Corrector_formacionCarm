@@ -2103,3 +2103,9 @@ Evalúa solo lo que el alumno ha e
 2026-05-08 20:01:19,550 - INFO - Hoja de revisión manual generada en: C:\temp\vscodec\temporal\revision_pendiente.csv
 2026-05-08 20:01:19,550 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
 2026-05-08 20:26:34,818 - INFO - Contexto didactico cache optimizado para ud01: 55154 -> 125 caracteres.
+2026-05-08 20:33:30,065 - INFO - Contexto didactico cache optimizado para ud01: 125 -> 109 caracteres.
+2026-05-08 20:34:31,271 - ERROR - No se pudieron leer correcciones para CARM: No se pudo leer el archivo de correcciones: C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json
+2026-05-08 21:07:13,875 - INFO - OpenAI API preparada. Modelo: gpt-5.4-mini
+2026-05-08 21:07:13,877 - ERROR - No se pudieron corregir prompts con OpenAI API: No hay prompts .md preparados para enviar a OpenAI API.
+2026-05-08 21:21:48,847 - INFO - OpenAI API preparada. Modelo: gpt-5.4-mini
+2026-05-08 21:21:48,851 - ERROR - No se pudieron corregir prompts con OpenAI API: No hay prompts .md preparados para enviar a OpenAI API.

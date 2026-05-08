@@ -194,8 +194,12 @@ C:\temp\vscodec\temporal\
 **Workflow de revisión**:
 1. Revisar `revision_pendiente.csv` (notas rápidas)
 2. Explorar `temporal/<alumno>/` (correcciones por actividad)
-3. Validar `correcciones_codex_combinadas.json`
-4. Si todo OK → `--publicar-carm`
+3. Validar `revision_pendiente.csv` como archivo principal de subida en modo API, o `correcciones_codex_combinadas.json` en modo prompts/Codex
+4. Si todo OK → subida asistida o `--publicar-carm`
+
+En modo API desde la interfaz, el flujo queda en dos fases: preparar prompts acumulados sin gastar API y, cuando el usuario lo confirme, ejecutar `--corregir-prompts-openai` para generar JSON, CSV revisable y salidas listas para subir.
+
+`--corregir-prompts-openai` estima tokens antes de enviar cada prompt. Avisa por defecto a partir de ~100k tokens y bloquea por seguridad a partir de ~180k, para evitar llamadas destinadas a fallar por límites. Se puede ajustar con `--openai-warn-tokens-prompt` y `--openai-max-tokens-prompt`.
 
 ## Comandos operacionales
 
@@ -216,8 +220,8 @@ C:\temp\vscodec\temporal\
 
 **Salida final**:
 ```
-C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json
 C:\temp\vscodec\temporal\revision_pendiente.csv
+C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json
 ```
 
 **Flags opcionales**:
@@ -232,7 +236,7 @@ C:\temp\vscodec\temporal\revision_pendiente.csv
 ```
 
 **Qué hace**:
-1. Lee el JSON combinado de correcciones
+1. Lee `revision_pendiente.csv` o el JSON combinado de correcciones
 2. Publica notas y feedback en CARM
 
 **Seguridad**:

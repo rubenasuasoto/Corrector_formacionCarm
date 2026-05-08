@@ -271,9 +271,10 @@ python corrector_agente.py --flujo-correccion-carm --unidad ud01 --max-entregas-
 
 Esto entra en CARM, descarga entregas, genera prompts, corrige con Codex CLI e importa las salidas locales. No publica en CARM. El JSON combinado queda en `C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json`.
 
-Después, cuando hayas revisado, publica en CARM:
+Después, cuando hayas revisado, sube a CARM. En modo API directo puedes usar el CSV de revisión; en modo prompts/Codex puedes usar el JSON combinado:
 
 ```powershell
+python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\revision_pendiente.csv --subida-asistida-carm
 python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json --publicar-carm
 ```
 
@@ -286,6 +287,10 @@ python interfaz_app.py
 ```
 
 La aplicación queda en `http://127.0.0.1:8765` y permite preparar, previsualizar y publicar desde una pantalla única.
+
+En la interfaz, el flujo con API está separado en dos pasos: primero `Preparar prompts`, que no gasta API, y después `Corregir prompts con API`, que envía los prompts acumulados y deja generado `revision_pendiente.csv` para la subida asistida.
+
+Antes de llamar a la API, el agente estima el tamaño de cada prompt. Si supera el aviso configurado registra un warning; si supera el límite de seguridad bloquea el envío y pide volver a preparar con menos entregas por prompt. Los umbrales se pueden ajustar con `--openai-warn-tokens-prompt` y `--openai-max-tokens-prompt`.
 
 Si un lote sale demasiado grande, baja el lote a 3 o 4:
 
@@ -309,6 +314,12 @@ Primero prueba en modo previsualización. Este modo abre CARM, busca el alumno y
 
 ```powershell
 python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json
+```
+
+También puedes previsualizar directamente el CSV revisable generado por la API:
+
+```powershell
+python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\revision_pendiente.csv
 ```
 
 El navegador queda abierto para revisar el formulario. Para terminar la previsualización, cierra la pestaña de Chromium o detén la tarea desde la interfaz.
