@@ -986,7 +986,7 @@ class ExtractorCarm:
                 return texto[:12000]
         return ""
 
-    async def _obtener_actividades_obligatorias(self, page) -> list[dict]:
+    async def _obtener_actividades_prioritarias(self, page) -> list[dict]:
         actividades: list[dict] = []
         vistos: set[str] = set()
         modulos = await page.query_selector_all("li.activity.assign, .activity.assign, li.modtype_assign")
@@ -1004,7 +1004,9 @@ class ExtractorCarm:
             base = self._normalizar(nombre)
             if "caso practico" not in base:
                 continue
-            if "(obligatorio)" not in base:
+            es_obligatorio = "(obligatorio)" in base or " obligatorio" in base
+            es_opcional = "(opcional)" in base or " opcional" in base
+            if not es_obligatorio and not es_opcional:
                 continue
             href = await enlace_actividad.get_attribute("href")
             if not href:
@@ -1032,7 +1034,7 @@ class ExtractorCarm:
                     "unidad": unidad,
                     "unidad_codigo": unidad_codigo,
                     "codigo": codigo,
-                    "tipo": "obligatorio",
+                    "tipo": "obligatorio" if es_obligatorio else "opcional",
                     "url": vista_url,
                     "url_grading": self._url_grading_requiere_calificacion(
                         href_require_grading or self._agregar_action_grading(vista_url)
@@ -1040,7 +1042,13 @@ class ExtractorCarm:
                     "filtro": "require_grading",
                 }
             )
-        return actividades
+        return sorted(
+            actividades,
+            key=lambda act: (0 if act.get("tipo") == "obligatorio" else 1, act.get("codigo", "")),
+        )
+
+    async def _obtener_actividades_obligatorias(self, page) -> list[dict]:
+        return await self._obtener_actividades_prioritarias(page)
 
     async def _listar_enlaces_assign(self, page) -> list[dict]:
         enlaces = await page.query_selector_all("a[href*='mod/assign/view.php']")
@@ -2499,7 +2507,9 @@ class GeneradorSalidas:
                 )
 
             prompt_cfg = gestor_prompts.obtener(actividad_codigo)
-            tamano_lote = max(1, int(max_entregas_por_prompt or 1))
+            max_entregas = int(max_entregas_por_prompt or 0)
+            tamano_lote = len(entregas) if max_entregas <= 0 else max(1, max_entregas)
+            tamano_lote = max(1, tamano_lote)
             lotes = [
                 entregas[i:i + tamano_lote]
                 for i in range(0, len(entregas), tamano_lote)

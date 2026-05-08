@@ -752,3 +752,18 @@ Traceback (most recent call last):
          ^^^^^^^^^^^^^^^^^^^
 PermissionError: [WinError 5] Acceso denegado
 2026-05-08 07:15:50,499 - ERROR - No se pudo completar extraccion CARM: [WinError 5] Acceso denegado
+2026-05-08 08:21:15,268 - INFO - Cacheando recursos estables del curso CARM.
+2026-05-08 08:21:40,047 - INFO - Actividades prioritarias encontradas: 36
+2026-05-08 08:21:40,047 - INFO - Cacheando actividad ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 08:21:44,001 - INFO - Cacheando actividad ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-08 08:21:47,957 - INFO - Cacheando actividad ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 08:21:51,915 - INFO - Cacheando actividad ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 08:21:55,894 - INFO - Cacheando actividad ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 08:21:59,838 - INFO - Cacheando actividad ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 08:22:03,833 - INFO - Cacheando actividad ud04cp01: UD04 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 08:22:07,802 - INFO - Cacheando actividad ud04cp02: UD04 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 08:22:11,792 - INFO - Cacheando actividad ud05cp01: UD05 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 08:22:15,748 - INFO - Cacheando actividad ud05cp02: UD05 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 08:22:19,711 - INFO - Cacheando actividad ud06cp01: UD06 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-08 08:22:23,721 - INFO - Cacheando actividad ud06cp02: UD06 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-08 08:22:27,745 - INFO - Cacheando actividad ud07cp01: UD07 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea

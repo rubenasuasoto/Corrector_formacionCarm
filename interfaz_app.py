@@ -12,6 +12,8 @@ import sys
 import threading
 import time
 import webbrowser
+import tkinter as tk
+from tkinter import filedialog
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -27,7 +29,11 @@ except ImportError:
 
 
 ROOT = Path(__file__).resolve().parent
-TEMPORAL_DIR = Path(r"C:\temp\vscodec\temporal")
+APP_CONFIG_PATH = ROOT / ".corrector_app.json"
+DEFAULT_PENDIENTES_DIR = Path(r"C:\temp\vscodec\pendientes")
+DEFAULT_TEMPORAL_DIR = Path(r"C:\temp\vscodec\temporal")
+PENDIENTES_DIR = DEFAULT_PENDIENTES_DIR
+TEMPORAL_DIR = DEFAULT_TEMPORAL_DIR
 PROMPTS_DIR = TEMPORAL_DIR / "prompts_codex"
 COMBINED_JSON = PROMPTS_DIR / "correcciones_codex_combinadas.json"
 REVISION_CSV = TEMPORAL_DIR / "revision_pendiente.csv"
@@ -35,23 +41,110 @@ AGENTE_LOG = ROOT / "logs_correcciones" / "agente.log"
 ENV_PATH = ROOT / ".env"
 CARM_STORAGE_STATE = ROOT / "cache_carm" / "carm_storage_state.json"
 ALLOWED_UNITS = {f"ud{i:02d}" for i in range(1, 16)}
-ALLOWED_MAX_ENTREGAS = {str(i) for i in range(1, 21)}
+ALLOWED_MAX_ENTREGAS = {"0", *{str(i) for i in range(1, 21)}}
 ALLOWED_ACTIVITIES = {f"ud{unit:02d}cp{case:02d}" for unit in range(1, 16) for case in range(1, 16)}
-ALLOWED_JSON_PATHS = {
-    str(COMBINED_JSON),
-    str(PROMPTS_DIR / "prompt_ud01cp01_correccion.json"),
-    str(PROMPTS_DIR / "prompt_ud01cp02_correccion.json"),
-    str(PROMPTS_DIR / "prompt_ud02cp03_correccion.json"),
-}
 ALLOWED_CONTEXT_PATHS = {
     str(ROOT / "tmp_prueba" / "manual_ud01.txt"),
 }
 UNIT_RE = re.compile(r"^ud\d{2}$")
 ACTIVITY_RE = re.compile(r"^ud\d{2}cp\d{2}$")
+COURSE_URL_RE = re.compile(r"^https://formacion\.carm\.es/course/view\.php\?id=\d+$")
 TRAY_ICON = None
 AUTO_CORRECT_AFTER_SCAN = False
 AUTO_CORRECT_ARGS = ["--flujo-correccion-carm", "--max-entregas-por-prompt", "6"]
+DEFAULT_SCAN_INTERVAL_MINUTES = 60
 API_TOKEN = secrets.token_urlsafe(32)
+
+
+def load_app_config() -> dict:
+    if not APP_CONFIG_PATH.exists():
+        return {}
+    try:
+        return json.loads(APP_CONFIG_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_app_config(config: dict) -> None:
+    current = load_app_config()
+    current.update(config)
+    APP_CONFIG_PATH.write_text(json.dumps(current, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def auto_scan_interval_minutes() -> int:
+    config = load_app_config()
+    try:
+        value = int(config.get("auto_scan_interval_minutes", DEFAULT_SCAN_INTERVAL_MINUTES))
+    except (TypeError, ValueError):
+        value = DEFAULT_SCAN_INTERVAL_MINUTES
+    return max(0, min(value, 1440))
+
+
+def _normalize_dir(path: str | Path, fallback: Path) -> Path:
+    raw = str(path or "").strip()
+    if not raw:
+        return fallback
+    return Path(raw).expanduser()
+
+
+def ensure_work_dirs() -> None:
+    for path in (PENDIENTES_DIR, TEMPORAL_DIR, PROMPTS_DIR, ROOT / "cache_carm", ROOT / "logs_correcciones"):
+        path.mkdir(parents=True, exist_ok=True)
+
+
+def configure_work_dirs(pendientes: str | Path | None = None, temporal: str | Path | None = None, persist: bool = False) -> None:
+    global PENDIENTES_DIR, TEMPORAL_DIR, PROMPTS_DIR, COMBINED_JSON, REVISION_CSV
+    current = load_app_config()
+    PENDIENTES_DIR = _normalize_dir(pendientes or current.get("pendientes_dir"), DEFAULT_PENDIENTES_DIR)
+    TEMPORAL_DIR = _normalize_dir(temporal or current.get("temporal_dir"), DEFAULT_TEMPORAL_DIR)
+    PROMPTS_DIR = TEMPORAL_DIR / "prompts_codex"
+    COMBINED_JSON = PROMPTS_DIR / "correcciones_codex_combinadas.json"
+    REVISION_CSV = TEMPORAL_DIR / "revision_pendiente.csv"
+    ensure_work_dirs()
+    if persist:
+        save_app_config({"pendientes_dir": str(PENDIENTES_DIR), "temporal_dir": str(TEMPORAL_DIR)})
+
+
+def save_automation_config(interval_minutes: str | int) -> int:
+    try:
+        interval = int(interval_minutes)
+    except (TypeError, ValueError):
+        raise ValueError("El intervalo debe ser un numero de minutos.")
+    if interval < 0 or interval > 1440:
+        raise ValueError("El intervalo debe estar entre 0 y 1440 minutos. Usa 0 para desactivar.")
+    save_app_config({"auto_scan_interval_minutes": interval})
+    return interval
+
+
+def json_options() -> list[dict]:
+    paths = [COMBINED_JSON]
+    if PROMPTS_DIR.exists():
+        paths.extend(sorted(PROMPTS_DIR.glob("*_correccion.json")))
+    seen: set[str] = set()
+    options: list[dict] = []
+    for path in paths:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        options.append({"path": key, "label": path.name, "exists": path.exists()})
+    return options
+
+
+def allowed_json_paths() -> set[str]:
+    allowed = {item["path"] for item in json_options()}
+    allowed.update(
+        str(PROMPTS_DIR / name)
+        for name in (
+            "prompt_ud01cp01_correccion.json",
+            "prompt_ud01cp02_correccion.json",
+            "prompt_ud02cp03_correccion.json",
+        )
+    )
+    return allowed
+
+
+configure_work_dirs()
 
 
 def notify(title: str, message: str) -> None:
@@ -182,6 +275,50 @@ def logout_carm() -> None:
         CARM_STORAGE_STATE.unlink()
 
 
+def current_course_url() -> str:
+    return read_env_values().get("CARM_COURSE_URL") or "https://formacion.carm.es/course/view.php?id=1592"
+
+
+def course_id_from_url(url: str) -> str:
+    match = re.search(r"[?&]id=(\d+)", url)
+    return match.group(1) if match else ""
+
+
+def course_url_from_id(course_id: str) -> str:
+    course_id = str(course_id or "").strip()
+    if not course_id.isdigit():
+        raise ValueError("El ID del curso debe ser numerico.")
+    return f"https://formacion.carm.es/course/view.php?id={course_id}"
+
+
+def save_course_url(url_or_id: str) -> str:
+    value = str(url_or_id or "").strip()
+    if value.isdigit():
+        value = course_url_from_id(value)
+    if not COURSE_URL_RE.fullmatch(value):
+        raise ValueError("Introduce una URL de curso CARM valida o solo el ID numerico del curso.")
+    write_env_values({"CARM_COURSE_URL": value})
+    return value
+
+
+def choose_directory(initial_dir: str | None = None) -> str:
+    initial = Path(initial_dir or "").expanduser() if initial_dir else TEMPORAL_DIR
+    if not initial.exists():
+        initial = initial.parent if initial.parent.exists() else ROOT
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        selected = filedialog.askdirectory(
+            title="Elige carpeta de trabajo",
+            initialdir=str(initial),
+            mustexist=False,
+        )
+        return selected or ""
+    finally:
+        root.destroy()
+
+
 def revisar_publicacion_segura() -> None:
     if not REVISION_CSV.exists():
         raise ValueError("No existe revision_pendiente.csv. Prepara e importa correcciones antes de publicar.")
@@ -224,6 +361,9 @@ class TaskRunner:
         self.lines: list[str] = []
         self.error_notified = False
         self.manual_notified = False
+        self.permission_error = False
+        self.scan_blocked_by_permissions = False
+        self.last_detection_at = 0.0
 
     def start(self, action: str, args: list[str]) -> tuple[bool, str]:
         with self.lock:
@@ -236,8 +376,9 @@ class TaskRunner:
             self.lines = [f"$ {sys.executable} corrector_agente.py {' '.join(args)}"]
             self.error_notified = False
             self.manual_notified = False
+            self.permission_error = False
             env = os.environ.copy()
-            if action in {"detect_course", "auto_correct"}:
+            if action in {"detect_course", "auto_correct", "check_playwright"}:
                 env["CARM_HEADLESS"] = "1"
             self.process = subprocess.Popen(
                 [sys.executable, "corrector_agente.py", *args],
@@ -265,11 +406,20 @@ class TaskRunner:
             self._notify_line(clean)
         code = proc.wait()
         should_auto_correct = False
+        should_retry_scan = False
         has_error = False
         with self.lock:
             self.exit_code = code
             self.lines.append(f"[proceso terminado con codigo {code}]")
             has_error = any(" - ERROR - " in line or line.startswith("ERROR") for line in self.lines)
+            self.permission_error = any(self._is_permission_error(line) for line in self.lines)
+            if self.action == "detect_course" and self.permission_error:
+                self.scan_blocked_by_permissions = True
+            if self.action in {"detect_course", "check_playwright"} and code == 0 and not has_error:
+                self.last_detection_at = time.time()
+            if self.action == "check_playwright" and code == 0 and not has_error and self.scan_blocked_by_permissions:
+                self.scan_blocked_by_permissions = False
+                should_retry_scan = True
             should_auto_correct = (
                 AUTO_CORRECT_AFTER_SCAN
                 and self.action == "detect_course"
@@ -277,9 +427,15 @@ class TaskRunner:
                 and not has_error
             )
         if has_error:
-            notify("Corrector CARM", "Hay errores en la ultima tarea. Abre la interfaz para revisar el log.")
+            if self.permission_error:
+                notify("Corrector CARM", "Windows bloqueo Playwright/Chromium. Ejecuta la app con permisos permitidos.")
+            else:
+                notify("Corrector CARM", "Hay errores en la ultima tarea. Abre la interfaz para revisar el log.")
         elif self.action == "auto_correct":
             notify("Corrector CARM", "Correccion automatica terminada. Revisa el CSV antes de publicar.")
+        if should_retry_scan:
+            notify("Corrector CARM", "Permisos de navegador recuperados. Repito el escaneo de CARM.")
+            threading.Timer(1.0, lambda: self.start("detect_course", ["--cachear-curso", "--refrescar-cache"])).start()
         if should_auto_correct:
             notify("Corrector CARM", "CARM revisado. Empiezo a preparar correcciones automaticamente.")
             threading.Timer(1.0, lambda: self.start("auto_correct", AUTO_CORRECT_ARGS)).start()
@@ -302,6 +458,15 @@ class TaskRunner:
             self.manual_notified = True
             notify("Corrector CARM - revision manual", line)
 
+    @staticmethod
+    def _is_permission_error(line: str) -> bool:
+        lowered = line.lower()
+        return (
+            "winerror 5" in lowered
+            or "permissionerror" in lowered
+            or "acceso denegado" in lowered
+        )
+
     def stop(self) -> bool:
         with self.lock:
             if not self.process or self.process.poll() is not None:
@@ -314,6 +479,7 @@ class TaskRunner:
         with self.lock:
             running = bool(self.process and self.process.poll() is None)
             has_error = any(" - ERROR - " in line or line.startswith("ERROR") for line in self.lines)
+            permission_error = self.permission_error or any(self._is_permission_error(line) for line in self.lines)
             return {
                 "running": running,
                 "action": self.action,
@@ -321,6 +487,9 @@ class TaskRunner:
                 "elapsed": round(time.time() - self.started_at, 1) if self.started_at else 0,
                 "exit_code": self.exit_code,
                 "has_error": has_error,
+                "permission_error": permission_error,
+                "scan_blocked_by_permissions": self.scan_blocked_by_permissions,
+                "last_detection_at": self.last_detection_at,
                 "lines": self.lines[-220:],
             }
 
@@ -382,13 +551,56 @@ def _cache_paths() -> list[Path]:
     return sorted(cache_dir.glob("curso_*.sqlite"), key=lambda p: p.stat().st_mtime, reverse=True)
 
 
+def _cache_path_for_current_course() -> Path | None:
+    course_id = course_id_from_url(current_course_url())
+    if not course_id:
+        return None
+    path = ROOT / "cache_carm" / f"curso_{course_id}.sqlite"
+    return path if path.exists() else None
+
+
+def detected_courses() -> list[dict]:
+    cursos: list[dict] = []
+    for path in _cache_paths():
+        course_id = path.stem.replace("curso_", "", 1)
+        url = course_url_from_id(course_id) if course_id.isdigit() else ""
+        titulo = ""
+        updated = path.stat().st_mtime
+        try:
+            with sqlite3.connect(path) as con:
+                row = con.execute(
+                    "SELECT url, COALESCE(titulo, ''), COALESCE(actualizado_en, '') FROM curso LIMIT 1"
+                ).fetchone()
+                if row:
+                    url = row[0] or url
+                    titulo = row[1] or ""
+        except sqlite3.Error:
+            pass
+        cursos.append(
+            {
+                "id": course_id,
+                "url": url,
+                "titulo": titulo or f"Curso {course_id}",
+                "cache_path": str(path),
+                "modified": updated,
+                "current": course_id == course_id_from_url(current_course_url()),
+            }
+        )
+    return cursos
+
+
 def course_options() -> dict:
     units: dict[str, str] = {}
     activities: dict[str, dict] = {}
     cache_path = ""
     cache_modified = 0.0
     didactic_units = 0
-    for path in _cache_paths()[:1]:
+    preferred = _cache_path_for_current_course()
+    paths = [preferred] if preferred else []
+    paths.extend(path for path in _cache_paths() if path not in paths)
+    for path in paths[:1]:
+        if path is None:
+            continue
         cache_path = str(path)
         cache_modified = path.stat().st_mtime
         try:
@@ -401,8 +613,8 @@ def course_options() -> dict:
                         units[codigo] = str(nombre or codigo.upper())
                         if str(contenido or "").strip():
                             didactic_units += 1
-                for codigo, unidad, nombre in con.execute(
-                    "SELECT codigo, COALESCE(unidad_codigo, ''), COALESCE(nombre, '') FROM actividad ORDER BY codigo"
+                for codigo, unidad, nombre, tipo in con.execute(
+                    "SELECT codigo, COALESCE(unidad_codigo, ''), COALESCE(nombre, ''), COALESCE(tipo, '') FROM actividad ORDER BY CASE WHEN tipo = 'obligatorio' THEN 0 ELSE 1 END, codigo"
                 ).fetchall():
                     codigo = str(codigo or "").strip().lower()
                     unidad = str(unidad or "").strip().lower()
@@ -414,27 +626,28 @@ def course_options() -> dict:
                             "codigo": codigo,
                             "unidad": unidad,
                             "nombre": str(nombre or codigo.upper()),
+                            "tipo": str(tipo or ""),
                         }
         except sqlite3.Error:
             continue
         break
 
-    if not units:
-        units = {codigo: codigo.upper() for codigo in sorted(ALLOWED_UNITS)}
     if not activities:
-        activities = {
-            codigo: {"codigo": codigo, "unidad": codigo[:4], "nombre": codigo.upper()}
-            for codigo in sorted(ALLOWED_ACTIVITIES)
-            if codigo in {"ud01cp01", "ud01cp02", "ud02cp03"}
-        }
+        activities = {}
 
     return {
         "source": "cache_didactica" if cache_path else "fallback",
+        "course_url": current_course_url(),
+        "course_id": course_id_from_url(current_course_url()),
+        "detected_courses": detected_courses(),
         "cache_path": cache_path,
         "cache_modified": cache_modified,
         "didactic_units": didactic_units,
         "units": [{"codigo": codigo, "nombre": nombre} for codigo, nombre in sorted(units.items())],
-        "activities": sorted(activities.values(), key=lambda item: item["codigo"]),
+        "activities": sorted(
+            activities.values(),
+            key=lambda item: (0 if item.get("tipo") == "obligatorio" else 1, item["codigo"]),
+        ),
     }
 
 
@@ -444,8 +657,11 @@ def project_state() -> dict:
     return {
         "combined": file_info(COMBINED_JSON),
         "revision_csv": file_info(REVISION_CSV),
+        "pendientes_dir": str(PENDIENTES_DIR),
         "prompts_dir": str(PROMPTS_DIR),
         "temporal_dir": str(TEMPORAL_DIR),
+        "auto_scan_interval_minutes": auto_scan_interval_minutes(),
+        "json_options": json_options(),
         "prompts": [file_info(p) for p in prompts],
         "corrections": [file_info(p) for p in corrections],
         "agent_log": latest_log_lines(AGENTE_LOG),
@@ -454,14 +670,12 @@ def project_state() -> dict:
 
 def allowed_units() -> set[str]:
     options = course_options()
-    detected = {item["codigo"] for item in options["units"]}
-    return detected if options["source"] == "cache_didactica" and detected else ALLOWED_UNITS
+    return {item["codigo"] for item in options["units"]}
 
 
 def allowed_activities() -> set[str]:
     options = course_options()
-    detected = {item["codigo"] for item in options["activities"]}
-    return detected if options["source"] == "cache_didactica" and detected else ALLOWED_ACTIVITIES
+    return {item["codigo"] for item in options["activities"]}
 
 
 def require_allowed(value: str, allowed: set[str], label: str) -> str:
@@ -478,7 +692,7 @@ HTML = r"""<!doctype html>
   <title>Corrector CARM</title>
   <style>
     :root {
-      --bg: #f6f7f4;
+      --bg: #eef2ef;
       --panel: #ffffff;
       --ink: #1d2524;
       --muted: #66736f;
@@ -488,7 +702,9 @@ HTML = r"""<!doctype html>
       --amber: #a86200;
       --red: #b42318;
       --blue: #2f5f95;
-      --shadow: 0 1px 2px rgba(16, 24, 40, .06);
+      --blue-soft: #eaf1f8;
+      --surface: #f7f9f7;
+      --shadow: 0 10px 30px rgba(16, 24, 40, .07);
     }
     * { box-sizing: border-box; }
     body {
@@ -499,22 +715,28 @@ HTML = r"""<!doctype html>
       font-size: 14px;
     }
     header {
-      height: 56px;
+      min-height: 68px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 22px;
+      gap: 20px;
+      padding: 12px 24px;
       border-bottom: 1px solid var(--line);
-      background: #fbfcfa;
+      background: rgba(251, 252, 250, .96);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(10px);
     }
-    h1 { font-size: 18px; margin: 0; font-weight: 650; }
-    h2 { font-size: 14px; margin: 0 0 12px; font-weight: 650; }
+    h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: 0; }
+    h2 { font-size: 15px; margin: 0; font-weight: 700; letter-spacing: 0; }
+    h3 { font-size: 13px; margin: 0; font-weight: 700; letter-spacing: 0; }
     main {
       display: grid;
-      grid-template-columns: minmax(320px, 420px) 1fr;
-      gap: 16px;
-      padding: 16px;
-      max-width: 1380px;
+      grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
+      gap: 18px;
+      padding: 18px;
+      max-width: 1440px;
       margin: 0 auto;
     }
     section {
@@ -522,24 +744,75 @@ HTML = r"""<!doctype html>
       border: 1px solid var(--line);
       border-radius: 8px;
       box-shadow: var(--shadow);
-      padding: 14px;
+      padding: 16px;
     }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 260px; }
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      background: var(--green);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      box-shadow: 0 10px 18px rgba(31, 122, 91, .2);
+    }
+    .brand small { display: block; color: var(--muted); margin-top: 2px; }
+    .topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .workflow {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .step {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 11px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: center;
+      min-width: 0;
+    }
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: #eef1f0;
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 12px;
+    }
+    .step.done .step-num { background: var(--green-soft); color: var(--green); }
+    .step.active .step-num { background: var(--blue-soft); color: var(--blue); }
+    .step small { color: var(--muted); display: block; margin-top: 2px; }
     .stack { display: grid; gap: 12px; }
     .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .split { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .section-head { margin-bottom: 12px; }
+    .section-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
     label { color: var(--muted); font-size: 12px; display: block; margin-bottom: 4px; }
     input, select {
       width: 100%;
-      height: 34px;
+      height: 36px;
       border: 1px solid var(--line);
       border-radius: 6px;
       padding: 6px 8px;
       background: #fff;
       color: var(--ink);
     }
+    input:focus, select:focus {
+      outline: 2px solid rgba(47, 95, 149, .18);
+      border-color: var(--blue);
+    }
     .field { flex: 1 1 130px; min-width: 0; }
     button {
-      height: 34px;
+      height: 36px;
       border: 1px solid var(--line);
       border-radius: 6px;
       background: #fff;
@@ -548,6 +821,8 @@ HTML = r"""<!doctype html>
       cursor: pointer;
       font-weight: 600;
     }
+    button:hover:not(:disabled) { border-color: #b8c3bd; background: #f9fbfa; }
+    button.primary:hover:not(:disabled) { background: #19694e; border-color: #19694e; }
     button.primary { background: var(--green); border-color: var(--green); color: #fff; }
     button.warn { background: #fff8ea; color: var(--amber); border-color: #e7c98b; }
     button.danger { background: #fff1f0; color: var(--red); border-color: #f0b8b2; }
@@ -559,6 +834,8 @@ HTML = r"""<!doctype html>
       font-size: 17px;
     }
     button:disabled { opacity: .55; cursor: not-allowed; }
+    .button-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 12px; }
+    .button-row.two { grid-template-columns: 1fr 1fr; }
     .badge {
       display: inline-flex;
       align-items: center;
@@ -570,16 +847,29 @@ HTML = r"""<!doctype html>
       font-size: 12px;
       font-weight: 700;
     }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+    }
     .badge.idle { background: #eef1f0; color: var(--muted); }
     .badge.err { background: #fff1f0; color: var(--red); }
     .path {
       font-family: Consolas, "Courier New", monospace;
-      background: #f3f5f3;
+      background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 6px;
       padding: 8px;
       overflow-wrap: anywhere;
       color: #31413d;
+      line-height: 1.45;
     }
     .list { display: grid; gap: 6px; }
     .item {
@@ -590,12 +880,33 @@ HTML = r"""<!doctype html>
       padding: 8px;
       border: 1px solid var(--line);
       border-radius: 6px;
-      background: #fbfcfa;
+      background: var(--surface);
     }
+    .item span { min-width: 0; overflow-wrap: anywhere; }
+    .item > small { white-space: nowrap; }
     .item small, .muted { color: var(--muted); }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .metric {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .metric strong { display: block; font-size: 20px; margin-bottom: 2px; }
+    .metric span { color: var(--muted); font-size: 12px; }
+    .activity-panel {
+      display: grid;
+      grid-template-rows: auto minmax(320px, 1fr);
+      min-height: calc(100vh - 104px);
+    }
     pre {
       min-height: 420px;
-      max-height: calc(100vh - 190px);
+      max-height: calc(100vh - 210px);
       overflow: auto;
       margin: 0;
       padding: 12px;
@@ -607,7 +918,7 @@ HTML = r"""<!doctype html>
       line-height: 1.45;
       white-space: pre-wrap;
     }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .check { display: flex; align-items: center; gap: 8px; color: var(--muted); }
     .check input { width: auto; height: auto; }
     .modal-backdrop {
@@ -639,17 +950,35 @@ HTML = r"""<!doctype html>
     }
     .advanced-fields { display: none; }
     .advanced-fields.active { display: grid; gap: 10px; }
+    .folder-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: end;
+    }
     @media (max-width: 900px) {
       main { grid-template-columns: 1fr; }
       .grid2 { grid-template-columns: 1fr; }
+      .workflow { grid-template-columns: 1fr; }
+      .summary-grid { grid-template-columns: 1fr; }
+      header { align-items: flex-start; flex-direction: column; }
+      .topbar-actions { justify-content: flex-start; }
+      .button-row, .button-row.two { grid-template-columns: 1fr; }
+      .folder-row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>Corrector CARM</h1>
-    <div class="row">
-      <span id="courseSummary" class="muted"></span>
+    <div class="brand">
+      <div class="brand-mark">C</div>
+      <div>
+        <h1>Corrector CARM</h1>
+        <small>Panel local de preparacion, revision y subida</small>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span id="courseSummary" class="pill"></span>
       <span id="statusBadge" class="badge idle">Parado</span>
       <button id="refreshBtn">Actualizar</button>
       <button id="logoutBtn">Cerrar sesion CARM</button>
@@ -658,8 +987,26 @@ HTML = r"""<!doctype html>
   </header>
   <main>
     <div class="stack">
+      <div class="workflow" aria-label="Flujo principal">
+        <div class="step active" id="stepPrepare">
+          <div class="step-num">1</div>
+          <div><strong>Preparar</strong><small>CARM y Codex</small></div>
+        </div>
+        <div class="step" id="stepReview">
+          <div class="step-num">2</div>
+          <div><strong>Revisar</strong><small>JSON y CSV</small></div>
+        </div>
+        <div class="step" id="stepPublish">
+          <div class="step-num">3</div>
+          <div><strong>Subir</strong><small>Notas y feedback</small></div>
+        </div>
+      </div>
+
       <section>
-        <h2>Preparar Correcciones</h2>
+        <div class="section-head">
+          <h2>Preparar correcciones</h2>
+          <p>Elige una unidad o un caso concreto y genera las salidas revisables.</p>
+        </div>
         <div class="row">
           <div class="field">
             <label for="prepareMode">Filtro</label>
@@ -681,6 +1028,7 @@ HTML = r"""<!doctype html>
           <div class="field">
             <label for="maxEntregas">Entregas por prompt</label>
             <select id="maxEntregas">
+              <option value="0">Todos los pendientes</option>
               <option value="3">3</option>
               <option value="4">4</option>
               <option value="5">5</option>
@@ -691,14 +1039,17 @@ HTML = r"""<!doctype html>
             </select>
           </div>
         </div>
-        <div class="row" style="margin-top:12px">
+        <div class="button-row">
           <button class="primary" id="prepareBtn">Preparar con Codex</button>
           <button class="danger" id="stopBtn">Detener</button>
         </div>
       </section>
 
       <section>
-        <h2>Subida A CARM</h2>
+        <div class="section-head">
+          <h2>Subida a CARM</h2>
+          <p>Previsualiza primero. Publicar requiere confirmacion y revision limpia.</p>
+        </div>
         <label for="jsonPath">JSON de correcciones</label>
         <select id="jsonPath">
           <option value="C:\temp\vscodec\temporal\prompts_codex\correcciones_codex_combinadas.json">correcciones_codex_combinadas.json</option>
@@ -706,7 +1057,7 @@ HTML = r"""<!doctype html>
           <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud01cp02_correccion.json">prompt_ud01cp02_correccion.json</option>
           <option value="C:\temp\vscodec\temporal\prompts_codex\prompt_ud02cp03_correccion.json">prompt_ud02cp03_correccion.json</option>
         </select>
-        <div class="row" style="margin-top:12px">
+        <div class="button-row two">
           <button id="previewBtn">Previsualizar</button>
           <button class="warn" id="publishBtn">Publicar</button>
         </div>
@@ -717,7 +1068,20 @@ HTML = r"""<!doctype html>
       </section>
 
       <section>
-        <h2>Salidas</h2>
+        <div class="section-head">
+          <h2>Estado de salidas</h2>
+          <p>Estos archivos son la base de la revision antes de subir a CARM.</p>
+        </div>
+        <div class="summary-grid">
+          <div class="metric">
+            <strong id="promptCount">0</strong>
+            <span>prompts listos</span>
+          </div>
+          <div class="metric">
+            <strong id="correctionCount">0</strong>
+            <span>JSON de correccion</span>
+          </div>
+        </div>
         <div class="stack">
           <div>
             <label>JSON combinado</label>
@@ -731,8 +1095,11 @@ HTML = r"""<!doctype html>
       </section>
 
       <section>
-        <h2>Archivos Recientes</h2>
-        <div class="grid2">
+        <div class="section-head">
+          <h2>Archivos recientes</h2>
+          <p>Prompts enviados y respuestas JSON recibidas.</p>
+        </div>
+        <div class="stack">
           <div>
             <label>Prompts</label>
             <div id="promptsList" class="list"></div>
@@ -745,9 +1112,12 @@ HTML = r"""<!doctype html>
       </section>
     </div>
 
-    <section>
+    <section class="activity-panel">
       <div class="split">
-        <h2>Actividad</h2>
+        <div class="section-head">
+          <h2>Actividad</h2>
+          <p>Registro de ejecucion y avisos del backend.</p>
+        </div>
         <span id="elapsed" class="muted"></span>
       </div>
       <pre id="logBox"></pre>
@@ -787,10 +1157,71 @@ HTML = r"""<!doctype html>
         <button id="closeSettingsBtn" class="icon" title="Cerrar" aria-label="Cerrar">×</button>
       </div>
       <div class="stack" style="margin-top:12px">
+        <section style="box-shadow:none">
+          <div class="section-head">
+            <h2>Carpetas de trabajo</h2>
+            <p>La app crea estas carpetas si no existen. Puedes cambiarlas con el explorador de Windows.</p>
+          </div>
+          <div class="stack">
+            <div class="folder-row">
+              <div>
+                <label for="pendientesDir">Entregas descargadas</label>
+                <input id="pendientesDir">
+              </div>
+              <button id="pickPendientesBtn" type="button">Elegir...</button>
+            </div>
+            <div class="folder-row">
+              <div>
+                <label for="temporalDir">Salidas y correcciones</label>
+                <input id="temporalDir">
+              </div>
+              <button id="pickTemporalBtn" type="button">Elegir...</button>
+            </div>
+            <div class="path" id="foldersMessage">Usando carpetas por defecto.</div>
+            <div class="row">
+              <button class="primary" id="saveFoldersBtn" type="button">Guardar carpetas</button>
+            </div>
+          </div>
+        </section>
+
+        <section style="box-shadow:none">
+          <div class="section-head">
+            <h2>Curso CARM</h2>
+            <p>Cambia el curso activo si tienes varias caches o si vas a corregir otro curso.</p>
+          </div>
+          <div class="stack">
+            <div>
+              <label for="courseUrl">URL o ID del curso</label>
+              <input id="courseUrl" placeholder="https://formacion.carm.es/course/view.php?id=1592">
+            </div>
+            <div>
+              <label for="detectedCourse">Cursos detectados en cache</label>
+              <select id="detectedCourse"></select>
+            </div>
+            <div class="path" id="courseMessage">Curso pendiente de cargar.</div>
+            <div class="row">
+              <button class="primary" id="saveCourseBtn" type="button">Guardar curso</button>
+              <button id="useDetectedCourseBtn" type="button">Usar detectado</button>
+            </div>
+            <div class="grid2">
+              <div>
+                <label for="autoScanInterval">Autodetectar cada (minutos)</label>
+                <input id="autoScanInterval" type="number" min="0" max="1440" step="5">
+              </div>
+              <div>
+                <label>&nbsp;</label>
+                <button id="saveAutomationBtn" type="button">Guardar automatizacion</button>
+              </div>
+            </div>
+            <p class="hint">Usa 0 para desactivar el refresco periodico. Al iniciar, la app tambien puede actualizar datos si no usas `--no-startup-scan`.</p>
+          </div>
+        </section>
+
         <div>
           <label for="advancedAction">Comando</label>
           <select id="advancedAction">
             <option value="detect_course">Actualizar datos didacticos desde CARM</option>
+            <option value="check_playwright">Comprobar permisos de navegador</option>
             <option value="diagnose">Diagnosticar CARM</option>
             <option value="diagnose_evidence">Diagnosticar CARM con evidencias</option>
             <option value="list_carm">Listar entregas pendientes</option>
@@ -813,6 +1244,7 @@ HTML = r"""<!doctype html>
             <div>
               <label for="advancedMaxEntregas">Entregas por prompt</label>
               <select id="advancedMaxEntregas">
+                <option value="0">Todos los pendientes</option>
                 <option value="3">3</option>
                 <option value="4">4</option>
                 <option value="5">5</option>
@@ -836,7 +1268,7 @@ HTML = r"""<!doctype html>
           <div>
             <label for="contextPath">Archivo de contexto de unidad</label>
             <select id="contextPath">
-              <option value="C:\Users\ruben\OneDrive\Escritorio\agente\tmp_prueba\manual_ud01.txt">tmp_prueba\manual_ud01.txt</option>
+              <option value="C:\Users\ruben\Desktop\agente\tmp_prueba\manual_ud01.txt">tmp_prueba\manual_ud01.txt</option>
             </select>
           </div>
           <div>
@@ -873,6 +1305,7 @@ HTML = r"""<!doctype html>
     const API_TOKEN = "__LOCAL_API_TOKEN__";
     const advancedHints = {
       diagnose: 'Entra en CARM, genera diagnostico limpio y no descarga entregas.',
+      check_playwright: 'Comprueba que Windows permite abrir Playwright/Chromium e iniciar sesion en CARM.',
       diagnose_evidence: 'Guarda HTML/capturas redactadas para depurar selectores. Usalo solo si necesitas evidencias.',
       detect_course: 'Entra en CARM y actualiza la cache didactica con unidades, casos practicos, enunciados y contenido estable.',
       list_carm: 'Lista entregas que requieren calificacion sin descargar archivos.',
@@ -885,8 +1318,9 @@ HTML = r"""<!doctype html>
     };
     const advancedLabels = {
       diagnose: '--diagnosticar-carm',
+      check_playwright: '--comprobar-login-carm',
       diagnose_evidence: '--diagnosticar-carm --guardar-evidencias',
-      detect_course: '--cachear-curso',
+      detect_course: '--cachear-curso --refrescar-cache',
       list_carm: '--solo-listar-carm --unidad <unidad>',
       cache_course: '--cachear-curso --unidad <unidad>',
       prepare_carm_codex: '--preparar-carm-codex --unidad <unidad> --max-entregas-por-prompt <n>',
@@ -916,6 +1350,21 @@ HTML = r"""<!doctype html>
       return `<option value="${value}">${label}</option>`;
     }
 
+    function jsonOptionHtml(item) {
+      const suffix = item.exists ? '' : ' · pendiente';
+      return optionHtml(item.path, `${item.label}${suffix}`);
+    }
+
+    function courseOptionHtml(item) {
+      const suffix = item.current ? ' · actual' : '';
+      return optionHtml(item.url, `${item.id} · ${item.titulo}${suffix}`);
+    }
+
+    function activityLabel(act) {
+      const tipo = act.tipo ? ` · ${act.tipo}` : '';
+      return `${act.codigo} · ${act.nombre}${tipo}`;
+    }
+
     function fillSelect(select, html, current = '') {
       select.innerHTML = html;
       if (current && [...select.options].some((opt) => opt.value === current)) select.value = current;
@@ -927,12 +1376,16 @@ HTML = r"""<!doctype html>
 
     async function loadOptions() {
       courseOptions = await api('/api/options');
-      const unitHtml = courseOptions.units.map((unit) => optionHtml(unit.codigo, `${unit.codigo} · ${unit.nombre}`)).join('');
+      const unitHtml = courseOptions.units.length
+        ? courseOptions.units.map((unit) => optionHtml(unit.codigo, `${unit.codigo} · ${unit.nombre}`)).join('')
+        : '<option value="">Sin unidades detectadas</option>';
       fillSelect($('unidad'), unitHtml, $('unidad').value || 'ud01');
       fillSelect($('advancedUnidad'), unitHtml, $('advancedUnidad').value || $('unidad').value);
       updateActivityOptions();
       updateAdvancedActivityOptions();
-      const source = courseOptions.source === 'cache_didactica' ? 'cache didactica' : 'valores base';
+      const source = courseOptions.source === 'cache_didactica'
+        ? (courseOptions.didactic_units < courseOptions.units.length ? 'cache parcial' : 'cache didactica')
+        : 'valores base';
       $('courseSummary').textContent = `${courseOptions.units.length} unidades · ${courseOptions.activities.length} casos · ${source}`;
     }
 
@@ -946,10 +1399,12 @@ HTML = r"""<!doctype html>
     function updateActivityOptions() {
       const unit = $('unidad').value;
       const activities = activitiesForUnit(unit);
-      const source = activities.length ? activities : courseOptions.activities;
+      const source = activities;
       fillSelect(
         $('actividad'),
-        source.map((act) => optionHtml(act.codigo, `${act.codigo} · ${act.nombre}`)).join(''),
+        source.length
+          ? source.map((act) => optionHtml(act.codigo, activityLabel(act))).join('')
+          : '<option value="">Sin casos detectados para esta unidad</option>',
         $('actividad').value
       );
       $('activityField').style.display = $('prepareMode').value === 'activity' ? '' : 'none';
@@ -958,23 +1413,41 @@ HTML = r"""<!doctype html>
     function updateAdvancedActivityOptions() {
       fillSelect(
         $('advancedActividad'),
-        courseOptions.activities.map((act) => optionHtml(act.codigo, `${act.codigo} · ${act.nombre}`)).join(''),
+        courseOptions.activities.length
+          ? courseOptions.activities.map((act) => optionHtml(act.codigo, activityLabel(act))).join('')
+          : '<option value="">Sin casos detectados</option>',
         $('advancedActividad').value || $('actividad').value
       );
       fillSelect(
         $('localActivity'),
-        courseOptions.activities.map((act) => optionHtml(act.codigo, act.codigo)).join(''),
+        courseOptions.activities.length
+          ? courseOptions.activities.map((act) => optionHtml(act.codigo, act.codigo)).join('')
+          : '<option value="">Sin casos detectados</option>',
         $('localActivity').value || $('actividad').value
       );
     }
 
     function setBusy(running) {
       const locked = running || !authState.configured;
-      $('prepareBtn').disabled = locked;
+      const hasUnits = courseOptions.units.length > 0;
+      const hasSelectedActivity = $('prepareMode').value !== 'activity' || Boolean($('actividad').value);
+      $('prepareBtn').disabled = locked || !hasUnits || !hasSelectedActivity;
       $('previewBtn').disabled = locked;
       $('publishBtn').disabled = locked || !$('publishCheck').checked;
       $('stopBtn').disabled = !running;
       $('runAdvancedBtn').disabled = locked;
+    }
+
+    function setWorkflow(status, state) {
+      const hasReviewFiles = state.combined.exists && state.revision_csv.exists;
+      $('stepPrepare').className = 'step ' + (hasReviewFiles ? 'done' : 'active');
+      $('stepReview').className = 'step ' + (hasReviewFiles ? 'active' : '');
+      $('stepPublish').className = 'step ' + ($('publishCheck').checked ? 'active' : '');
+      if (status.running) {
+        $('stepPrepare').className = 'step active';
+        $('stepReview').className = 'step';
+        $('stepPublish').className = 'step';
+      }
     }
 
     function toggleAuth(open) {
@@ -998,15 +1471,81 @@ HTML = r"""<!doctype html>
       $('advancedCommandPreview').textContent = `corrector_agente.py ${advancedLabels[action] || ''}`;
     }
 
+    async function pickDirectory(targetInput) {
+      const result = await api('/api/pick-directory', {
+        method: 'POST',
+        body: JSON.stringify({initial_dir: $(targetInput).value})
+      });
+      if (!result.ok) {
+        if (result.message) alert(result.message);
+        return;
+      }
+      if (result.path) $(targetInput).value = result.path;
+    }
+
+    async function saveFolders() {
+      $('saveFoldersBtn').disabled = true;
+      $('foldersMessage').textContent = 'Guardando carpetas...';
+      const result = await api('/api/config/folders', {
+        method: 'POST',
+        body: JSON.stringify({
+          pendientes_dir: $('pendientesDir').value,
+          temporal_dir: $('temporalDir').value
+        })
+      });
+      $('foldersMessage').textContent = result.message || (result.ok ? 'Carpetas guardadas.' : 'No se pudieron guardar.');
+      $('saveFoldersBtn').disabled = false;
+      await refresh();
+    }
+
+    async function saveCourse(urlOrId) {
+      $('saveCourseBtn').disabled = true;
+      $('courseMessage').textContent = 'Guardando curso...';
+      const result = await api('/api/config/course', {
+        method: 'POST',
+        body: JSON.stringify({course: urlOrId || $('courseUrl').value})
+      });
+      $('courseMessage').textContent = result.message || (result.ok ? 'Curso guardado.' : 'No se pudo guardar.');
+      $('saveCourseBtn').disabled = false;
+      if (result.ok) await refresh();
+    }
+
+    async function saveAutomation() {
+      $('saveAutomationBtn').disabled = true;
+      $('courseMessage').textContent = 'Guardando automatizacion...';
+      const result = await api('/api/config/automation', {
+        method: 'POST',
+        body: JSON.stringify({auto_scan_interval_minutes: $('autoScanInterval').value})
+      });
+      $('courseMessage').textContent = result.message || (result.ok ? 'Automatizacion guardada.' : 'No se pudo guardar.');
+      $('saveAutomationBtn').disabled = false;
+      await refresh();
+    }
+
     async function refresh() {
       await loadAuth();
       const status = await api('/api/status');
       const state = await api('/api/state');
       await loadOptions();
+      $('pendientesDir').value = state.pendientes_dir;
+      $('temporalDir').value = state.temporal_dir;
+      $('autoScanInterval').value = state.auto_scan_interval_minutes;
+      const jsonHtml = state.json_options.map(jsonOptionHtml).join('');
+      fillSelect($('jsonPath'), jsonHtml, $('jsonPath').value);
+      fillSelect($('importJsonPath'), jsonHtml, $('importJsonPath').value);
+      $('courseUrl').value = courseOptions.course_url || '';
+      const detectedHtml = courseOptions.detected_courses.length
+        ? courseOptions.detected_courses.map(courseOptionHtml).join('')
+        : '<option value="">Sin cursos detectados todavia</option>';
+      fillSelect($('detectedCourse'), detectedHtml, courseOptions.course_url || '');
+      $('useDetectedCourseBtn').disabled = !courseOptions.detected_courses.length;
+      $('courseMessage').textContent = courseOptions.cache_path
+        ? `Curso ${courseOptions.course_id} · cache: ${courseOptions.cache_path}`
+        : `Curso ${courseOptions.course_id || 'sin ID'} · sin cache didactica. Ejecuta "Actualizar datos didacticos desde CARM".`;
       const badge = $('statusBadge');
       const failed = status.has_error || (status.exit_code && status.exit_code !== 0);
       badge.className = 'badge ' + (status.running ? '' : (failed ? 'err' : 'idle'));
-      badge.textContent = status.running ? 'Ejecutando' : (failed ? 'Error' : 'Parado');
+      badge.textContent = status.running ? 'Ejecutando' : (status.permission_error ? 'Permisos Windows' : (failed ? 'Error' : 'Parado'));
       $('elapsed').textContent = status.running ? `${status.action} · ${status.elapsed}s` : '';
       $('logBox').textContent = (status.lines || []).join('\n') || (state.agent_log || []).join('\n');
       $('logBox').scrollTop = $('logBox').scrollHeight;
@@ -1014,6 +1553,9 @@ HTML = r"""<!doctype html>
       $('revisionPath').textContent = `${state.revision_csv.path} · ${state.revision_csv.exists ? 'listo' : 'pendiente'}`;
       $('promptsList').innerHTML = state.prompts.length ? state.prompts.map(fmtFile).join('') : '<span class="muted">Sin prompts</span>';
       $('correctionsList').innerHTML = state.corrections.length ? state.corrections.map(fmtFile).join('') : '<span class="muted">Sin correcciones</span>';
+      $('promptCount').textContent = state.prompts.length;
+      $('correctionCount').textContent = state.corrections.length;
+      setWorkflow(status, state);
       setBusy(status.running);
     }
 
@@ -1065,6 +1607,18 @@ HTML = r"""<!doctype html>
     $('cancelSettingsBtn').onclick = () => toggleSettings(false);
     $('settingsModal').onclick = (event) => {
       if (event.target === $('settingsModal')) toggleSettings(false);
+    };
+    $('pickPendientesBtn').onclick = () => pickDirectory('pendientesDir');
+    $('pickTemporalBtn').onclick = () => pickDirectory('temporalDir');
+    $('saveFoldersBtn').onclick = saveFolders;
+    $('saveCourseBtn').onclick = () => saveCourse();
+    $('saveAutomationBtn').onclick = saveAutomation;
+    $('useDetectedCourseBtn').onclick = () => {
+      if (!$('detectedCourse').value) return;
+      saveCourse($('detectedCourse').value);
+    };
+    $('detectedCourse').onchange = () => {
+      if ($('detectedCourse').value) $('courseUrl').value = $('detectedCourse').value;
     };
     $('advancedAction').onchange = updateAdvancedForm;
     $('runAdvancedBtn').onclick = () => {
@@ -1142,6 +1696,62 @@ class Handler(BaseHTTPRequestHandler):
             logout_carm()
             send_json(self, {"ok": True, "message": "Sesion CARM cerrada. Vuelve a introducir credenciales."})
             return
+        if parsed.path == "/api/pick-directory":
+            try:
+                body = read_json_body(self)
+                path = choose_directory(str(body.get("initial_dir") or ""))
+                send_json(self, {"ok": True, "path": path})
+            except Exception as exc:
+                send_json(self, {"ok": False, "message": str(exc)}, 400)
+            return
+        if parsed.path == "/api/config/folders":
+            try:
+                body = read_json_body(self)
+                configure_work_dirs(
+                    pendientes=str(body.get("pendientes_dir") or ""),
+                    temporal=str(body.get("temporal_dir") or ""),
+                    persist=True,
+                )
+                send_json(
+                    self,
+                    {
+                        "ok": True,
+                        "message": "Carpetas guardadas y creadas si no existian.",
+                        "pendientes_dir": str(PENDIENTES_DIR),
+                        "temporal_dir": str(TEMPORAL_DIR),
+                    },
+                )
+            except Exception as exc:
+                send_json(self, {"ok": False, "message": str(exc)}, 400)
+            return
+        if parsed.path == "/api/config/course":
+            try:
+                body = read_json_body(self)
+                url = save_course_url(str(body.get("course") or ""))
+                send_json(
+                    self,
+                    {
+                        "ok": True,
+                        "message": f"Curso activo guardado: {course_id_from_url(url)}. Actualiza datos didacticos para cargar sus unidades.",
+                        "course_url": url,
+                    },
+                )
+            except Exception as exc:
+                send_json(self, {"ok": False, "message": str(exc)}, 400)
+            return
+        if parsed.path == "/api/config/automation":
+            try:
+                body = read_json_body(self)
+                interval = save_automation_config(body.get("auto_scan_interval_minutes", DEFAULT_SCAN_INTERVAL_MINUTES))
+                message = (
+                    "Autodeteccion periodica desactivada."
+                    if interval == 0
+                    else f"Autodeteccion guardada: cada {interval} minutos."
+                )
+                send_json(self, {"ok": True, "message": message, "auto_scan_interval_minutes": interval})
+            except Exception as exc:
+                send_json(self, {"ok": False, "message": str(exc)}, 400)
+            return
         if parsed.path != "/api/run":
             send_json(self, {"error": "not_found"}, 404)
             return
@@ -1166,7 +1776,15 @@ def build_args(action: str, body: dict) -> list[str]:
         actividad = str(body.get("actividad") or "").strip()
         max_entregas = str(body.get("max_entregas") or "6").strip()
         require_allowed(max_entregas, ALLOWED_MAX_ENTREGAS, "Entregas por prompt")
-        args = ["--flujo-correccion-carm", "--max-entregas-por-prompt", max_entregas]
+        args = [
+            "--flujo-correccion-carm",
+            "--pendientes",
+            str(PENDIENTES_DIR),
+            "--temporal",
+            str(TEMPORAL_DIR),
+            "--max-entregas-por-prompt",
+            max_entregas,
+        ]
         if modo == "activity":
             require_allowed(actividad, allowed_activities(), "Actividad")
             args.extend(["--actividad", actividad])
@@ -1176,7 +1794,7 @@ def build_args(action: str, body: dict) -> list[str]:
         return args
 
     if action in {"preview", "publish"}:
-        json_path = require_allowed(str(body.get("json_path") or COMBINED_JSON), ALLOWED_JSON_PATHS, "JSON")
+        json_path = require_allowed(str(body.get("json_path") or COMBINED_JSON), allowed_json_paths(), "JSON")
         args = ["--subir-correcciones-carm", str(json_path)]
         if action == "publish":
             revisar_publicacion_segura()
@@ -1190,7 +1808,10 @@ def build_args(action: str, body: dict) -> list[str]:
         return ["--diagnosticar-carm", "--guardar-evidencias"]
 
     if action == "detect_course":
-        return ["--cachear-curso"]
+        return ["--cachear-curso", "--refrescar-cache"]
+
+    if action == "check_playwright":
+        return ["--comprobar-login-carm"]
 
     if action in {"list_carm", "cache_course", "prepare_carm_codex"}:
         unidad = str(body.get("unidad") or "ud01").strip()
@@ -1201,20 +1822,48 @@ def build_args(action: str, body: dict) -> list[str]:
             return ["--solo-listar-carm", "--unidad", unidad]
         if action == "cache_course":
             return ["--cachear-curso", "--unidad", unidad]
-        return ["--preparar-carm-codex", "--unidad", unidad, "--max-entregas-por-prompt", max_entregas]
+        return [
+            "--preparar-carm-codex",
+            "--pendientes",
+            str(PENDIENTES_DIR),
+            "--temporal",
+            str(TEMPORAL_DIR),
+            "--unidad",
+            unidad,
+            "--max-entregas-por-prompt",
+            max_entregas,
+        ]
 
     if action == "prepare_carm_codex_activity":
         actividad = str(body.get("actividad") or "").strip()
         max_entregas = str(body.get("max_entregas") or "6").strip()
         require_allowed(actividad, allowed_activities(), "Actividad")
         require_allowed(max_entregas, ALLOWED_MAX_ENTREGAS, "Entregas por prompt")
-        return ["--preparar-carm-codex", "--actividad", actividad, "--max-entregas-por-prompt", max_entregas]
+        return [
+            "--preparar-carm-codex",
+            "--pendientes",
+            str(PENDIENTES_DIR),
+            "--temporal",
+            str(TEMPORAL_DIR),
+            "--actividad",
+            actividad,
+            "--max-entregas-por-prompt",
+            max_entregas,
+        ]
 
     if action == "prepare_local_prompts":
         contexto = str(body.get("contexto_unidad") or "").strip()
         actividad = str(body.get("actividad_codigo") or "").strip()
         require_allowed(contexto, ALLOWED_CONTEXT_PATHS, "Archivo de contexto")
-        args = ["--contexto-unidad", contexto, "--preparar-prompts-codex"]
+        args = [
+            "--pendientes",
+            str(PENDIENTES_DIR),
+            "--temporal",
+            str(TEMPORAL_DIR),
+            "--contexto-unidad",
+            contexto,
+            "--preparar-prompts-codex",
+        ]
         if actividad:
             require_allowed(actividad, allowed_activities(), "Actividad")
             args.extend(["--actividad-codigo", actividad])
@@ -1222,8 +1871,8 @@ def build_args(action: str, body: dict) -> list[str]:
 
     if action == "import_codex":
         json_path = str(body.get("json_path") or "").strip()
-        require_allowed(json_path, ALLOWED_JSON_PATHS, "JSON")
-        return ["--importar-correcciones-codex", json_path]
+        require_allowed(json_path, allowed_json_paths(), "JSON")
+        return ["--temporal", str(TEMPORAL_DIR), "--importar-correcciones-codex", json_path]
 
     if action == "delete_cache":
         return ["--borrar-cache-curso"]
@@ -1275,7 +1924,7 @@ def run_tray(server: ThreadingHTTPServer, url: str, startup_scan: bool) -> None:
     if pystray is None:
         print("pystray/Pillow no estan instalados; la interfaz queda en segundo plano sin icono de bandeja.")
         if startup_scan and carm_credentials_present():
-            RUNNER.start("detect_course", ["--cachear-curso"])
+            RUNNER.start("detect_course", ["--cachear-curso", "--refrescar-cache"])
         server.serve_forever()
         return
 
@@ -1298,10 +1947,33 @@ def run_tray(server: ThreadingHTTPServer, url: str, startup_scan: bool) -> None:
     TRAY_ICON = icon
     threading.Thread(target=server.serve_forever, daemon=True).start()
     if startup_scan and carm_credentials_present():
-        RUNNER.start("detect_course", ["--cachear-curso"])
+        RUNNER.start("detect_course", ["--cachear-curso", "--refrescar-cache"])
     elif startup_scan:
         notify("Corrector CARM", "Faltan credenciales CARM. Abre la interfaz para configurarlas.")
     icon.run()
+
+
+def start_periodic_scan(disabled: bool) -> None:
+    if disabled:
+        return
+
+    def loop() -> None:
+        while True:
+            interval = auto_scan_interval_minutes()
+            if interval <= 0:
+                time.sleep(60)
+                continue
+            time.sleep(max(60, interval * 60))
+            if not carm_credentials_present():
+                continue
+            snapshot = RUNNER.snapshot()
+            if snapshot.get("running"):
+                continue
+            ok, _ = RUNNER.start("detect_course", ["--cachear-curso", "--refrescar-cache"])
+            if ok:
+                notify("Corrector CARM", "Autodeteccion periodica de CARM iniciada.")
+
+    threading.Thread(target=loop, daemon=True).start()
 
 
 def main() -> None:
@@ -1327,6 +1999,11 @@ def main() -> None:
         action="store_true",
         help="No revisa CARM al iniciar para actualizar unidades y casos practicos.",
     )
+    parser.add_argument(
+        "--no-periodic-scan",
+        action="store_true",
+        help="No ejecuta autodeteccion periodica de CARM.",
+    )
     args = parser.parse_args()
     global AUTO_CORRECT_AFTER_SCAN
     AUTO_CORRECT_AFTER_SCAN = (args.tray or args.auto_correct) and not args.no_auto_correct
@@ -1343,13 +2020,14 @@ def main() -> None:
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     url = f"http://{args.host}:{args.port}"
     print(f"Interfaz Corrector CARM: {url}")
+    start_periodic_scan(disabled=args.no_periodic_scan)
     if args.tray:
         if not args.no_browser:
             threading.Timer(0.8, lambda: webbrowser.open(url)).start()
         run_tray(server, url, startup_scan=not args.no_startup_scan)
         return
     if not args.no_startup_scan and carm_credentials_present():
-        ok, message = RUNNER.start("detect_course", ["--cachear-curso"])
+        ok, message = RUNNER.start("detect_course", ["--cachear-curso", "--refrescar-cache"])
         print(f"Revision inicial CARM: {message if ok else 'omitida'}")
     elif not args.no_startup_scan:
         print("Revision inicial CARM omitida: faltan credenciales.")
