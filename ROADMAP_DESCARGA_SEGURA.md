@@ -50,6 +50,62 @@ Objetivo: que una persona pueda descargar sin conocer comandos.
 
 Esta fase es prioritaria porque reduce errores humanos y evita relanzar Playwright para pasos separados.
 
+## Fase 1.5: Multi-curso sin pisarse
+
+Objetivo: permitir que un docente seleccione uno o varios cursos CARM y que la app prepare prompts por curso sin mezclar cache, entregas, CSV ni subidas.
+
+Principios:
+
+- No asumir un unico `CARM_COURSE_URL` global como verdad permanente.
+- Detectar cursos disponibles desde la pagina CARM del docente siempre que sea posible.
+- Dejar que el usuario elija uno o varios cursos desde la interfaz.
+- Mostrar un selector de curso activo arriba a la derecha para cambiar la vista entre cursos.
+- Separar datos locales por curso antes de activar autoprompteo multi-curso.
+- Procesar varios cursos de forma secuencial y con logs claros, nunca en paralelo al principio.
+
+Estructura local objetivo:
+
+```text
+C:\temp\vscodec\cursos\<course_id>\
+  pendientes\
+  pendientes\prompts_codex\
+  temporal\
+  temporal\revision_pendiente.csv
+  archivados\
+```
+
+Cache:
+
+- `cache_carm\curso_<course_id>.sqlite` sigue siendo cache didactica por curso.
+- La cache no guarda entregas ni CSV.
+- La interfaz debe mostrar si cada curso tiene cache didactica, unidades y casos detectados.
+
+Autoprompteo multi-curso:
+
+1. Leer lista de cursos seleccionados.
+2. Para cada curso, cargar su URL y sus rutas propias.
+3. Revisar CARM con filtro `Requiere calificacion`.
+4. Generar prompts en la carpeta de ese curso.
+5. Notificar resumen: curso, actividades y numero de prompts.
+6. No llamar a API automaticamente.
+
+Subida:
+
+- El curso activo en la interfaz determina que `revision_pendiente.csv` se muestra y se sube.
+- El boton de subida debe mostrar curso + actividad + numero de filas pendientes.
+- No se debe permitir subir un CSV de un curso mientras la interfaz muestra otro curso.
+
+Implementacion por pasos:
+
+1. Detectar y listar cursos disponibles desde CARM, sin cambiar todavia las rutas. Estado: implementado como primera version con `--listar-cursos-carm` y `respuestas_extraidas/cursos_detectados.json`.
+2. Guardar seleccion de cursos en `.corrector_app.json`. Estado: implementado desde la configuracion de la interfaz.
+3. Mostrar selector de curso activo en la cabecera. Estado: implementado para cambiar el curso visible desde la interfaz.
+4. Separar cache/opciones visibles por curso.
+5. Migrar rutas de trabajo a `cursos/<course_id>/`. Estado: implementado como opcion activable "Separar carpetas por curso"; por defecto se mantienen las rutas globales para no romper instalaciones existentes.
+6. Activar autoprompteo secuencial para cursos seleccionados. Estado: primera version implementada; solo se activa de forma segura cuando hay varios cursos seleccionados y carpetas por curso activadas.
+
+Esta fase debe hacerse con cambios pequenos y verificables. La primera cola multi-curso ya existe, pero falta prueba real con varios cursos CARM y una vista resumen por curso antes de considerarlo terminado.
+
 ## Fase 2: Seguridad operativa local
 
 Objetivo: controles sencillos con impacto real.

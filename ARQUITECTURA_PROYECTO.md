@@ -66,6 +66,7 @@ Motivo: contienen credenciales, estado local, datos de alumnos, notas, logs, cac
    - Descarga entregas pendientes.
    - Genera prompts en `C:\temp\vscodec\pendientes\prompts_codex`.
    - Archiva entregas ya convertidas en prompt.
+   - Si se activa "Separar carpetas por curso", usa `C:\temp\vscodec\cursos\<course_id>\pendientes` y `C:\temp\vscodec\cursos\<course_id>\temporal` para no mezclar cursos.
 
 3. Correccion:
    - Con API: el usuario pulsa `Corregir prompts con API`.
@@ -124,6 +125,19 @@ Fase 3:
 - Tests de endpoints locales con token anti-CSRF.
 - Separar UI HTML/CSS/JS de `interfaz_app.py`.
 - Crear checklist de release antes de distribuir.
+
+## Multi-curso
+
+Estado actual:
+
+- La app puede detectar cursos visibles desde CARM y guardarlos en `respuestas_extraidas\cursos_detectados.json`.
+- La interfaz tiene selector de curso activo en la cabecera.
+- La separacion de carpetas por curso es opcional y se controla desde configuracion.
+- La interfaz permite marcar varios cursos para autoprompteo.
+- El autoprompteo secuencial de varios cursos tiene una primera version: solo se usa cuando hay varios cursos seleccionados y la separacion por curso esta activa.
+- Cada subproceso recibe `CARM_COURSE_URL`, `--pendientes` y `--temporal` especificos para el curso.
+
+Regla: antes de activar varios cursos a la vez, cada curso debe tener rutas, CSV, prompts y logs suficientemente visibles para que el docente sepa que esta subiendo al curso correcto.
 
 ## Criterios de limpieza futura
 

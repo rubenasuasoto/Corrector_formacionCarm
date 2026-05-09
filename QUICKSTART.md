@@ -81,6 +81,35 @@ CORRECTION_MODE=prompt
 
 En ese modo la app descarga entregas y genera archivos `.md` pendientes de resolver en `C:\temp\vscodec\pendientes\prompts_codex`. Luego pegas el prompt en Codex/ChatGPT, guardas el JSON devuelto en esa misma carpeta y lo importas desde la interfaz.
 
+## 2.1. Varios cursos CARM
+
+Desde la interfaz:
+
+1. Abre configuracion.
+2. En el campo de curso puedes usar el area personal `https://formacion.carm.es/course/my/index.php` para configurar la deteccion.
+3. Pulsa `Detectar cursos CARM`.
+4. Elige el curso activo en el selector superior.
+5. Si vas a trabajar con varios cursos, activa `Separar carpetas por curso`.
+6. Marca los cursos que quieres incluir en `Cursos para autoprompteo` y pulsa `Guardar seleccion`.
+
+Variables relacionadas:
+
+```env
+CARM_DASHBOARD_URL=https://formacion.carm.es/course/my/index.php
+CARM_COURSE_URL=https://formacion.carm.es/course/view.php?id=1592
+```
+
+`CARM_DASHBOARD_URL` sirve para listar cursos. `CARM_COURSE_URL` es el curso activo concreto.
+
+Con `Separar carpetas por curso`, cada curso usa:
+
+```text
+C:\temp\vscodec\cursos\<course_id>\pendientes
+C:\temp\vscodec\cursos\<course_id>\temporal
+```
+
+Si hay varios cursos seleccionados, el autoprompteo al iniciar los procesa de uno en uno. La app no llama a la API ni sube a CARM automaticamente.
+
 ## 3. Probar sin CARM y sin IA
 
 ```powershell
