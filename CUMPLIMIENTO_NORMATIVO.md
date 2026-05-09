@@ -10,7 +10,7 @@ El Corrector CARM es una herramienta local en Windows, escuchando en `127.0.0.1`
 - detectar entregas que requieren calificacion;
 - descargar archivos de alumnos;
 - generar prompts y correcciones revisables;
-- previsualizar y, solo con confirmacion, publicar nota y feedback en CARM.
+- preparar subida asistida y, solo con guardado humano confirmado, registrar nota y feedback en CARM.
 
 Datos tratados:
 
@@ -54,14 +54,14 @@ Fuentes oficiales consultadas:
 
 - Los datos se usan solo para correccion, revision y publicacion en CARM.
 - No se reutilizan entregas de alumnos para entrenar modelos.
-- No se envia automaticamente nada a terceros salvo que el usuario ejecute conscientemente Codex CLI o el proveedor configurado.
+- No se envia automaticamente nada a terceros salvo que el usuario ejecute conscientemente Codex, una IA externa o la accion `Corregir prompts con API`.
 
 ### Revision humana
 
 - La IA no publica por si sola.
 - La publicacion se bloquea si hay errores o revision manual pendiente.
-- El docente debe revisar `revision_pendiente.csv`, JSON y previsualizacion antes de publicar.
-- El modo de subida asistida rellena campos, pero espera a que el docente pulse guardar en CARM.
+- El docente debe revisar `revision_pendiente.csv`, JSON o resumenes antes de subir.
+- El modo de subida asistida rellena campos, pero espera a que el docente pulse guardar en CARM y comprueba que el guardado se haya producido antes de avanzar.
 - La app avisa cuando detecta correcciones preparadas que aun no constan como publicadas.
 
 ### Seguridad y confidencialidad
@@ -77,7 +77,7 @@ Fuentes oficiales consultadas:
 
 - Las acciones sensibles quedan registradas en `respuestas_extraidas/auditoria.jsonl`.
 - La auditoria usa referencias seudonimizadas para alumnos/usuarios cuando procede.
-- Se registran acciones como configurar curso, guardar credenciales, listar/descargar/preparar, importar, previsualizar, publicar y purgar.
+- Se registran acciones como configurar curso, guardar credenciales, listar/descargar/preparar, importar, subir de forma asistida y purgar.
 
 ### Conservacion y purga
 
@@ -103,6 +103,8 @@ Esta purga es manual para evitar perdidas accidentales antes de cerrar una evalu
 - Redaccion basica de logs y eventos.
 - Sanitizado de feedback.
 - Bloqueo de publicacion con incidencias.
+- Autoprompteo al inicio sin gasto automatico de API.
+- Archivado de prompts, correcciones y resumenes usados para evitar duplicidades.
 - Purga manual fuerte de salidas con datos personales.
 - Retencion automatica de logs/auditoria antiguos.
 

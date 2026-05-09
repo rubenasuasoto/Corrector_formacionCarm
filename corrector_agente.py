@@ -496,6 +496,132 @@ def archivar_prompt_y_correccion_usados(
     return archivo_dir
 
 
+def archivar_prompts_resueltos(prompts: list[Path], modo: str = "resueltos_api") -> Path | None:
+    prompts_existentes = [path for path in prompts if path.exists() and path.is_file()]
+    if not prompts_existentes:
+        return None
+    prompts_dir = prompts_existentes[0].parent
+    archivo_dir = prompts_dir / "archivados" / datetime.now().strftime(f"%Y%m%d_%H%M%S_{modo}")
+    movidos = 0
+    for prompt_path in prompts_existentes:
+        relacionados = [
+            prompt_path,
+            prompt_path.with_name(f"{prompt_path.stem}_correccion.json"),
+        ]
+        for path in relacionados:
+            moved = _mover_si_existe(path, archivo_dir)
+            if moved:
+                movidos += 1
+    if movidos:
+        logger.info("Prompts ya resueltos archivados en: %s (%s archivo(s)).", archivo_dir, movidos)
+        return archivo_dir
+    return None
+
+
+def archivar_archivos_auxiliares_prompts(prompts_dir: Path, modo: str = "auxiliares") -> Path | None:
+    candidatos = [
+        prompts_dir / "correcciones_codex_combinadas.json",
+    ]
+    existentes = [path for path in candidatos if path.exists() and path.is_file()]
+    if not existentes:
+        return None
+    archivo_dir = prompts_dir / "archivados" / datetime.now().strftime(f"%Y%m%d_%H%M%S_{modo}")
+    movidos = 0
+    for path in existentes:
+        moved = _mover_si_existe(path, archivo_dir)
+        if moved:
+            movidos += 1
+    if movidos:
+        logger.info("Archivos auxiliares de prompts archivados en: %s", archivo_dir)
+        return archivo_dir
+    return None
+
+
+def archivar_resumenes_usados(resultados: list[dict], temporal_dir: Path, modo: str) -> Path | None:
+    codigos = {
+        str(resultado.get("actividad") or "").strip().lower()
+        for resultado in resultados
+        if re.fullmatch(r"ud\d{2}cp\d{2}", str(resultado.get("actividad") or "").strip().lower())
+    }
+    candidatos = [temporal_dir / f"resumen_{codigo}.txt" for codigo in sorted(codigos)]
+    candidatos.append(temporal_dir / "resumen.txt")
+    existentes = [path for path in candidatos if path.exists() and path.is_file()]
+    if not existentes:
+        return None
+
+    archivo_dir = temporal_dir / "archivados_resumenes" / datetime.now().strftime(f"%Y%m%d_%H%M%S_{modo}")
+    movidos = 0
+    for path in existentes:
+        moved = _mover_si_existe(path, archivo_dir)
+        if moved:
+            movidos += 1
+    if movidos:
+        logger.info("Resumenes usados archivados en: %s (%s archivo(s)).", archivo_dir, movidos)
+        return archivo_dir
+    return None
+
+
+def _clave_revision_csv(row: dict) -> tuple[str, str]:
+    return (
+        _normalizar_linea_comparable(row.get("actividad", "")).strip(),
+        _normalizar_linea_comparable(row.get("alumno", "")).strip(),
+    )
+
+
+def actualizar_revision_pendiente_tras_subida(correcciones_path: Path, resultados: list[dict]) -> dict:
+    if correcciones_path.suffix.lower() != ".csv" or not correcciones_path.exists():
+        return {"aplicado": False, "eliminadas": 0, "restantes": 0}
+
+    estados_subidos = {
+        "publicado",
+        "guardado_manual_confirmado_por_usuario",
+        "ya_no_requiere_calificacion",
+    }
+    claves_subidas = {
+        _clave_revision_csv(resultado)
+        for resultado in resultados
+        if str(resultado.get("estado") or "").strip().lower() in estados_subidos
+    }
+    claves_subidas.discard(("", ""))
+    if not claves_subidas:
+        return {"aplicado": True, "eliminadas": 0, "restantes": None}
+
+    with correcciones_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter=";")
+        fieldnames = reader.fieldnames or []
+        rows = list(reader)
+
+    restantes = [row for row in rows if _clave_revision_csv(row) not in claves_subidas]
+    eliminadas = len(rows) - len(restantes)
+    if eliminadas <= 0:
+        return {"aplicado": True, "eliminadas": 0, "restantes": len(rows)}
+
+    archivo_dir = correcciones_path.parent / "archivados_subida" / datetime.now().strftime("%Y%m%d_%H%M%S")
+    archivo_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(correcciones_path, archivo_dir / correcciones_path.name)
+
+    if restantes:
+        with correcciones_path.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
+            writer.writeheader()
+            writer.writerows(restantes)
+    else:
+        correcciones_path.unlink()
+
+    registrar_auditoria(
+        "actualizar_revision_pendiente_tras_subida",
+        origen=correcciones_path,
+        eliminadas=eliminadas,
+        restantes=len(restantes),
+    )
+    logger.info(
+        "revision_pendiente.csv actualizado tras subida: %s fila(s) eliminada(s), %s pendiente(s).",
+        eliminadas,
+        len(restantes),
+    )
+    return {"aplicado": True, "eliminadas": eliminadas, "restantes": len(restantes)}
+
+
 def archivar_pendientes_con_prompt(manifiesto_path: Path, pendientes_dir: Path) -> int:
     if not manifiesto_path.exists():
         return 0
@@ -1338,6 +1464,21 @@ class ExtractorCarm:
         normalizado = unicodedata.normalize("NFKD", texto)
         return "".join(c for c in normalizado if not unicodedata.combining(c))
 
+    @classmethod
+    def _coincide_alumno(cls, alumno: str, texto: str) -> bool:
+        alumno_norm = cls._normalizar(alumno)
+        texto_norm = cls._normalizar(texto)
+        if not alumno_norm or not texto_norm:
+            return False
+        if alumno_norm in texto_norm:
+            return True
+        tokens = [token for token in alumno_norm.split() if len(token) > 1]
+        if len(tokens) < 2:
+            return False
+        coincidencias = sum(1 for token in tokens if token in texto_norm)
+        minimo = len(tokens) if len(tokens) <= 3 else len(tokens) - 1
+        return coincidencias >= minimo
+
     @staticmethod
     def _sanitizar_nombre(nombre: str) -> str:
         limpio = re.sub(r"[\\/:*?\"<>|]", "_", nombre.strip())
@@ -1488,6 +1629,33 @@ class ExtractorCarm:
         q = dict(parse_qsl(p.query))
         q["action"] = "grading"
         q["filter"] = "require_grading"
+        q["perpage"] = "1000"
+        for clave in (
+            "page",
+            "tifirst",
+            "tilast",
+            "tfirst",
+            "tlast",
+            "ifirst",
+            "ilast",
+            "sifirst",
+            "silast",
+            "firstname",
+            "lastname",
+            "firstinitial",
+            "lastinitial",
+            "initial",
+        ):
+            q.pop(clave, None)
+        return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
+
+    @staticmethod
+    def _url_grading_todos(url: str) -> str:
+        p = urlparse(url)
+        q = dict(parse_qsl(p.query))
+        q["action"] = "grading"
+        q["perpage"] = "1000"
+        q.pop("filter", None)
         for clave in (
             "page",
             "tifirst",
@@ -1966,25 +2134,57 @@ class ExtractorCarm:
 
         return descargados
 
-    async def _buscar_url_calificador(self, page, actividad: dict, alumno: str) -> str:
-        actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
-        await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
-        await self._asegurar_filtros_grading(page, actividad)
-        alumno_norm = self._normalizar(alumno)
+    async def _buscar_url_calificador_en_tabla(self, page, alumno: str) -> tuple[str, bool]:
         filas = await page.query_selector_all("table.generaltable tbody tr")
         for fila in filas:
-            texto_fila = self._normalizar(await fila.text_content() or "")
-            if alumno_norm not in texto_fila:
+            texto_fila = await fila.text_content() or ""
+            if not self._coincide_alumno(alumno, texto_fila):
                 continue
             enlace = await fila.query_selector("a[href*='action=grader'][href*='userid=']")
             if enlace is None:
                 enlace = await fila.query_selector("a[href*='action=grader']")
             if enlace is None:
-                continue
+                return "", True
             href = await enlace.get_attribute("href")
             if href:
-                return href
-        return ""
+                return href, True
+            return "", True
+        return "", False
+
+    @staticmethod
+    async def _contar_filas_grading(page) -> int:
+        total = 0
+        filas = await page.query_selector_all("table.generaltable tbody tr")
+        for fila in filas:
+            clase = await fila.get_attribute("class") or ""
+            texto = (await fila.text_content() or "").strip()
+            if not texto or "emptyrow" in clase:
+                continue
+            total += 1
+        return total
+
+    async def _buscar_url_calificador(self, page, actividad: dict, alumno: str) -> tuple[str, str]:
+        actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
+        await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
+        await self._asegurar_filtros_grading(page, actividad)
+        href, encontrado = await self._buscar_url_calificador_en_tabla(page, alumno)
+        filas_requieren_calificacion = await self._contar_filas_grading(page)
+        if href:
+            return href, "pendiente"
+
+        url_todos = self._url_grading_todos(actividad["url_grading"])
+        logger.warning(
+            "No se encontro %s en Requiere calificacion para %s; probando vista completa de la actividad.",
+            alumno,
+            actividad.get("codigo", ""),
+        )
+        await page.goto(url_todos, wait_until="domcontentloaded")
+        href, encontrado_todos = await self._buscar_url_calificador_en_tabla(page, alumno)
+        if href:
+            return href, "fuera_de_requiere_calificacion"
+        if encontrado or encontrado_todos or filas_requieren_calificacion == 0:
+            return "", "ya_no_requiere_calificacion"
+        return "", "no_encontrado"
 
     async def _rellenar_primero(self, page, selectores: list[str], valor: str) -> str:
         for selector in selectores:
@@ -2018,12 +2218,22 @@ class ExtractorCarm:
                 continue
         return False
 
+    async def _esperar_formulario_calificacion(self, page, timeout_ms: int = 12000) -> bool:
+        limite = datetime.now().timestamp() + (timeout_ms / 1000)
+        while datetime.now().timestamp() < limite:
+            try:
+                if await self._hay_formulario_calificacion(page):
+                    return True
+            except Exception:
+                return False
+            await page.wait_for_timeout(300)
+        return False
+
     async def _pulsar_calificar_en_fila(self, page, alumno: str) -> str:
-        alumno_norm = self._normalizar(alumno)
         filas = await page.query_selector_all("table.generaltable tbody tr, tr")
         for fila in filas:
-            texto_fila = self._normalizar(await fila.text_content() or "")
-            if alumno_norm not in texto_fila:
+            texto_fila = await fila.text_content() or ""
+            if not self._coincide_alumno(alumno, texto_fila):
                 continue
             for selector in (
                 "a[href*='action=grader'][href*='userid=']",
@@ -2038,17 +2248,25 @@ class ExtractorCarm:
                         continue
                     await enlace.scroll_into_view_if_needed()
                     await enlace.click()
-                    await page.wait_for_load_state("networkidle")
-                    if await self._hay_formulario_calificacion(page):
+                    try:
+                        await page.wait_for_load_state("networkidle", timeout=15000)
+                    except Exception:
+                        pass
+                    if await self._esperar_formulario_calificacion(page):
                         return f"fila:{selector}"
                 except Exception:
                     continue
         return ""
 
     async def _abrir_formulario_calificacion(self, page, url_calificador: str, alumno: str) -> str:
-        await page.goto(url_calificador, wait_until="networkidle")
-        if await self._hay_formulario_calificacion(page):
-            return "url_directa"
+        for intento in range(1, 3):
+            await page.goto(url_calificador, wait_until="domcontentloaded")
+            try:
+                await page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception:
+                pass
+            if await self._esperar_formulario_calificacion(page):
+                return "url_directa" if intento == 1 else f"url_directa_reintento_{intento}"
 
         origen = await self._pulsar_calificar_en_fila(page, alumno)
         if origen:
@@ -2068,8 +2286,11 @@ class ExtractorCarm:
                 if await locator.count():
                     await locator.scroll_into_view_if_needed()
                     await locator.click()
-                    await page.wait_for_load_state("networkidle")
-                    if await self._hay_formulario_calificacion(page):
+                    try:
+                        await page.wait_for_load_state("networkidle", timeout=15000)
+                    except Exception:
+                        pass
+                    if await self._esperar_formulario_calificacion(page):
                         return f"fallback:{selector}"
             except Exception:
                 continue
@@ -2305,41 +2526,172 @@ class ExtractorCarm:
         raise RuntimeError("No se encontrÃ³ botÃ³n de guardado en el formulario de calificaciÃ³n.")
 
     @staticmethod
-    async def _mostrar_guia_subida_asistida(page, indice: int, total: int, actividad_codigo: str, alumno: str, usar_siguiente: bool) -> None:
-        boton = "Guardar cambios y mostrar siguiente" if usar_siguiente else "Guardar cambios"
+    async def _mostrar_guia_subida_asistida(
+        page,
+        indice: int,
+        total: int,
+        actividad_codigo: str,
+        alumno: str,
+        usar_siguiente: bool,
+        guardado_detectado: bool = False,
+        confirmacion_invalida: bool = False,
+    ) -> None:
+        boton = "Guardar cambios"
         mensaje = (
             f"Revision humana {indice}/{total} - {actividad_codigo.upper()} - "
-            f"{pseudonimo(alumno)}. Revisa nota y feedback. Pulsa: {boton}."
+            f"{pseudonimo(alumno)}. Revisa nota y feedback."
         )
+        if confirmacion_invalida:
+            detalle = (
+                "Aun no detecto que CARM haya guardado. Pulsa 'Guardar cambios' en CARM y espera a que vuelva a la tabla "
+                "o muestre confirmacion antes de continuar."
+            )
+        elif guardado_detectado:
+            detalle = "CARM parece haber guardado. Puedes confirmar aqui para pasar al siguiente alumno."
+        else:
+            detalle = (
+                f"Paso 1: pulsa '{boton}' dentro de CARM. Paso 2: cuando CARM haya guardado, "
+                "pulsa el boton de confirmacion de este panel."
+            )
         await page.evaluate(
-            """(message) => {
+            """({message, detail, invalid}) => {
+                const signature = `${message}\\n${detail}\\n${invalid ? 'invalid' : ''}`;
                 const previous = document.getElementById('corrector-carm-assisted-banner');
+                if (previous && previous.dataset.signature === signature) return;
                 if (previous) previous.remove();
+                window.__correctorCarmDecision = window.__correctorCarmDecision || '';
                 const banner = document.createElement('div');
                 banner.id = 'corrector-carm-assisted-banner';
-                banner.textContent = message;
+                banner.dataset.signature = signature;
                 banner.style.position = 'fixed';
-                banner.style.left = '16px';
                 banner.style.right = '16px';
-                banner.style.bottom = '16px';
+                banner.style.top = '16px';
+                banner.style.maxWidth = '420px';
                 banner.style.zIndex = '2147483647';
                 banner.style.padding = '12px 14px';
-                banner.style.background = '#fff8ea';
-                banner.style.border = '1px solid #d6a84f';
-                banner.style.color = '#3f2a00';
-                banner.style.font = '600 14px Segoe UI, Arial, sans-serif';
+                banner.style.background = invalid ? '#fff1f1' : '#fff8ea';
+                banner.style.border = invalid ? '1px solid #c94c4c' : '1px solid #d6a84f';
+                banner.style.color = invalid ? '#5a1111' : '#3f2a00';
+                banner.style.font = '14px Segoe UI, Arial, sans-serif';
                 banner.style.boxShadow = '0 8px 28px rgba(0,0,0,.18)';
                 banner.style.borderRadius = '8px';
+                banner.style.pointerEvents = 'auto';
+                const title = document.createElement('div');
+                title.textContent = message;
+                title.style.fontWeight = '700';
+                title.style.marginBottom = '6px';
+                const body = document.createElement('div');
+                body.textContent = detail;
+                body.style.lineHeight = '1.35';
+                body.style.marginBottom = '10px';
+                const warning = document.createElement('div');
+                warning.textContent = 'Este panel no guarda en CARM. Solo avanza cuando ya has guardado en Moodle.';
+                warning.style.fontWeight = '700';
+                warning.style.marginBottom = '10px';
+                const actions = document.createElement('div');
+                actions.style.display = 'flex';
+                actions.style.gap = '8px';
+                actions.style.justifyContent = 'flex-end';
+                const next = document.createElement('button');
+                next.type = 'button';
+                next.textContent = 'Ya he guardado en CARM';
+                next.style.padding = '7px 12px';
+                next.style.border = '1px solid #6f520f';
+                next.style.borderRadius = '6px';
+                next.style.background = '#6f520f';
+                next.style.color = '#fff';
+                next.style.cursor = 'pointer';
+                next.onclick = () => { window.__correctorCarmDecision = 'continuar'; };
+                const skip = document.createElement('button');
+                skip.type = 'button';
+                skip.textContent = 'Omitir';
+                skip.style.padding = '7px 12px';
+                skip.style.border = '1px solid #b58b2a';
+                skip.style.borderRadius = '6px';
+                skip.style.background = '#fff';
+                skip.style.color = '#3f2a00';
+                skip.style.cursor = 'pointer';
+                skip.onclick = () => { window.__correctorCarmDecision = 'omitir'; };
+                actions.appendChild(skip);
+                actions.appendChild(next);
+                banner.appendChild(title);
+                banner.appendChild(body);
+                banner.appendChild(warning);
+                banner.appendChild(actions);
                 document.body.appendChild(banner);
             }""",
-            mensaje,
+            {"message": mensaje, "detail": detalle, "invalid": confirmacion_invalida},
         )
 
-    @staticmethod
-    async def _esperar_guardado_manual(page) -> None:
-        url_inicial = page.url
-        await page.wait_for_url(lambda url: url != url_inicial, timeout=0)
-        await page.wait_for_load_state("networkidle")
+    async def _guardado_carm_detectado(self, page, url_formulario: str) -> bool:
+        try:
+            if page.url != url_formulario and not await self._hay_formulario_calificacion(page):
+                return True
+            texto = self._normalizar(await page.locator("body").first.text_content(timeout=1000) or "")
+            return any(
+                patron in texto
+                for patron in (
+                    "cambios guardados",
+                    "se han guardado",
+                    "guardado correctamente",
+                    "calificacion guardada",
+                    "grade saved",
+                    "changes saved",
+                )
+            )
+        except Exception:
+            return False
+
+    async def _esperar_confirmacion_subida_asistida(
+        self,
+        page,
+        indice: int,
+        total: int,
+        actividad_codigo: str,
+        alumno: str,
+        usar_siguiente: bool,
+    ) -> str:
+        url_formulario = page.url
+        logger.info(
+            "Esperando confirmacion humana tras guardar en CARM: "
+            f"{actividad_codigo} {pseudonimo(alumno)}"
+        )
+        while True:
+            try:
+                if page.is_closed():
+                    return "cerrado_por_usuario"
+                decision = await page.evaluate("window.__correctorCarmDecision || ''")
+                if decision in {"continuar", "omitir"}:
+                    if decision == "continuar" and not await self._guardado_carm_detectado(page, url_formulario):
+                        await page.evaluate("window.__correctorCarmDecision = ''")
+                        await self._mostrar_guia_subida_asistida(
+                            page,
+                            indice=indice,
+                            total=total,
+                            actividad_codigo=actividad_codigo,
+                            alumno=alumno,
+                            usar_siguiente=usar_siguiente,
+                            confirmacion_invalida=True,
+                        )
+                        await page.wait_for_timeout(1200)
+                        continue
+                    return decision
+                guardado_detectado = await self._guardado_carm_detectado(page, url_formulario)
+                await self._mostrar_guia_subida_asistida(
+                    page,
+                    indice=indice,
+                    total=total,
+                    actividad_codigo=actividad_codigo,
+                    alumno=alumno,
+                    usar_siguiente=usar_siguiente,
+                    guardado_detectado=guardado_detectado,
+                )
+                await page.wait_for_timeout(1000)
+            except Exception:
+                try:
+                    await page.wait_for_timeout(1000)
+                except Exception:
+                    return "cerrado_por_usuario"
 
     @staticmethod
     async def _esperar_revision_o_cierre(page, mensaje: str) -> None:
@@ -2369,8 +2721,16 @@ class ExtractorCarm:
         nota = str(correccion.get("nota", "")).replace(",", ".")
         feedback = GeneradorSalidas._texto_feedback(correccion)
 
-        url_calificador = await self._buscar_url_calificador(page, actividad, alumno)
+        url_calificador, estado_busqueda = await self._buscar_url_calificador(page, actividad, alumno)
         if not url_calificador:
+            if estado_busqueda == "ya_no_requiere_calificacion":
+                return {
+                    "alumno": alumno,
+                    "actividad": actividad_codigo,
+                    "nota": nota,
+                    "estado": "ya_no_requiere_calificacion",
+                    "mensaje": "El alumno ya no aparece como pendiente de calificacion en CARM; se considera ya gestionado.",
+                }
             return {
                 "alumno": alumno,
                 "actividad": actividad_codigo,
@@ -2401,6 +2761,7 @@ class ExtractorCarm:
             "campo_feedback": feedback_selector,
             "diagnostico_feedback": await self._diagnosticar_campos_feedback(page),
             "guardar_y_mostrar_siguiente": bool(mostrar_siguiente),
+            "estado_busqueda": estado_busqueda,
             "estado": "previsualizado",
         }
 
@@ -2427,11 +2788,22 @@ class ExtractorCarm:
                 usar_siguiente=mostrar_siguiente,
             )
             resultado["estado"] = "esperando_guardado_manual"
-            resultado["boton_recomendado"] = (
-                "guardar_cambios_y_mostrar_siguiente" if mostrar_siguiente else "guardar_cambios"
+            resultado["boton_recomendado"] = "guardar_cambios"
+            decision = await self._esperar_confirmacion_subida_asistida(
+                page,
+                indice=indice,
+                total=total,
+                actividad_codigo=actividad_codigo,
+                alumno=alumno,
+                usar_siguiente=mostrar_siguiente,
             )
-            await self._esperar_guardado_manual(page)
-            resultado["estado"] = "guardado_manual_por_usuario"
+            resultado["confirmacion_asistida"] = decision
+            if decision == "continuar":
+                resultado["estado"] = "guardado_manual_confirmado_por_usuario"
+            elif decision == "omitir":
+                resultado["estado"] = "omitido_por_usuario"
+            else:
+                resultado["estado"] = "interrumpido_por_usuario"
 
         return resultado
 
@@ -2448,7 +2820,9 @@ class ExtractorCarm:
             )
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False if asistida else CARM_HEADLESS)
+            browser = await p.chromium.launch(
+                headless=False if (asistida or solo_primera_previsualizacion or self.mantener_navegador) else CARM_HEADLESS
+            )
             context = await self._crear_contexto(browser)
             page = await context.new_page()
             self._configurar_page(page)
@@ -2463,8 +2837,6 @@ class ExtractorCarm:
                         actividades_por_codigo[codigo] = self.cache.enriquecer_actividad(act)
 
                 correcciones_a_procesar = correcciones
-                if solo_primera_previsualizacion and not publicar and not asistida:
-                    correcciones_a_procesar = correcciones[:1]
 
                 total = len(correcciones_a_procesar)
                 for indice, correccion in enumerate(correcciones_a_procesar):
@@ -2478,7 +2850,7 @@ class ExtractorCarm:
                             or correcciones_a_procesar[indice + 1].get("actividad_codigo")
                             or ""
                         ).strip().lower()
-                    mostrar_siguiente = (publicar or asistida) and bool(siguiente_codigo) and siguiente_codigo == actividad_codigo
+                    mostrar_siguiente = publicar and bool(siguiente_codigo) and siguiente_codigo == actividad_codigo
                     actividad = actividades_por_codigo.get(actividad_codigo)
                     if not actividad:
                         resultados.append(
@@ -2491,7 +2863,7 @@ class ExtractorCarm:
                         )
                         continue
 
-                    resultados.append(
+                    resultado = (
                         await self._subir_correccion_actividad(
                             page,
                             actividad,
@@ -2503,6 +2875,9 @@ class ExtractorCarm:
                             total=total,
                         )
                     )
+                    resultados.append(resultado)
+                    if solo_primera_previsualizacion and not publicar and not asistida and resultado.get("estado") == "previsualizado":
+                        break
 
                 return resultados
             finally:
@@ -3549,14 +3924,32 @@ class GeneradorSalidas:
         self.temporal_dir.mkdir(parents=True, exist_ok=True)
         revision_path = self.temporal_dir / "revision_pendiente.csv"
 
-        lineas = ["alumno;actividad;nota;estado;retroalimentacion;archivo_correccion"]
+        fieldnames = ["alumno", "actividad", "nota", "estado", "retroalimentacion", "archivo_correccion"]
+        rows_by_key: dict[tuple[str, str], dict] = {}
+        if revision_path.exists():
+            try:
+                with revision_path.open("r", encoding="utf-8-sig", newline="") as handle:
+                    for row in csv.DictReader(handle, delimiter=";"):
+                        rows_by_key[_clave_revision_csv(row)] = row
+            except Exception as exc:
+                logger.warning("No se pudo conservar revision_pendiente.csv existente: %s", exc)
+
         for r in resultados:
             feedback = str(r["retroalimentacion"]).replace("\n", " ").replace(";", ",")
-            lineas.append(
-                f"{r['alumno']};{r['actividad']};{r['nota']};{r['estado']};{feedback};{r['archivo_correccion']}"
-            )
+            row = {
+                "alumno": r["alumno"],
+                "actividad": r["actividad"],
+                "nota": r["nota"],
+                "estado": r["estado"],
+                "retroalimentacion": feedback,
+                "archivo_correccion": r["archivo_correccion"],
+            }
+            rows_by_key[_clave_revision_csv(row)] = row
 
-        revision_path.write_text("\n".join(lineas), encoding="utf-8-sig")
+        with revision_path.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
+            writer.writeheader()
+            writer.writerows(rows_by_key.values())
         return revision_path
 
     def escribir_prompts_codex(
@@ -3814,9 +4207,21 @@ class GeneradorSalidas:
         prompts_dir = prompts_pendientes_dir(self.pendientes_dir)
         if not prompts_dir.exists():
             prompts_dir = self.temporal_dir / "prompts_codex"
-        prompts = [
+        candidatos = [
             ruta for ruta in (rutas_prompts or sorted(prompts_dir.glob("prompt_*.md")))
             if ruta.suffix.lower() == ".md" and ruta.name.startswith("prompt_")
+        ]
+        prompts_ya_resueltos = [
+            ruta
+            for ruta in candidatos
+            if ruta.with_name(f"{ruta.stem}_correccion.json").exists()
+        ]
+        if prompts_ya_resueltos:
+            archivar_prompts_resueltos(prompts_ya_resueltos, modo="ya_tenian_correccion")
+        prompts = [
+            ruta
+            for ruta in candidatos
+            if ruta.exists() and not ruta.with_name(f"{ruta.stem}_correccion.json").exists()
         ]
         if not prompts:
             raise ValueError("No hay prompts .md preparados para enviar a OpenAI API.")
@@ -3832,6 +4237,7 @@ class GeneradorSalidas:
         cliente = OpenAI(api_key=os.getenv("OPENAI_API_KEY", "").strip())
         modelo = os.getenv("OPENAI_MODEL", "gpt-5-mini").strip() or "gpt-5-mini"
         rutas_correcciones: list[Path] = []
+        prompts_resueltos: list[Path] = []
 
         for prompt_path in prompts:
             salida_path = output_dir / f"{prompt_path.stem}_correccion.json"
@@ -3875,6 +4281,7 @@ class GeneradorSalidas:
             contenido = respuesta_api.choices[0].message.content or "{}"
             salida_path.write_text(contenido, encoding="utf-8")
             rutas_correcciones.append(salida_path)
+            prompts_resueltos.append(prompt_path)
             logger.info("Correccion API guardada en: %s", salida_path)
 
         combinado_path = output_dir / "correcciones_codex_combinadas.json"
@@ -3891,6 +4298,8 @@ class GeneradorSalidas:
         if importar:
             _, revision_path, _ = self.importar_correcciones_codex(combinado_path)
 
+        archivar_prompts_resueltos(prompts_resueltos, modo="resueltos_api")
+        archivar_archivos_auxiliares_prompts(output_dir, modo="post_api")
         return rutas_correcciones, revision_path
 
 
@@ -4102,19 +4511,38 @@ async def ejecutar_flujo(args) -> None:
             logger.info(
                 "%s %s %s: %s",
                 resultado.get("actividad", ""),
-                pseudonimo(resultado.get("alumno", "")),
+                resultado.get("alumno", ""),
                 resultado.get("nota", ""),
                 resultado.get("estado", ""),
             )
         logger.info(f"Registro de subida CARM generado en: {salida_path}")
+        actualizacion_csv = {"aplicado": False, "eliminadas": 0, "restantes": None}
         if publicar or asistida:
-            archivar_prompt_y_correccion_usados(
-                correcciones_path=correcciones_path,
-                temporal_dir=temporal_dir,
-                modo="publicada" if publicar else "asistida",
-                pendientes_dir=pendientes_dir,
-            )
-        if not publicar:
+            actualizacion_csv = actualizar_revision_pendiente_tras_subida(correcciones_path, resultados_subida)
+
+        if publicar or asistida:
+            restantes = actualizacion_csv.get("restantes")
+            if restantes == 0 or not actualizacion_csv.get("aplicado"):
+                if correcciones_path.exists() or correcciones_path.suffix.lower() != ".csv":
+                    archivar_prompt_y_correccion_usados(
+                        correcciones_path=correcciones_path,
+                        temporal_dir=temporal_dir,
+                        modo="publicada" if publicar else "asistida_confirmada",
+                        pendientes_dir=pendientes_dir,
+                    )
+                archivar_resumenes_usados(
+                    resultados_subida,
+                    temporal_dir=temporal_dir,
+                    modo="publicada" if publicar else "asistida_confirmada",
+                )
+            elif restantes:
+                logger.info(
+                    "Quedan %s correccion(es) sin subir; no se archivan los prompts usados todavia.",
+                    restantes,
+                )
+        if asistida:
+            logger.info("Modo subida asistida: solo se eliminan del CSV las filas confirmadas por el usuario.")
+        elif not publicar:
             logger.info("Modo previsualizaciÃ³n: no se ha pulsado guardar en CARM.")
         return
 

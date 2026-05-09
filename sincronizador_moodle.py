@@ -1,6 +1,11 @@
-"""
-Script auxiliar para sincronizar correcciones validadas a Moodle
-Debe ejecutarse DESPUÉS de validar las correcciones en correcciones_validadas/
+﻿"""
+LEGADO / REFERENCIA HISTORICA.
+
+Este script no forma parte del flujo principal actual del Corrector CARM.
+La ruta operativa es `corrector_agente.py` + `interfaz_app.py`, con subida
+asistida desde `revision_pendiente.csv`.
+
+Mantener solo como referencia hasta decidir si se mueve a `legacy/` o se elimina.
 """
 
 import json
@@ -27,26 +32,26 @@ class SincronizadorMoodle:
         self.session.headers.update({"Authorization": f"Bearer {token_api}"})
 
     def cargar_correccion(self, ruta_json: Path) -> dict:
-        """Carga un archivo de corrección validada"""
+        """Carga un archivo de correcciÃ³n validada"""
         with open(ruta_json, "r") as f:
             return json.load(f)
 
     def es_validada(self, correccion: dict) -> bool:
-        """Verifica que la corrección esté lista para publicar"""
+        """Verifica que la correcciÃ³n estÃ© lista para publicar"""
         estado = correccion.get("estado", "")
         return estado in ["validado", "publicado"]
 
     def subir_nota_moodle(self, correccion: dict) -> bool:
         """
-        Sube la calificación a Moodle usando su API
+        Sube la calificaciÃ³n a Moodle usando su API
         Requiere: courseid, assignmentid, userid, grade, feedback
         """
         try:
             if not self.es_validada(correccion):
-                logger.warning(f"Corrección no validada: {correccion['actividad']}")
+                logger.warning(f"CorrecciÃ³n no validada: {correccion['actividad']}")
                 return False
 
-            # Estructura esperada (adapta según metadatos reales)
+            # Estructura esperada (adapta segÃºn metadatos reales)
             payload = {
                 "courseid": correccion.get("courseid", 1592),
                 "assignmentid": correccion.get("assignmentid"),
@@ -55,7 +60,7 @@ class SincronizadorMoodle:
                 "feedback": correccion.get("correccion_generada", {}).get("feedback", ""),
             }
 
-            # Llamada a API de Moodle (ajusta endpoint según versión)
+            # Llamada a API de Moodle (ajusta endpoint segÃºn versiÃ³n)
             response = self.session.post(
                 f"{self.url_moodle}/webservice/rest/server.php",
                 params={
@@ -67,7 +72,7 @@ class SincronizadorMoodle:
             )
 
             if response.status_code == 200:
-                logger.info(f"✓ Nota subida para {correccion['alumno']}")
+                logger.info(f"âœ“ Nota subida para {correccion['alumno']}")
                 return True
             else:
                 logger.error(f"Error en API Moodle: {response.text}")
@@ -103,7 +108,7 @@ class SincronizadorMoodle:
             else:
                 fallidas += 1
         
-        logger.info(f"Sincronización completada: {exitosas} OK, {fallidas} errores")
+        logger.info(f"SincronizaciÃ³n completada: {exitosas} OK, {fallidas} errores")
 
 
 # ============================================================================

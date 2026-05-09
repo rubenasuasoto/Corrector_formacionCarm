@@ -2109,3 +2109,461 @@ Evalúa solo lo que el alumno ha e
 2026-05-08 21:07:13,877 - ERROR - No se pudieron corregir prompts con OpenAI API: No hay prompts .md preparados para enviar a OpenAI API.
 2026-05-08 21:21:48,847 - INFO - OpenAI API preparada. Modelo: gpt-5.4-mini
 2026-05-08 21:21:48,851 - ERROR - No se pudieron corregir prompts con OpenAI API: No hay prompts .md preparados para enviar a OpenAI API.
+2026-05-09 12:21:31,874 - INFO - Navegador abierto para revision.
+2026-05-09 12:21:31,874 - INFO - El navegador quedara abierto hasta que cierres la pestana o detengas la tarea desde la interfaz.
+2026-05-09 12:22:10,247 - INFO - ud01cp02 persona_c6a8c00ee6 : no_encontrado
+2026-05-09 12:22:10,247 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_previsualizacion.json
+2026-05-09 12:22:10,247 - INFO - Modo previsualizaciÃ³n: no se ha pulsado guardar en CARM.
+2026-05-09 12:24:34,383 - INFO - ud01cp02 persona_c6a8c00ee6 : no_encontrado
+2026-05-09 12:24:34,383 - INFO - ud01cp02 persona_143a689835 7.2: guardado_manual_por_usuario
+2026-05-09 12:24:34,384 - INFO - ud01cp02 persona_bb45b0f47f : no_encontrado
+2026-05-09 12:24:34,384 - INFO - ud01cp02 persona_71974718a8 8.7: guardado_manual_por_usuario
+2026-05-09 12:24:34,384 - INFO - ud01cp02 persona_4cfdb3ae13 5.4: guardado_manual_por_usuario
+2026-05-09 12:24:34,384 - INFO - ud01cp02 persona_2e1d788bbf : no_encontrado
+2026-05-09 12:24:34,385 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_asistida.json
+2026-05-09 12:24:34,389 - INFO - Prompts/correcciones usados archivados en: C:\temp\vscodec\pendientes\prompts_codex\archivados\20260509_122434
+2026-05-09 12:24:34,389 - INFO - Modo previsualizaciÃ³n: no se ha pulsado guardar en CARM.
+2026-05-09 12:59:35,148 - INFO - Navegador abierto para revision.
+2026-05-09 12:59:35,149 - INFO - El navegador quedara abierto hasta que cierres la pestana o detengas la tarea desde la interfaz.
+2026-05-09 13:00:03,101 - INFO - ud01cp02 persona_c6a8c00ee6 : no_encontrado
+2026-05-09 13:00:03,102 - INFO - ud01cp02 persona_143a689835 : no_encontrado
+2026-05-09 13:00:03,102 - INFO - ud01cp02 persona_bb45b0f47f : no_encontrado
+2026-05-09 13:00:03,102 - INFO - ud01cp02 persona_71974718a8 : no_encontrado
+2026-05-09 13:00:03,103 - INFO - ud01cp02 persona_4cfdb3ae13 : no_encontrado
+2026-05-09 13:00:03,103 - INFO - ud01cp02 persona_2e1d788bbf 3.2: previsualizado
+2026-05-09 13:00:03,104 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_previsualizacion.json
+2026-05-09 13:00:03,104 - INFO - Modo previsualizaciÃ³n: no se ha pulsado guardar en CARM.
+2026-05-09 13:09:41,605 - INFO - Navegador abierto para revision.
+2026-05-09 13:09:41,606 - INFO - El navegador quedara abierto hasta que cierres la pestana o detengas la tarea desde la interfaz.
+2026-05-09 13:10:16,872 - INFO - ud01cp02 persona_c6a8c00ee6 : no_encontrado
+2026-05-09 13:10:16,872 - INFO - ud01cp02 persona_143a689835 : no_encontrado
+2026-05-09 13:10:16,872 - INFO - ud01cp02 persona_bb45b0f47f 9.2: guardado_manual_solicitado_por_usuario
+2026-05-09 13:10:16,873 - INFO - ud01cp02 persona_71974718a8 : no_encontrado
+2026-05-09 13:10:16,873 - INFO - ud01cp02 persona_4cfdb3ae13 : no_encontrado
+2026-05-09 13:10:16,873 - INFO - ud01cp02 persona_2e1d788bbf 3.2: guardado_manual_solicitado_por_usuario
+2026-05-09 13:10:16,873 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_asistida.json
+2026-05-09 13:10:16,873 - INFO - Modo subida asistida: no se archivan CSV/prompts hasta una publicacion confirmada.
+2026-05-09 13:25:08,865 - INFO - Navegador abierto para revision.
+2026-05-09 13:25:08,865 - INFO - El navegador quedara abierto hasta que cierres la pestana o detengas la tarea desde la interfaz.
+2026-05-09 13:25:57,000 - INFO - ud01cp02 persona_c6a8c00ee6 8.5: previsualizado
+2026-05-09 13:25:57,001 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_previsualizacion.json
+2026-05-09 13:25:57,001 - INFO - Modo previsualizaciÃ³n: no se ha pulsado guardar en CARM.
+2026-05-09 13:38:55,821 - INFO - OpenAI API configurada correctamente.
+2026-05-09 13:38:55,822 - INFO - Modelo OpenAI configurado: gpt-5.4-mini
+2026-05-09 13:39:12,131 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-09 13:39:22,464 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-09 13:39:22,464 - INFO - Actividades prioritarias encontradas: 4
+2026-05-09 13:39:22,465 - INFO - Procesando grading ud01cp01: UD01 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-09 13:40:53,244 - WARNING - Entrega sin archivo descargable en ud01cp01: Sergio Grazini Sánchez (Enviado para calificar)
+2026-05-09 13:40:53,636 - INFO - Descargado envio de Mª Francisca Ferrer Martinez: C:\temp\vscodec\pendientes\ud01cp01\Mª Francisca Ferrer Martinez.docx
+2026-05-09 13:40:53,693 - INFO - Procesando grading ud01cp02: UD01 - CASO PRÁCTICO 2  (OBLIGATORIO) Tarea
+2026-05-09 13:42:24,702 - INFO - Descargado envio de Mª Francisca Ferrer Martinez: C:\temp\vscodec\pendientes\ud01cp02\Mª Francisca Ferrer Martinez.docx
+2026-05-09 13:42:24,763 - INFO - Procesando grading ud01cp03: UD01 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-09 13:43:55,809 - INFO - Descargado envio de Diego Lizan Meroño: C:\temp\vscodec\pendientes\ud01cp03\Diego Lizan Meroño.pdf
+2026-05-09 13:43:56,065 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud01cp03\Elisabet Lopez Ros.pdf
+2026-05-09 13:43:56,120 - INFO - Procesando grading ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-09 13:45:27,126 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud01cp04\Elisabet Lopez Ros.pdf
+2026-05-09 13:45:27,399 - INFO - Descargado envio de Diego Lizan Meroño: C:\temp\vscodec\pendientes\ud01cp04\Diego Lizan Meroño.pdf
+2026-05-09 13:45:27,771 - INFO - Descargado envio de Diana Poveda Rodero: C:\temp\vscodec\pendientes\ud01cp04\Diana Poveda Rodero.pdf
+2026-05-09 13:45:28,046 - INFO - Descargado envio de Mª Francisca Ferrer Martinez: C:\temp\vscodec\pendientes\ud01cp04\Mª Francisca Ferrer Martinez.docx
+2026-05-09 13:45:28,505 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-09 13:45:29,374 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-09 13:45:29,374 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01.md
+2026-05-09 13:45:29,374 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02.md
+2026-05-09 13:45:29,374 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp03.md
+2026-05-09 13:45:29,374 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp04.md
+2026-05-09 13:45:29,374 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\manifiesto_entregas.json
+2026-05-09 13:45:29,400 - INFO - Pendientes incluidos en prompts archivados en: C:\temp\vscodec\pendientes\archivados_prompt\20260509_134529
+2026-05-09 13:45:29,400 - INFO - Entregas pendientes archivadas tras generar prompt: 8
+2026-05-09 13:46:06,020 - INFO - OpenAI API preparada. Modelo: gpt-5.4-mini
+2026-05-09 13:46:06,491 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01.md (6082 caracteres, ~1521 tokens estimados)
+2026-05-09 13:46:06,491 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01.md
+2026-05-09 13:46:10,481 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 13:46:10,488 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01_correccion.json
+2026-05-09 13:46:10,489 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02.md (6934 caracteres, ~1734 tokens estimados)
+2026-05-09 13:46:10,489 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02.md
+2026-05-09 13:46:12,987 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 13:46:12,989 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02_correccion.json
+2026-05-09 13:46:12,989 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp03.md (5030 caracteres, ~1258 tokens estimados)
+2026-05-09 13:46:12,990 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp03.md
+2026-05-09 13:46:18,930 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 13:46:18,932 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp03_correccion.json
+2026-05-09 13:46:18,933 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp04.md (7632 caracteres, ~1908 tokens estimados)
+2026-05-09 13:46:18,933 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp04.md
+2026-05-09 13:46:25,389 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 13:46:25,393 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp04_correccion.json
+2026-05-09 13:46:25,447 - INFO - Correcciones generadas por OpenAI API:
+2026-05-09 13:46:25,447 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01_correccion.json
+2026-05-09 13:46:25,447 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02_correccion.json
+2026-05-09 13:46:25,448 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp03_correccion.json
+2026-05-09 13:46:25,448 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp04_correccion.json
+2026-05-09 13:46:25,448 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\correcciones_codex_combinadas.json
+2026-05-09 13:46:25,448 - INFO - Correcciones importadas. Hoja de revision: C:\temp\vscodec\temporal\revision_pendiente.csv
+2026-05-09 13:49:48,192 - WARNING - No se encontro Elisabet Lopez Ros en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 13:49:51,771 - WARNING - No se encontro Carolina Villa Marin en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 13:49:55,757 - WARNING - No se encontro Sofía Martínez Hernández en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 13:49:58,036 - WARNING - No se encontro Sofia Penalva Garcia en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 13:50:00,251 - WARNING - No se encontro Lydia Quesada Gonzalez en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 13:50:02,806 - WARNING - No se encontro Gabriela Mihaela Sima Sima en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 13:50:22,745 - INFO - Esperando confirmacion humana tras guardar en CARM: ud01cp01 persona_8483a49b89
+2026-05-09 13:50:42,911 - WARNING - No se encontro Mª Francisca Ferrer Martinez en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 13:50:46,012 - INFO - Esperando confirmacion humana tras guardar en CARM: ud01cp02 persona_8483a49b89
+2026-05-09 13:51:42,798 - INFO - Esperando confirmacion humana tras guardar en CARM: ud01cp03 persona_84fe68313d
+2026-05-09 13:55:04,936 - INFO - Esperando confirmacion humana tras guardar en CARM: ud01cp03 persona_c6a8c00ee6
+2026-05-09 13:55:18,545 - WARNING - No se encontro Elisabet Lopez Ros en Requiere calificacion para ud01cp04; probando vista completa de la actividad.
+2026-05-09 13:55:23,157 - INFO - Esperando confirmacion humana tras guardar en CARM: ud01cp04 persona_c6a8c00ee6
+2026-05-09 13:55:43,193 - WARNING - No se encontro Diego Lizan Meroño en Requiere calificacion para ud01cp04; probando vista completa de la actividad.
+2026-05-09 13:55:46,658 - INFO - Esperando confirmacion humana tras guardar en CARM: ud01cp04 persona_84fe68313d
+2026-05-09 13:55:58,334 - WARNING - No se encontro Diana Poveda Rodero en Requiere calificacion para ud01cp04; probando vista completa de la actividad.
+2026-05-09 13:56:01,727 - INFO - Esperando confirmacion humana tras guardar en CARM: ud01cp04 persona_6dadeef411
+2026-05-09 13:56:26,155 - WARNING - No se encontro Mª Francisca Ferrer Martinez en Requiere calificacion para ud01cp04; probando vista completa de la actividad.
+2026-05-09 13:56:29,759 - INFO - Esperando confirmacion humana tras guardar en CARM: ud01cp04 persona_8483a49b89
+2026-05-09 13:56:46,188 - INFO - Navegador abierto para revision.
+2026-05-09 13:56:46,188 - INFO - El navegador quedara abierto hasta que cierres la pestana o detengas la tarea desde la interfaz.
+2026-05-09 13:57:29,209 - INFO - ud01cp02 Elisabet Lopez Ros : no_encontrado
+2026-05-09 13:57:29,209 - INFO - ud01cp02 Carolina Villa Marin : no_encontrado
+2026-05-09 13:57:29,210 - INFO - ud01cp02 Sofía Martínez Hernández : no_encontrado
+2026-05-09 13:57:29,210 - INFO - ud01cp02 Sofia Penalva Garcia : no_encontrado
+2026-05-09 13:57:29,210 - INFO - ud01cp02 Lydia Quesada Gonzalez : no_encontrado
+2026-05-09 13:57:29,210 - INFO - ud01cp02 Gabriela Mihaela Sima Sima : no_encontrado
+2026-05-09 13:57:29,211 - INFO - ud01cp01 Mª Francisca Ferrer Martinez 10.0: guardado_manual_confirmado_por_usuario
+2026-05-09 13:57:29,211 - INFO - ud01cp02 Mª Francisca Ferrer Martinez 10.0: guardado_manual_confirmado_por_usuario
+2026-05-09 13:57:29,211 - INFO - ud01cp03 Diego Lizan Meroño 8.0: omitido_por_usuario
+2026-05-09 13:57:29,212 - INFO - ud01cp03 Elisabet Lopez Ros 9.0: guardado_manual_confirmado_por_usuario
+2026-05-09 13:57:29,212 - INFO - ud01cp04 Elisabet Lopez Ros 9.0: omitido_por_usuario
+2026-05-09 13:57:29,212 - INFO - ud01cp04 Diego Lizan Meroño 8.0: guardado_manual_confirmado_por_usuario
+2026-05-09 13:57:29,212 - INFO - ud01cp04 Diana Poveda Rodero 9.0: omitido_por_usuario
+2026-05-09 13:57:29,212 - INFO - ud01cp04 Mª Francisca Ferrer Martinez 9.0: omitido_por_usuario
+2026-05-09 13:57:29,213 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_asistida.json
+2026-05-09 13:57:29,218 - INFO - revision_pendiente.csv actualizado tras subida: 4 fila(s) eliminada(s), 10 pendiente(s).
+2026-05-09 13:57:29,219 - INFO - Quedan 10 correccion(es) sin subir; no se archivan los prompts usados todavia.
+2026-05-09 13:57:29,219 - INFO - Modo subida asistida: solo se eliminan del CSV las filas confirmadas por el usuario.
+2026-05-09 14:16:42,091 - WARNING - No se encontro Elisabet Lopez Ros en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 14:17:08,774 - WARNING - No se encontro Carolina Villa Marin en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 14:18:39,696 - WARNING - No se encontro Sofía Martínez Hernández en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 14:20:10,666 - WARNING - No se encontro Sofia Penalva Garcia en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 14:21:41,669 - WARNING - No se encontro Lydia Quesada Gonzalez en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 14:23:12,606 - WARNING - No se encontro Gabriela Mihaela Sima Sima en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 14:24:43,566 - WARNING - No se encontro Diego Lizan Meroño en Requiere calificacion para ud01cp03; probando vista completa de la actividad.
+2026-05-09 14:25:00,661 - WARNING - No se encontro Elisabet Lopez Ros en Requiere calificacion para ud01cp04; probando vista completa de la actividad.
+2026-05-09 14:25:06,909 - WARNING - No se encontro Diana Poveda Rodero en Requiere calificacion para ud01cp04; probando vista completa de la actividad.
+2026-05-09 14:26:38,365 - WARNING - No se encontro Mª Francisca Ferrer Martinez en Requiere calificacion para ud01cp04; probando vista completa de la actividad.
+2026-05-09 14:26:38,896 - INFO - Navegador abierto para revision.
+2026-05-09 14:26:38,896 - INFO - El navegador quedara abierto hasta que cierres la pestana o detengas la tarea desde la interfaz.
+2026-05-09 14:28:50,513 - INFO - ud01cp02 Elisabet Lopez Ros : no_encontrado
+2026-05-09 14:28:50,514 - INFO - ud01cp02 Carolina Villa Marin : no_encontrado
+2026-05-09 14:28:50,514 - INFO - ud01cp02 Sofía Martínez Hernández : no_encontrado
+2026-05-09 14:28:50,514 - INFO - ud01cp02 Sofia Penalva Garcia : no_encontrado
+2026-05-09 14:28:50,515 - INFO - ud01cp02 Lydia Quesada Gonzalez : no_encontrado
+2026-05-09 14:28:50,515 - INFO - ud01cp02 Gabriela Mihaela Sima Sima : no_encontrado
+2026-05-09 14:28:50,515 - INFO - ud01cp03 Diego Lizan Meroño : no_encontrado
+2026-05-09 14:28:50,516 - INFO - ud01cp04 Elisabet Lopez Ros : no_encontrado
+2026-05-09 14:28:50,516 - INFO - ud01cp04 Diana Poveda Rodero : no_encontrado
+2026-05-09 14:28:50,516 - INFO - ud01cp04 Mª Francisca Ferrer Martinez : no_encontrado
+2026-05-09 14:28:50,517 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_asistida.json
+2026-05-09 14:28:50,517 - INFO - Modo subida asistida: solo se eliminan del CSV las filas confirmadas por el usuario.
+2026-05-09 14:54:26,914 - WARNING - No se encontro Elisabet Lopez Ros en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 14:55:57,869 - WARNING - No se encontro Carolina Villa Marin en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 14:57:28,799 - WARNING - No se encontro Sofía Martínez Hernández en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 14:58:59,730 - WARNING - No se encontro Sofia Penalva Garcia en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 14:59:23,305 - INFO - Navegador abierto para revision.
+2026-05-09 14:59:23,305 - INFO - El navegador quedara abierto hasta que cierres la pestana o detengas la tarea desde la interfaz.
+2026-05-09 14:59:23,969 - ERROR - No se pudo completar la subida a CARM: Page.query_selector_all: Target page, context or browser has been closed
+2026-05-09 15:03:16,069 - WARNING - No se encontro Elisabet Lopez Ros en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 15:04:47,027 - WARNING - No se encontro Carolina Villa Marin en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 15:06:18,039 - WARNING - No se encontro Sofía Martínez Hernández en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 15:07:49,019 - WARNING - No se encontro Sofia Penalva Garcia en Requiere calificacion para ud01cp02; probando vista completa de la actividad.
+2026-05-09 15:11:45,014 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-09 15:11:51,987 - INFO - Contexto didactico cache optimizado para ud02: 55144 -> 125 caracteres.
+2026-05-09 15:11:51,992 - INFO - Contexto didactico cache optimizado para ud03: 55114 -> 125 caracteres.
+2026-05-09 15:11:51,996 - INFO - Contexto didactico cache optimizado para ud04: 55098 -> 125 caracteres.
+2026-05-09 15:11:52,001 - INFO - Contexto didactico cache optimizado para ud05: 55134 -> 125 caracteres.
+2026-05-09 15:11:52,006 - INFO - Contexto didactico cache optimizado para ud06: 55411 -> 125 caracteres.
+2026-05-09 15:11:52,010 - INFO - Contexto didactico cache optimizado para ud07: 55393 -> 125 caracteres.
+2026-05-09 15:11:52,014 - INFO - Contexto didactico cache optimizado para ud08: 55405 -> 125 caracteres.
+2026-05-09 15:11:52,019 - INFO - Contexto didactico cache optimizado para ud09: 55121 -> 125 caracteres.
+2026-05-09 15:11:52,026 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-09 15:11:52,027 - INFO - Actividades prioritarias encontradas: 1
+2026-05-09 15:11:52,027 - INFO - Procesando grading ud01cp04: UD01 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-09 15:13:23,120 - INFO - Descargado envio de Diego Lizan Meroño: C:\temp\vscodec\pendientes\ud01cp04\Diego Lizan Meroño.pdf
+2026-05-09 15:13:23,599 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-09 15:13:23,772 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-09 15:13:23,772 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp04.md
+2026-05-09 15:13:23,772 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\manifiesto_entregas.json
+2026-05-09 15:13:23,792 - INFO - Pendientes incluidos en prompts archivados en: C:\temp\vscodec\pendientes\archivados_prompt\20260509_151323
+2026-05-09 15:13:23,792 - INFO - Entregas pendientes archivadas tras generar prompt: 1
+2026-05-09 15:13:36,464 - INFO - OpenAI API preparada. Modelo: gpt-5.4-mini
+2026-05-09 15:13:36,468 - INFO - Correccion API anterior archivada antes de generar nueva salida: C:\temp\vscodec\pendientes\prompts_codex\archivados\20260509_151336_pre_openai\prompt_ud01cp01_correccion.json
+2026-05-09 15:13:36,470 - INFO - Correccion API anterior archivada antes de generar nueva salida: C:\temp\vscodec\pendientes\prompts_codex\archivados\20260509_151336_pre_openai\prompt_ud01cp02_correccion.json
+2026-05-09 15:13:36,471 - INFO - Correccion API anterior archivada antes de generar nueva salida: C:\temp\vscodec\pendientes\prompts_codex\archivados\20260509_151336_pre_openai\prompt_ud01cp03_correccion.json
+2026-05-09 15:13:36,473 - INFO - Correccion API anterior archivada antes de generar nueva salida: C:\temp\vscodec\pendientes\prompts_codex\archivados\20260509_151336_pre_openai\prompt_ud01cp04_correccion.json
+2026-05-09 15:13:36,767 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01.md (6082 caracteres, ~1521 tokens estimados)
+2026-05-09 15:13:36,767 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01.md
+2026-05-09 15:13:41,225 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 15:13:41,229 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01_correccion.json
+2026-05-09 15:13:41,230 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02.md (6934 caracteres, ~1734 tokens estimados)
+2026-05-09 15:13:41,230 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02.md
+2026-05-09 15:13:44,353 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 15:13:44,355 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02_correccion.json
+2026-05-09 15:13:44,356 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp03.md (5030 caracteres, ~1258 tokens estimados)
+2026-05-09 15:13:44,356 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp03.md
+2026-05-09 15:13:49,126 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 15:13:49,128 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp03_correccion.json
+2026-05-09 15:13:49,128 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp04.md (3674 caracteres, ~919 tokens estimados)
+2026-05-09 15:13:49,129 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp04.md
+2026-05-09 15:13:51,770 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 15:13:51,772 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp04_correccion.json
+2026-05-09 15:13:51,815 - INFO - Correcciones generadas por OpenAI API:
+2026-05-09 15:13:51,815 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01_correccion.json
+2026-05-09 15:13:51,815 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02_correccion.json
+2026-05-09 15:13:51,816 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp03_correccion.json
+2026-05-09 15:13:51,816 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp04_correccion.json
+2026-05-09 15:13:51,816 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\correcciones_codex_combinadas.json
+2026-05-09 15:13:51,816 - INFO - Correcciones importadas. Hoja de revision: C:\temp\vscodec\temporal\revision_pendiente.csv
+2026-05-09 15:20:33,055 - INFO - Esperando confirmacion humana tras guardar en CARM: ud01cp04 persona_84fe68313d
+2026-05-09 15:20:43,269 - INFO - Navegador abierto para revision.
+2026-05-09 15:20:43,269 - INFO - El navegador quedara abierto hasta que cierres la pestana o detengas la tarea desde la interfaz.
+2026-05-09 15:20:49,949 - INFO - ud01cp04 Diego Lizan Meroño 8.0: guardado_manual_confirmado_por_usuario
+2026-05-09 15:20:49,950 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_asistida.json
+2026-05-09 15:20:49,955 - INFO - revision_pendiente.csv actualizado tras subida: 1 fila(s) eliminada(s), 0 pendiente(s).
+2026-05-09 15:20:49,956 - INFO - Modo subida asistida: solo se eliminan del CSV las filas confirmadas por el usuario.
+2026-05-09 15:30:41,981 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-09 15:30:52,010 - INFO - Contexto didactico cache optimizado para ud02: 125 -> 109 caracteres.
+2026-05-09 15:30:52,015 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-09 15:30:52,015 - INFO - Actividades prioritarias encontradas: 4
+2026-05-09 15:30:52,015 - INFO - Procesando grading ud02cp01: UD02 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-09 15:32:23,159 - INFO - Descargado envio de Lupe Quiroz Espejo: C:\temp\vscodec\pendientes\ud02cp01\Lupe Quiroz Espejo.txt
+2026-05-09 15:32:23,412 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud02cp01\Elisabet Lopez Ros.pdf
+2026-05-09 15:32:23,690 - INFO - Descargado envio de Diego Lizan Meroño: C:\temp\vscodec\pendientes\ud02cp01\Diego Lizan Meroño.pdf
+2026-05-09 15:32:24,025 - INFO - Descargado envio de Sofia Penalva Garcia: C:\temp\vscodec\pendientes\ud02cp01\Sofia Penalva Garcia.docx
+2026-05-09 15:32:24,304 - INFO - Descargado envio de Carolina Villa Marin: C:\temp\vscodec\pendientes\ud02cp01\Carolina Villa Marin.docx
+2026-05-09 15:32:24,345 - INFO - Procesando grading ud02cp02: UD02 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-09 15:33:55,415 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud02cp02\Elisabet Lopez Ros.pdf
+2026-05-09 15:33:55,692 - INFO - Descargado envio de Diego Lizan Meroño: C:\temp\vscodec\pendientes\ud02cp02\Diego Lizan Meroño.pdf
+2026-05-09 15:33:56,001 - INFO - Descargado envio de Sofia Penalva Garcia: C:\temp\vscodec\pendientes\ud02cp02\Sofia Penalva Garcia.docx
+2026-05-09 15:33:56,051 - INFO - Procesando grading ud02cp03: UD02 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-09 15:35:27,106 - INFO - Descargado envio de Diego Lizan Meroño: C:\temp\vscodec\pendientes\ud02cp03\Diego Lizan Meroño.pdf
+2026-05-09 15:35:27,165 - INFO - Procesando grading ud02cp04: UD02 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-09 15:36:58,239 - INFO - Descargado envio de Diego Lizan Meroño: C:\temp\vscodec\pendientes\ud02cp04\Diego Lizan Meroño.pdf
+2026-05-09 15:36:58,731 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-09 15:36:58,996 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-09 15:36:58,996 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp01.md
+2026-05-09 15:36:58,997 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp02.md
+2026-05-09 15:36:58,997 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03.md
+2026-05-09 15:36:58,997 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp04.md
+2026-05-09 15:36:58,998 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\manifiesto_entregas.json
+2026-05-09 15:36:59,025 - INFO - Pendientes incluidos en prompts archivados en: C:\temp\vscodec\pendientes\archivados_prompt\20260509_153659
+2026-05-09 15:36:59,026 - INFO - Entregas pendientes archivadas tras generar prompt: 10
+2026-05-09 15:38:24,881 - INFO - OpenAI API preparada. Modelo: gpt-5.4-mini
+2026-05-09 15:38:25,173 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp01.md (8588 caracteres, ~2147 tokens estimados)
+2026-05-09 15:38:25,174 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp01.md
+2026-05-09 15:38:33,636 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 15:38:33,640 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp01_correccion.json
+2026-05-09 15:38:33,642 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp02.md (5238 caracteres, ~1310 tokens estimados)
+2026-05-09 15:38:33,642 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp02.md
+2026-05-09 15:38:39,454 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 15:38:39,456 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp02_correccion.json
+2026-05-09 15:38:39,457 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03.md (3413 caracteres, ~854 tokens estimados)
+2026-05-09 15:38:39,457 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03.md
+2026-05-09 15:38:41,872 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 15:38:41,875 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03_correccion.json
+2026-05-09 15:38:41,876 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp04.md (3440 caracteres, ~860 tokens estimados)
+2026-05-09 15:38:41,877 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp04.md
+2026-05-09 15:38:46,050 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 15:38:46,051 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp04_correccion.json
+2026-05-09 15:38:46,146 - INFO - Prompts ya resueltos archivados en: C:\temp\vscodec\pendientes\prompts_codex\archivados\20260509_153846_resueltos_api (8 archivo(s)).
+2026-05-09 15:38:46,149 - INFO - Archivos auxiliares de prompts archivados en: C:\temp\vscodec\pendientes\prompts_codex\archivados\20260509_153846_post_api
+2026-05-09 15:38:46,149 - INFO - Correcciones generadas por OpenAI API:
+2026-05-09 15:38:46,149 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp01_correccion.json
+2026-05-09 15:38:46,149 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp02_correccion.json
+2026-05-09 15:38:46,150 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03_correccion.json
+2026-05-09 15:38:46,150 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp04_correccion.json
+2026-05-09 15:38:46,150 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\correcciones_codex_combinadas.json
+2026-05-09 15:38:46,150 - INFO - Correcciones importadas. Hoja de revision: C:\temp\vscodec\temporal\revision_pendiente.csv
+2026-05-09 15:43:51,982 - INFO - Esperando confirmacion humana tras guardar en CARM: ud02cp01 persona_c6a8c00ee6
+2026-05-09 15:44:25,511 - INFO - Esperando confirmacion humana tras guardar en CARM: ud02cp01 persona_84fe68313d
+2026-05-09 15:44:48,011 - WARNING - No se encontro Sofia Penalva Garcia en Requiere calificacion para ud02cp01; probando vista completa de la actividad.
+2026-05-09 15:44:52,540 - INFO - Esperando confirmacion humana tras guardar en CARM: ud02cp01 persona_71974718a8
+2026-05-09 15:45:31,179 - INFO - Esperando confirmacion humana tras guardar en CARM: ud02cp01 persona_143a689835
+2026-05-09 15:46:36,592 - WARNING - No se encontro Elisabet Lopez Ros en Requiere calificacion para ud02cp02; probando vista completa de la actividad.
+2026-05-09 15:46:39,718 - INFO - Esperando confirmacion humana tras guardar en CARM: ud02cp02 persona_c6a8c00ee6
+2026-05-09 15:47:34,013 - WARNING - No se encontro Diego Lizan Meroño en Requiere calificacion para ud02cp02; probando vista completa de la actividad.
+2026-05-09 15:47:37,858 - INFO - Esperando confirmacion humana tras guardar en CARM: ud02cp02 persona_84fe68313d
+2026-05-09 15:47:54,384 - WARNING - No se encontro Sofia Penalva Garcia en Requiere calificacion para ud02cp02; probando vista completa de la actividad.
+2026-05-09 15:47:59,186 - INFO - Esperando confirmacion humana tras guardar en CARM: ud02cp02 persona_71974718a8
+2026-05-09 15:48:48,105 - WARNING - No se encontro Diego Lizan Meroño en Requiere calificacion para ud02cp03; probando vista completa de la actividad.
+2026-05-09 15:48:51,117 - INFO - Esperando confirmacion humana tras guardar en CARM: ud02cp03 persona_84fe68313d
+2026-05-09 15:49:15,091 - INFO - Esperando confirmacion humana tras guardar en CARM: ud02cp04 persona_84fe68313d
+2026-05-09 15:49:20,197 - INFO - Navegador abierto para revision.
+2026-05-09 15:49:20,197 - INFO - El navegador quedara abierto hasta que cierres la pestana o detengas la tarea desde la interfaz.
+2026-05-09 15:49:25,101 - INFO - ud02cp01 Lupe Quiroz Espejo 2.0: error
+2026-05-09 15:49:25,101 - INFO - ud02cp01 Elisabet Lopez Ros 10.0: omitido_por_usuario
+2026-05-09 15:49:25,101 - INFO - ud02cp01 Diego Lizan Meroño 9.0: omitido_por_usuario
+2026-05-09 15:49:25,101 - INFO - ud02cp01 Sofia Penalva Garcia 10.0: guardado_manual_confirmado_por_usuario
+2026-05-09 15:49:25,102 - INFO - ud02cp01 Carolina Villa Marin 4.0: guardado_manual_confirmado_por_usuario
+2026-05-09 15:49:25,102 - INFO - ud02cp02 Elisabet Lopez Ros 9.0: guardado_manual_confirmado_por_usuario
+2026-05-09 15:49:25,102 - INFO - ud02cp02 Diego Lizan Meroño 7.0: guardado_manual_confirmado_por_usuario
+2026-05-09 15:49:25,102 - INFO - ud02cp02 Sofia Penalva Garcia 8.0: guardado_manual_confirmado_por_usuario
+2026-05-09 15:49:25,102 - INFO - ud02cp03 Diego Lizan Meroño 8.0: guardado_manual_confirmado_por_usuario
+2026-05-09 15:49:25,102 - INFO - ud02cp04 Diego Lizan Meroño 8.0: guardado_manual_confirmado_por_usuario
+2026-05-09 15:49:25,103 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_asistida.json
+2026-05-09 15:49:25,107 - INFO - revision_pendiente.csv actualizado tras subida: 7 fila(s) eliminada(s), 3 pendiente(s).
+2026-05-09 15:49:25,108 - INFO - Quedan 3 correccion(es) sin subir; no se archivan los prompts usados todavia.
+2026-05-09 15:49:25,108 - INFO - Modo subida asistida: solo se eliminan del CSV las filas confirmadas por el usuario.
+2026-05-09 16:20:40,051 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-09 16:20:49,414 - INFO - Contexto didactico cache optimizado para ud03: 125 -> 109 caracteres.
+2026-05-09 16:20:49,419 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-09 16:20:49,419 - INFO - Actividades prioritarias encontradas: 4
+2026-05-09 16:20:49,419 - INFO - Procesando grading ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-09 16:22:20,577 - INFO - Procesando grading ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-09 16:23:51,591 - INFO - Procesando grading ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-09 16:25:22,435 - INFO - Procesando grading ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-09 16:26:53,815 - INFO - Listado CARM generado sin descargar archivos ni corregir.
+2026-05-09 16:30:29,355 - INFO - Iniciando extraccion en CARM (login -> my -> curso -> grading)
+2026-05-09 16:30:38,605 - INFO - Contexto imprimible cargado desde cache local.
+2026-05-09 16:30:38,605 - INFO - Actividades prioritarias encontradas: 4
+2026-05-09 16:30:38,605 - INFO - Procesando grading ud03cp01: UD03 - CASO PRÁCTICO 1 (OBLIGATORIO) Tarea
+2026-05-09 16:32:09,662 - INFO - Descargado envio de Francisco Jose Hernandez Sandoval: C:\temp\vscodec\pendientes\ud03cp01\Francisco Jose Hernandez Sandoval.docx
+2026-05-09 16:32:09,912 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud03cp01\Elisabet Lopez Ros.pdf
+2026-05-09 16:32:10,159 - INFO - Descargado envio de Alina Mankevich: C:\temp\vscodec\pendientes\ud03cp01\Alina Mankevich.docx
+2026-05-09 16:32:10,433 - INFO - Descargado envio de Svetlana Varavina Varavina: C:\temp\vscodec\pendientes\ud03cp01\Svetlana Varavina Varavina.docx
+2026-05-09 16:32:10,747 - INFO - Descargado envio de Andrea Dolera Peñalver: C:\temp\vscodec\pendientes\ud03cp01\Andrea Dolera Peñalver.pdf
+2026-05-09 16:32:10,789 - INFO - Procesando grading ud03cp02: UD03 - CASO PRÁCTICO 2 (OBLIGATORIO) Tarea
+2026-05-09 16:33:42,330 - INFO - Descargado envio de Elisabet Lopez Ros: C:\temp\vscodec\pendientes\ud03cp02\Elisabet Lopez Ros.pdf
+2026-05-09 16:33:42,578 - INFO - Descargado envio de Alina Mankevich: C:\temp\vscodec\pendientes\ud03cp02\Alina Mankevich.docx
+2026-05-09 16:33:42,921 - INFO - Descargado envio de Andrea Dolera Peñalver: C:\temp\vscodec\pendientes\ud03cp02\Andrea Dolera Peñalver.pdf
+2026-05-09 16:33:42,973 - INFO - Procesando grading ud03cp03: UD03 - CASO PRÁCTICO 3 (OPCIONAL) Tarea
+2026-05-09 16:35:14,039 - INFO - Descargado envio de José Jesús Ortega Giménez: C:\temp\vscodec\pendientes\ud03cp03\José Jesús Ortega Giménez.pdf
+2026-05-09 16:35:14,099 - INFO - Procesando grading ud03cp04: UD03 - CASO PRÁCTICO 4 (OPCIONAL) Tarea
+2026-05-09 16:36:45,203 - INFO - Descargado envio de José Jesús Ortega Giménez: C:\temp\vscodec\pendientes\ud03cp04\José Jesús Ortega Giménez.pdf
+2026-05-09 16:36:45,684 - INFO - Cache del curso actualizada en: cache_carm\curso_1592.sqlite
+2026-05-09 16:36:46,497 - INFO - Prompts para Codex generados sin llamar a la API:
+2026-05-09 16:36:46,497 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp01.md
+2026-05-09 16:36:46,497 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp02.md
+2026-05-09 16:36:46,497 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp03.md
+2026-05-09 16:36:46,497 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp04.md
+2026-05-09 16:36:46,497 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\manifiesto_entregas.json
+2026-05-09 16:36:46,533 - INFO - Pendientes incluidos en prompts archivados en: C:\temp\vscodec\pendientes\archivados_prompt\20260509_163646
+2026-05-09 16:36:46,533 - INFO - Entregas pendientes archivadas tras generar prompt: 10
+2026-05-09 16:37:03,088 - INFO - OpenAI API preparada. Modelo: gpt-5.4-mini
+2026-05-09 16:37:03,386 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp01.md (15851 caracteres, ~3963 tokens estimados)
+2026-05-09 16:37:03,387 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp01.md
+2026-05-09 16:37:16,068 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 16:37:16,072 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp01_correccion.json
+2026-05-09 16:37:16,072 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp02.md (12855 caracteres, ~3214 tokens estimados)
+2026-05-09 16:37:16,072 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp02.md
+2026-05-09 16:37:23,622 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 16:37:23,625 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp02_correccion.json
+2026-05-09 16:37:23,625 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp03.md (11966 caracteres, ~2992 tokens estimados)
+2026-05-09 16:37:23,626 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp03.md
+2026-05-09 16:37:42,066 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 16:37:42,068 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp03_correccion.json
+2026-05-09 16:37:42,068 - INFO - Prompt preparado para OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp04.md (11939 caracteres, ~2985 tokens estimados)
+2026-05-09 16:37:42,069 - INFO - Enviando prompt preparado a OpenAI API: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp04.md
+2026-05-09 16:37:45,329 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-09 16:37:45,331 - INFO - Correccion API guardada en: C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp04_correccion.json
+2026-05-09 16:37:45,397 - INFO - Prompts ya resueltos archivados en: C:\temp\vscodec\pendientes\prompts_codex\archivados\20260509_163745_resueltos_api (8 archivo(s)).
+2026-05-09 16:37:45,399 - INFO - Archivos auxiliares de prompts archivados en: C:\temp\vscodec\pendientes\prompts_codex\archivados\20260509_163745_post_api
+2026-05-09 16:37:45,400 - INFO - Correcciones generadas por OpenAI API:
+2026-05-09 16:37:45,400 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp01_correccion.json
+2026-05-09 16:37:45,401 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp02_correccion.json
+2026-05-09 16:37:45,401 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp03_correccion.json
+2026-05-09 16:37:45,401 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\prompt_ud03cp04_correccion.json
+2026-05-09 16:37:45,401 - INFO - - C:\temp\vscodec\pendientes\prompts_codex\correcciones_codex_combinadas.json
+2026-05-09 16:37:45,402 - INFO - Correcciones importadas. Hoja de revision: C:\temp\vscodec\temporal\revision_pendiente.csv
+2026-05-09 16:47:58,313 - WARNING - No se encontro Francisco Jose Hernandez Sandoval en Requiere calificacion para ud03cp01; probando vista completa de la actividad.
+2026-05-09 16:48:05,513 - INFO - Esperando confirmacion humana tras guardar en CARM: ud03cp01 persona_7ef2955b7f
+2026-05-09 16:48:29,369 - WARNING - No se encontro Elisabet Lopez Ros en Requiere calificacion para ud03cp01; probando vista completa de la actividad.
+2026-05-09 16:48:32,483 - INFO - Esperando confirmacion humana tras guardar en CARM: ud03cp01 persona_c6a8c00ee6
+2026-05-09 16:48:44,561 - WARNING - No se encontro Alina Mankevich en Requiere calificacion para ud03cp01; probando vista completa de la actividad.
+2026-05-09 16:48:47,613 - INFO - Esperando confirmacion humana tras guardar en CARM: ud03cp01 persona_fdc49ab0e9
+2026-05-09 16:49:23,048 - INFO - Esperando confirmacion humana tras guardar en CARM: ud03cp01 persona_1c2d204837
+2026-05-09 16:49:39,531 - INFO - Esperando confirmacion humana tras guardar en CARM: ud03cp01 persona_8059ef1942
+2026-05-09 16:49:52,921 - INFO - Esperando confirmacion humana tras guardar en CARM: ud03cp02 persona_c6a8c00ee6
+2026-05-09 16:50:02,046 - WARNING - No se encontro Alina Mankevich en Requiere calificacion para ud03cp02; probando vista completa de la actividad.
+2026-05-09 16:50:05,357 - INFO - Esperando confirmacion humana tras guardar en CARM: ud03cp02 persona_fdc49ab0e9
+2026-05-09 16:50:12,986 - WARNING - No se encontro Andrea Dolera Peñalver en Requiere calificacion para ud03cp02; probando vista completa de la actividad.
+2026-05-09 16:50:16,008 - INFO - Esperando confirmacion humana tras guardar en CARM: ud03cp02 persona_8059ef1942
+2026-05-09 16:50:24,487 - WARNING - No se encontro José Jesús Ortega Giménez en Requiere calificacion para ud03cp03; probando vista completa de la actividad.
+2026-05-09 16:50:27,508 - INFO - Esperando confirmacion humana tras guardar en CARM: ud03cp03 persona_c7fbca25c2
+2026-05-09 16:50:41,271 - WARNING - No se encontro José Jesús Ortega Giménez en Requiere calificacion para ud03cp04; probando vista completa de la actividad.
+2026-05-09 16:50:44,985 - INFO - Esperando confirmacion humana tras guardar en CARM: ud03cp04 persona_c7fbca25c2
+2026-05-09 16:50:49,052 - INFO - Navegador abierto para revision.
+2026-05-09 16:50:49,052 - INFO - El navegador quedara abierto hasta que cierres la pestana o detengas la tarea desde la interfaz.
+2026-05-09 16:50:58,506 - INFO - ud03cp01 Francisco Jose Hernandez Sandoval 7.8: guardado_manual_confirmado_por_usuario
+2026-05-09 16:50:58,506 - INFO - ud03cp01 Elisabet Lopez Ros 8.6: guardado_manual_confirmado_por_usuario
+2026-05-09 16:50:58,507 - INFO - ud03cp01 Alina Mankevich 8.9: guardado_manual_confirmado_por_usuario
+2026-05-09 16:50:58,507 - INFO - ud03cp01 Svetlana Varavina Varavina 8.4: guardado_manual_confirmado_por_usuario
+2026-05-09 16:50:58,507 - INFO - ud03cp01 Andrea Dolera Peñalver 8.8: guardado_manual_confirmado_por_usuario
+2026-05-09 16:50:58,507 - INFO - ud03cp02 Elisabet Lopez Ros 9.0: guardado_manual_confirmado_por_usuario
+2026-05-09 16:50:58,508 - INFO - ud03cp02 Alina Mankevich 10.0: guardado_manual_confirmado_por_usuario
+2026-05-09 16:50:58,508 - INFO - ud03cp02 Andrea Dolera Peñalver 10.0: guardado_manual_confirmado_por_usuario
+2026-05-09 16:50:58,508 - INFO - ud03cp03 José Jesús Ortega Giménez 9.0: guardado_manual_confirmado_por_usuario
+2026-05-09 16:50:58,508 - INFO - ud03cp04 José Jesús Ortega Giménez 9.0: guardado_manual_confirmado_por_usuario
+2026-05-09 16:50:58,508 - INFO - Registro de subida CARM generado en: respuestas_extraidas\subida_carm_asistida.json
+2026-05-09 16:50:58,512 - INFO - revision_pendiente.csv actualizado tras subida: 10 fila(s) eliminada(s), 0 pendiente(s).
+2026-05-09 16:50:58,517 - INFO - Resumenes usados archivados en: C:\temp\vscodec\temporal\archivados_resumenes\20260509_165058_asistida_confirmada (5 archivo(s)).
+2026-05-09 16:50:58,518 - INFO - Modo subida asistida: solo se eliminan del CSV las filas confirmadas por el usuario.
+2026-05-09 17:09:42,619 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-09 17:09:42,628 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-09 17:09:42,667 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-09 17:09:42,668 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-09 17:09:42,668 - INFO - Corrigiendo sublote API ud01cp01: 4 entrega(s) (1/4)
+2026-05-09 17:09:42,668 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-09 17:09:42,673 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-09 17:09:42,676 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-09 17:09:42,680 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-09 17:09:42,683 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-09 17:09:42,689 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-09 17:09:42,727 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-09 17:09:42,727 - INFO - Corrigiendo sublote API ud02cp03: 2 entrega(s) (1/2)
+2026-05-09 17:09:42,728 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-09 17:09:42,731 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-09 17:09:42,736 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-09 17:09:42,747 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-09 17:09:42,747 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-09 17:09:42,748 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-09 17:09:42,748 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-09 17:09:42,748 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-09 17:14:02,635 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-09 17:14:02,639 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-09 17:14:02,654 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-09 17:14:02,655 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-09 17:14:02,656 - INFO - Corrigiendo sublote API ud01cp01: 4 entrega(s) (1/4)
+2026-05-09 17:14:02,656 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-09 17:14:02,661 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-09 17:14:02,663 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-09 17:14:02,667 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-09 17:14:02,671 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-09 17:14:02,677 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-09 17:14:02,699 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-09 17:14:02,699 - INFO - Corrigiendo sublote API ud02cp03: 2 entrega(s) (1/2)
+2026-05-09 17:14:02,699 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-09 17:14:02,703 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-09 17:14:02,707 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-09 17:14:02,719 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-09 17:14:02,719 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-09 17:14:02,720 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-09 17:14:02,720 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-09 17:14:02,720 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-09 17:23:21,871 - INFO - Contexto de unidad cargado desde: tmp_prueba\manual_ud01.txt
+2026-05-09 17:23:21,876 - INFO - Corrigiendo lote ud01cp01: 6 entrega(s)
+2026-05-09 17:23:21,894 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Presentacion Alumno.pptx (No se pudo extraer texto de Presentacion Alumno.pptx: Instala python-pptx para extraer texto de PPTX)
+2026-05-09 17:23:21,895 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\Tabla Alumno.xlsx (No se pudo extraer texto de Tabla Alumno.xlsx: Instala openpyxl para extraer texto de XLSX)
+2026-05-09 17:23:21,896 - INFO - Corrigiendo sublote API ud01cp01: 4 entrega(s) (1/4)
+2026-05-09 17:23:21,896 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-09 17:23:21,901 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Ana Garcia.txt
+2026-05-09 17:23:21,904 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Entrega vacia.txt
+2026-05-09 17:23:21,907 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Luis Martinez.txt
+2026-05-09 17:23:21,912 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\Marta Sanchez.docx
+2026-05-09 17:23:21,919 - INFO - Corrigiendo lote ud02cp03: 3 entrega(s)
+2026-05-09 17:23:21,947 - WARNING - Entrega marcada para revisión manual: tmp_prueba\pendientes\ud02cp03\Video Alumno.mp4 (Archivo multimedia o comprimido (.mp4); requiere revisión manual.)
+2026-05-09 17:23:21,947 - INFO - Corrigiendo sublote API ud02cp03: 2 entrega(s) (1/2)
+2026-05-09 17:23:21,948 - WARNING - OPENAI_API_KEY o paquete openai no disponible; usando corrección de respaldo por lote
+2026-05-09 17:23:21,951 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Carmen Lopez.txt
+2026-05-09 17:23:21,956 - INFO - Eliminado pendiente ya calificado: tmp_prueba\pendientes\ud02cp03\Entrega Comprimida.zip
+2026-05-09 17:23:21,970 - INFO - Proceso completado. Resumen generado en: tmp_prueba\temporal\resumen.txt
+2026-05-09 17:23:21,970 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud01cp01.txt
+2026-05-09 17:23:21,970 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
+2026-05-09 17:23:21,970 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
+2026-05-09 17:23:21,971 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json

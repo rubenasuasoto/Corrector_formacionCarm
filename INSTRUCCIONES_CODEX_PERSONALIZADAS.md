@@ -1,40 +1,60 @@
 # Instrucciones personalizadas para Codex
 
-Copia este bloque en las instrucciones personalizadas de la cuenta de Codex si quieres usar el modo sin API.
+Copia el bloque siguiente en las instrucciones personalizadas de la cuenta de Codex para usar el modo sin API del Corrector CARM.
 
 ```text
 Cuando el usuario escriba $C, activa el flujo "Corrector CARM".
 
-Objetivo:
-- Leer prompts preparados por la aplicacion Corrector CARM.
-- Corregir las entregas indicadas en esos prompts.
-- Guardar las correcciones JSON en las rutas que la aplicacion espera.
-- No llamar a CARM, no mover archivos y no borrar nada.
+Funcion del flujo:
+- Resolver prompts generados previamente por la aplicacion Corrector CARM.
+- Leer prompts pendientes desde la carpeta acordada.
+- Guardar un JSON de correccion por cada prompt procesado.
+- No entrar en CARM.
+- No mover, borrar, renombrar ni archivar archivos.
+- No crear salidas en carpetas de alumnos.
 
-Rutas de trabajo en Windows:
-- Carpeta de prompts:
+Rutas actuales del proyecto:
+- Prompts pendientes de resolver:
   C:\temp\vscodec\pendientes\prompts_codex
-- Prompts de entrada:
+- Patron de prompts de entrada:
   C:\temp\vscodec\pendientes\prompts_codex\prompt_*.md
-- Correcciones de salida:
-  C:\temp\vscodec\pendientes\prompts_codex\prompt_<actividad>_correccion.json
-  C:\temp\vscodec\pendientes\prompts_codex\prompt_<actividad>_loteNN_correccion.json
+- Patron de JSON de salida:
+  C:\temp\vscodec\pendientes\prompts_codex\<nombre_del_prompt>_correccion.json
+- Manifiesto de entregas, solo para referencia si hace falta:
+  C:\temp\vscodec\pendientes\prompts_codex\manifiesto_entregas.json
 
-Comportamiento con $C:
-1. Busca los archivos prompt_*.md en C:\temp\vscodec\pendientes\prompts_codex.
-2. Si el usuario no ha indicado actividad, pregunta que actividad quiere corregir. Ejemplos: ud01cp02, ud02cp01, todas.
-3. Si el usuario indica una actividad, procesa todos los prompts que coincidan:
-   - prompt_ud01cp02.md
-   - prompt_ud01cp02_lote01.md
-   - prompt_ud01cp02_lote02.md
-4. Lee cada prompt completo y sigue estrictamente sus instrucciones internas.
-5. Corrige solo las entregas legibles incluidas en el prompt.
-6. No corrijas entregas marcadas como revision manual.
-7. No inventes contenido, meritos ni datos que no esten en la respuesta del alumno.
-8. Evalua en espanol con tono formal, claro y util.
-9. Guarda una respuesta JSON valida por cada prompt procesado.
+Nombres de salida obligatorios:
+- prompt_ud01cp02.md -> prompt_ud01cp02_correccion.json
+- prompt_ud01cp02_lote01.md -> prompt_ud01cp02_lote01_correccion.json
+- prompt_ud01cp02_lote02.md -> prompt_ud01cp02_lote02_correccion.json
 
-Formato obligatorio de cada archivo *_correccion.json:
+No generes correcciones_codex_combinadas.json salvo que el usuario lo pida expresamente. La aplicacion ya importa los JSON individuales *_correccion.json.
+
+Comandos cortos:
+- $C
+  Lista los prompts disponibles y pregunta que actividad corregir si hay varias.
+- $C ud01cp02
+  Corrige todos los prompts que empiecen por prompt_ud01cp02.
+- $C todas
+  Corrige todos los prompt_*.md disponibles.
+
+Proceso obligatorio:
+1. Busca prompts en C:\temp\vscodec\pendientes\prompts_codex.
+2. Excluye archivos que no sean .md.
+3. Excluye cualquier archivo que no empiece por prompt_.
+4. Excluye manifiesto_entregas.json y cualquier *_correccion.json.
+5. Si el usuario ha indicado actividad, procesa solo prompts de esa actividad.
+6. Lee cada prompt completo.
+7. Sigue las instrucciones internas del prompt leido.
+8. Corrige solo las entregas que aparezcan en "Entregas legibles".
+9. No corrijas entregas que aparezcan en "Entregas que requieren revision manual".
+10. Mantén exactamente el id de cada entrega. Si el prompt trae "id": "0", devuelve "id": "0".
+11. Mantén el alumno exactamente como aparezca en la entrega del prompt.
+12. Mantén la actividad del prompt, por ejemplo ud01cp02.
+13. No inventes entregas, alumnos, archivos ni meritos.
+14. Guarda el JSON en la ruta de salida correspondiente.
+
+Formato exacto de cada archivo *_correccion.json:
 {
   "actividad": "udXXcpYY",
   "correcciones": [
@@ -43,34 +63,52 @@ Formato obligatorio de cada archivo *_correccion.json:
       "alumno": "Nombre del alumno",
       "nota": 0,
       "criterios": [
-        {"nombre": "Presentacion del trabajo", "maximo": 3, "puntuacion": 0, "comentario": "..."},
-        {"nombre": "Adecuacion al enunciado", "maximo": 4, "puntuacion": 0, "comentario": "..."},
-        {"nombre": "Aplicacion practica", "maximo": 3, "puntuacion": 0, "comentario": "..."}
+        {
+          "nombre": "Presentacion del trabajo",
+          "maximo": 3,
+          "puntuacion": 0,
+          "comentario": "Comentario breve y especifico."
+        },
+        {
+          "nombre": "Adecuacion al enunciado",
+          "maximo": 4,
+          "puntuacion": 0,
+          "comentario": "Comentario breve y especifico."
+        },
+        {
+          "nombre": "Aplicacion practica",
+          "maximo": 3,
+          "puntuacion": 0,
+          "comentario": "Comentario breve y especifico."
+        }
       ],
-      "retroalimentacion": "Feedback final para el alumno"
+      "retroalimentacion": "Feedback final claro, formal y util para el alumno."
     }
   ]
 }
 
-Reglas de guardado:
-- Guarda cada JSON con codificacion UTF-8.
-- No uses Markdown dentro del archivo JSON.
-- No envuelvas el JSON en ```json.
-- Si hay varios lotes, crea un JSON por lote con el mismo nombre base:
-  prompt_ud01cp02_lote01.md -> prompt_ud01cp02_lote01_correccion.json
-- No generes correcciones_codex_combinadas.json salvo que el usuario lo pida expresamente. La aplicacion importa los JSON individuales *_correccion.json.
+Reglas de evaluacion:
+- La nota final va de 0 a 10.
+- La suma de criterios debe ser coherente con la nota final.
+- Presentacion del trabajo tiene maximo 3.
+- Adecuacion al enunciado tiene maximo 4.
+- Aplicacion practica tiene maximo 3.
+- Evalua solo lo que el alumno ha entregado.
+- Penaliza respuestas vacias, ilegibles, copiadas sin adaptacion o mezcladas con conversacion de IA.
+- No penalices por detalles tecnicos del sistema si no afectan al contenido entregado.
+- Usa espanol claro,usando acentos, con tono formal y cercano.
 
-Respuesta al usuario tras terminar:
-- Di cuantos prompts has procesado.
+Reglas de archivo:
+- El archivo JSON debe ser JSON valido.
+- No uses Markdown dentro del JSON.
+- No envuelvas el JSON en bloques ```json.
+- Codificacion UTF-8.
+- Si un prompt no tiene entregas legibles, crea un JSON valido con "correcciones": [].
+- Si no puedes guardar archivos, muestra el JSON completo en la respuesta e indica la ruta exacta donde debe guardarse.
+
+Respuesta final al usuario:
+- Indica cuantos prompts has procesado.
 - Lista las rutas JSON creadas.
-- Di que puede volver a la interfaz del Corrector CARM e importar/subir las correcciones.
-- Si falta la carpeta o no hay prompts, dilo claramente y no inventes rutas.
-
-Comandos cortos aceptados:
-- $C
-  Pregunta que actividad corregir si hay varias.
-- $C ud01cp02
-  Corrige todos los prompts de esa actividad.
-- $C todas
-  Corrige todos los prompt_*.md disponibles.
+- Indica si hubo prompts sin entregas legibles.
+- Di: "Ahora vuelve a la interfaz del Corrector CARM e importa las correcciones o usa la subida asistida."
 ```
