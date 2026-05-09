@@ -54,6 +54,8 @@ UNIT_RE = re.compile(r"^ud\d{2}$")
 ACTIVITY_RE = re.compile(r"^ud\d{2}cp\d{2}$")
 COURSE_URL_RE = re.compile(r"^https://formacion\.carm\.es/course/view\.php\?id=\d+$")
 TRAY_ICON = None
+APP_SERVER: ThreadingHTTPServer | None = None
+APP_URL = ""
 AUTO_CORRECT_AFTER_SCAN = False
 AUTO_CORRECT_ARGS = ["--preparar-carm-codex"]
 DEFAULT_SCAN_INTERVAL_MINUTES = 60
@@ -173,7 +175,10 @@ def allowed_json_paths() -> set[str]:
 def default_correction_source_path() -> Path:
     if REVISION_CSV.exists():
         return REVISION_CSV
-    return COMBINED_JSON
+    if PROMPTS_DIR.exists():
+        for path in sorted(PROMPTS_DIR.glob("*_correccion.json")):
+            return path
+    return REVISION_CSV
 
 
 configure_work_dirs()
@@ -220,15 +225,38 @@ def audit_ui_event(action: str, result: str = "ok", **details: object) -> None:
         pass
 
 
-def notify(title: str, message: str) -> None:
+def interface_url(fragment: str = "") -> str:
+    base = APP_URL or load_app_config().get("last_local_url", "")
+    if not base:
+        return ""
+    fragment = str(fragment or "").strip()
+    if fragment and not fragment.startswith("#"):
+        fragment = f"#{fragment}"
+    return f"{base}{fragment}"
+
+
+def notify(title: str, message: str, target: str = "") -> None:
     text = message[:240]
-    if TRAY_ICON is not None:
-        try:
-            TRAY_ICON.notify(text, title)
-            return
-        except Exception:
-            pass
+    url = interface_url(target)
     try:
+        script = (
+            "Add-Type -AssemblyName System.Windows.Forms; "
+            "Add-Type -AssemblyName System.Drawing; "
+            "$n=New-Object System.Windows.Forms.NotifyIcon; "
+            "$n.Icon=[System.Drawing.SystemIcons]::Information; "
+            "$n.Visible=$true; "
+        )
+        if url:
+            script += (
+                f"$url={json.dumps(url)}; "
+                "$open={ Start-Process $url }; "
+                "$n.add_BalloonTipClicked($open); "
+                "$n.add_Click($open); "
+            )
+        script += (
+            f"$n.ShowBalloonTip(9000, {json.dumps(title)}, {json.dumps(text)}, 'Info'); "
+            "Start-Sleep -Seconds 10; $n.Dispose()"
+        )
         subprocess.run(
             [
                 "powershell",
@@ -236,22 +264,21 @@ def notify(title: str, message: str) -> None:
                 "-WindowStyle",
                 "Hidden",
                 "-Command",
-                (
-                    "[reflection.assembly]::loadwithpartialname('System.Windows.Forms') | Out-Null; "
-                    "$n=New-Object System.Windows.Forms.NotifyIcon; "
-                    "$n.Icon=[System.Drawing.SystemIcons]::Information; "
-                    "$n.Visible=$true; "
-                    f"$n.ShowBalloonTip(8000, {json.dumps(title)}, {json.dumps(text)}, 'Info'); "
-                    "Start-Sleep -Seconds 9; $n.Dispose()"
-                ),
+                script,
             ],
             cwd=str(ROOT),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=12,
+            timeout=13,
         )
+        return
     except Exception:
         pass
+    if TRAY_ICON is not None:
+        try:
+            TRAY_ICON.notify(text, title)
+        except Exception:
+            pass
 
 
 def read_env_values() -> dict[str, str]:
@@ -581,15 +608,15 @@ class TaskRunner:
             )
         if has_error:
             if self.permission_error:
-                notify("Corrector CARM", "Windows bloqueo Playwright/Chromium. Ejecuta la app con permisos permitidos.")
+                notify("Corrector CARM", "Windows bloqueo Playwright/Chromium. Ejecuta la app con permisos permitidos.", target="activity")
             else:
-                notify("Corrector CARM", "Hay errores en la ultima tarea. Abre la interfaz para revisar el log.")
+                notify("Corrector CARM", "Hay errores en la ultima tarea. Abre la interfaz para revisar el log.", target="activity")
         elif self.action in {"auto_prepare", "prepare"}:
             notify_prompts_prepared()
         elif self.action in {"prepare_carm_api", "solve_prompts_api", "import_codex"}:
             notify_pending_publication()
         if should_retry_scan:
-            notify("Corrector CARM", "Permisos de navegador recuperados. Repito el escaneo de CARM.")
+            notify("Corrector CARM", "Permisos de navegador recuperados. Repito el escaneo de CARM.", target="activity")
             threading.Timer(1.0, lambda: start_startup_work()).start()
         if should_auto_correct:
             threading.Timer(1.0, lambda: start_auto_prepare()).start()
@@ -598,7 +625,7 @@ class TaskRunner:
         lowered = line.lower()
         if (" - error - " in lowered or lowered.startswith("error")) and not self.error_notified:
             self.error_notified = True
-            notify("Corrector CARM - error", line)
+            notify("Corrector CARM - error", line, target="activity")
         manual_markers = (
             "requiere revisión manual",
             "requiere revision manual",
@@ -610,7 +637,7 @@ class TaskRunner:
         )
         if any(marker in lowered for marker in manual_markers) and not self.manual_notified:
             self.manual_notified = True
-            notify("Corrector CARM - revision manual", line)
+            notify("Corrector CARM - revision manual", line, target="activity")
 
     @staticmethod
     def _is_permission_error(line: str) -> bool:
@@ -680,6 +707,54 @@ def require_api_token(handler: BaseHTTPRequestHandler) -> bool:
     return False
 
 
+def restart_app(delay: float = 0.7) -> None:
+    relaunch_args = [sys.executable, *sys.argv]
+    if len(relaunch_args) > 1:
+        script_path = Path(relaunch_args[1])
+        if script_path.suffix.lower() == ".py" and not script_path.is_absolute():
+            relaunch_args[1] = str((ROOT / script_path).resolve())
+
+    helper_code = (
+        "import subprocess, sys, time;"
+        "time.sleep(float(sys.argv[1]));"
+        "subprocess.Popen(sys.argv[3:], cwd=sys.argv[2])"
+    )
+    helper_args = [sys.executable, "-c", helper_code, str(delay), str(ROOT), *relaunch_args]
+
+    def do_restart() -> None:
+        try:
+            popen_kwargs = {"cwd": str(ROOT)}
+            if os.name == "nt":
+                popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            subprocess.Popen(
+                helper_args,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                **popen_kwargs,
+            )
+        except Exception as exc:
+            notify("Corrector CARM", f"No se pudo relanzar la app: {exc}", target="activity")
+            return
+        threading.Timer(1.5, lambda: os._exit(0)).start()
+        try:
+            RUNNER.stop()
+        except Exception:
+            pass
+        try:
+            if TRAY_ICON is not None:
+                TRAY_ICON.stop()
+        except Exception:
+            pass
+        try:
+            if APP_SERVER is not None:
+                APP_SERVER.shutdown()
+        except Exception:
+            pass
+        os._exit(0)
+
+    threading.Thread(target=do_restart, daemon=False).start()
+
+
 def create_local_server(host: str, port: int) -> tuple[ThreadingHTTPServer, int, list[int]]:
     attempted: list[int] = []
     if port == 0:
@@ -714,6 +789,7 @@ def pending_publication_state() -> dict:
     assisted = file_info(SUBIDA_ASISTIDA_JSON)
     rows = 0
     blocking = 0
+    activities: dict[str, int] = {}
     if REVISION_CSV.exists():
         try:
             with REVISION_CSV.open("r", encoding="utf-8-sig", newline="") as handle:
@@ -721,15 +797,18 @@ def pending_publication_state() -> dict:
             rows = len(data)
             estados_bloqueantes = {"revision_manual_necesaria", "error", "error_descarga", "sin_archivo_detectado", "sin_entrega"}
             blocking = sum(1 for row in data if (row.get("estado") or "").strip().lower() in estados_bloqueantes)
+            for row in data:
+                actividad = (row.get("actividad") or "sin_actividad").strip().lower() or "sin_actividad"
+                activities[actividad] = activities.get(actividad, 0) + 1
         except Exception:
             blocking = 1
     base_modified = max(source["modified"], revision["modified"])
-    uploaded_modified = max(published["modified"], assisted["modified"])
-    pending = bool(revision["exists"] and rows and uploaded_modified < base_modified)
+    pending = bool(revision["exists"] and rows and published["modified"] < base_modified)
     return {
         "pending": pending,
         "rows": rows,
         "blocking": blocking,
+        "activities": activities,
         "ready_for_assisted_upload": pending and blocking == 0,
         "source": source,
         "combined": combined,
@@ -747,11 +826,13 @@ def notify_pending_publication() -> None:
         notify(
             "Corrector CARM",
             f"Hay {pending['rows']} calificaciones preparadas, pero {pending['blocking']} requieren revision antes de subir.",
+            target="upload",
         )
         return
     notify(
         "Corrector CARM",
         f"Hay {pending['rows']} calificaciones revisadas pendientes de subir. Abre la interfaz para iniciar subida asistida.",
+        target="upload",
     )
 
 
@@ -761,29 +842,30 @@ def notify_prompts_prepared() -> None:
         notify(
             "Corrector CARM",
             f"Hay {len(prompts)} prompt(s) preparados. Abre la interfaz y pulsa Corregir prompts con API.",
+            target="prepare",
         )
 
 
 def start_auto_prepare() -> tuple[bool, str]:
     if correction_mode() == "api" and openai_api_key_present():
-        notify("Corrector CARM", "Preparo prompts automaticamente. La API se ejecutara cuando lo confirmes.")
+        notify("Corrector CARM", "Preparo prompts automaticamente. La API se ejecutara cuando lo confirmes.", target="activity")
     else:
-        notify("Corrector CARM", "Sin API key o modo prompt: preparo prompts para correccion manual.")
+        notify("Corrector CARM", "Sin API key o modo prompt: preparo prompts para correccion manual.", target="activity")
     return RUNNER.start("auto_prepare", auto_prepare_args_from_cache())
 
 
 def start_startup_work() -> None:
     if not carm_credentials_present():
-        notify("Corrector CARM", "Faltan credenciales CARM. Abre la interfaz para configurarlas.")
+        notify("Corrector CARM", "Faltan credenciales CARM. Abre la interfaz para configurarlas.", target="settings")
         return
     if has_cached_course_data():
         RUNNER.last_detection_at = time.time()
         if AUTO_CORRECT_AFTER_SCAN:
             start_auto_prepare()
         else:
-            notify("Corrector CARM", "Cache del curso cargada. No se refresca CARM al iniciar.")
+            notify("Corrector CARM", "Cache del curso cargada. No se refresca CARM al iniciar.", target="activity")
         return
-    notify("Corrector CARM", "No hay cache didactica del curso. Hago primera deteccion en CARM.")
+    notify("Corrector CARM", "No hay cache didactica del curso. Hago primera deteccion en CARM.", target="activity")
     RUNNER.start("detect_course", ["--cachear-curso"])
 
 
@@ -1290,6 +1372,7 @@ HTML = r"""<!doctype html>
       <span id="courseSummary" class="pill"></span>
       <span id="statusBadge" class="badge idle">Parado</span>
       <button id="refreshBtn">Actualizar</button>
+      <button id="restartBtn">Reiniciar app</button>
       <button id="logoutBtn">Borrar credenciales CARM</button>
       <button id="settingsBtn" class="icon" title="Configuracion" aria-label="Configuracion">⚙</button>
     </div>
@@ -1314,7 +1397,7 @@ HTML = r"""<!doctype html>
         </div>
       </div>
 
-      <section>
+      <section id="prepare">
         <div class="section-head">
           <h2>Preparar correcciones</h2>
           <p>Elige una unidad o un caso concreto y genera las salidas revisables.</p>
@@ -1358,10 +1441,10 @@ HTML = r"""<!doctype html>
         </div>
       </section>
 
-      <section>
+      <section id="upload">
         <div class="section-head">
           <h2>Subida a CARM</h2>
-          <p>Previsualiza primero. La subida asistida rellena campos y espera tu guardado manual.</p>
+          <p>La subida asistida rellena CARM y espera tu guardado manual en cada alumno.</p>
         </div>
         <label for="jsonPath">Archivo de correcciones</label>
         <select id="jsonPath">
@@ -1370,10 +1453,9 @@ HTML = r"""<!doctype html>
           <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02_correccion.json">prompt_ud01cp02_correccion.json</option>
           <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03_correccion.json">prompt_ud02cp03_correccion.json</option>
         </select>
-        <div class="button-row three">
-          <button id="previewBtn">Previsualizar</button>
-          <button class="primary" id="assistPublishBtn">Subida asistida</button>
-          <button class="warn" id="publishBtn">Publicar</button>
+        <div id="uploadPendingDetail" class="hint"></div>
+        <div class="button-row">
+          <button class="primary" id="assistPublishBtn">Sin pendientes para subir</button>
         </div>
         <label class="check" style="margin-top:10px">
           <input type="checkbox" id="publishCheck">
@@ -1430,7 +1512,7 @@ HTML = r"""<!doctype html>
       </section>
     </div>
 
-    <section class="activity-panel">
+    <section class="activity-panel" id="activity">
       <div class="split">
         <div class="section-head">
           <h2>Actividad</h2>
@@ -1736,6 +1818,17 @@ HTML = r"""<!doctype html>
       $('systemNoticeText').textContent = '';
     }
 
+    function handleHashTarget() {
+      const target = (window.location.hash || '').replace('#', '');
+      if (!target) return;
+      if (target === 'settings') {
+        toggleSettings(true);
+        return;
+      }
+      const el = $(target);
+      if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+
     async function api(path, options = {}) {
       let res;
       try {
@@ -1906,9 +1999,10 @@ HTML = r"""<!doctype html>
       $('prepareBtn').disabled = locked || !hasUnits || !hasSelectedActivity;
       $('prepareBtn').textContent = 'Preparar prompts';
       $('solveApiBtn').disabled = locked || !authState.openai_api_configured;
-      $('previewBtn').disabled = locked;
-      $('assistPublishBtn').disabled = locked || !$('publishCheck').checked;
-      $('publishBtn').disabled = locked || !$('publishCheck').checked;
+      const pendingRows = Number(window.__pendingUploadRows || 0);
+      const pendingBlocking = Number(window.__pendingUploadBlocking || 0);
+      $('assistPublishBtn').disabled = locked || !$('publishCheck').checked || pendingRows <= 0 || pendingBlocking > 0;
+      $('restartBtn').disabled = running;
       $('stopBtn').disabled = !running;
       $('runAdvancedBtn').disabled = locked;
       $('scanNowBtn').disabled = locked;
@@ -1942,6 +2036,27 @@ HTML = r"""<!doctype html>
         $('authMessage').textContent = 'Introduce CARM y elige API o solo prompts para usar el panel.';
         showSystemNotice('Panel bloqueado: falta configuracion inicial.');
       }
+    }
+
+    function pendingUploadLabel(pending) {
+      if (!pending || !pending.rows) return 'Sin pendientes para subir';
+      const activities = Object.entries(pending.activities || {})
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([activity, count]) => `${activity.toUpperCase()}: ${count}`)
+        .join(' · ');
+      return `Subir ${pending.rows} pendiente(s) a CARM${activities ? ` · ${activities}` : ''}`;
+    }
+
+    function pendingUploadDetail(pending) {
+      if (!pending || !pending.rows) return 'No hay calificaciones pendientes en revision_pendiente.csv.';
+      const activities = Object.entries(pending.activities || {})
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([activity, count]) => `${activity.toUpperCase()} (${count})`)
+        .join(', ');
+      const blocked = pending.blocking
+        ? ` Hay ${pending.blocking} fila(s) con incidencia; revisa el CSV antes de subir.`
+        : '';
+      return `Pendiente por subir: ${activities || `${pending.rows} fila(s)`}.${blocked}`;
     }
 
     function toggleSettings(open) {
@@ -2097,6 +2212,10 @@ HTML = r"""<!doctype html>
       if (state.prompts.length && authState.openai_api_configured && !(state.pending_publication && state.pending_publication.pending)) {
         showSystemNotice(`Hay ${state.prompts.length} prompt(s) preparados. Pulsa "Corregir prompts con API" cuando quieras gastar la API.`);
       }
+      window.__pendingUploadRows = state.pending_publication ? state.pending_publication.rows : 0;
+      window.__pendingUploadBlocking = state.pending_publication ? state.pending_publication.blocking : 0;
+      setText('assistPublishBtn', pendingUploadLabel(state.pending_publication));
+      setText('uploadPendingDetail', pendingUploadDetail(state.pending_publication));
       setText('combinedPath', `${state.correction_source.path} · ${state.correction_source.exists ? 'listo' : 'pendiente'}`);
       setText('revisionPath', `${state.revision_csv.path} · ${state.revision_csv.exists ? 'listo' : 'pendiente'}`);
       setHtml('promptsList', state.prompts.length ? state.prompts.map(fmtFile).join('') : '<span class="muted">Sin prompts</span>');
@@ -2129,6 +2248,17 @@ HTML = r"""<!doctype html>
       await refresh();
     }
 
+    async function restartApp() {
+      if (!confirm('Reiniciar la aplicacion local ahora? Se detendra cualquier tarea en curso.')) return;
+      showSystemNotice('Reiniciando Corrector CARM...');
+      try {
+        await api('/api/restart', {method: 'POST'});
+      } catch (err) {
+        console.warn('La app se esta reiniciando', err);
+      }
+      setTimeout(() => window.location.reload(), 2200);
+    }
+
     $('prepareBtn').onclick = () => run('prepare', {
       modo: $('prepareMode').value,
       unidad: $('unidad').value,
@@ -2136,17 +2266,13 @@ HTML = r"""<!doctype html>
       max_entregas: $('maxEntregas').value
     });
     $('solveApiBtn').onclick = () => run('solve_prompts_api');
-    $('previewBtn').onclick = () => run('preview', {json_path: $('jsonPath').value});
     $('assistPublishBtn').onclick = () => {
       if (!$('publishCheck').checked) return alert('Marca la confirmación antes de iniciar la subida asistida.');
       run('assist_publish', {json_path: $('jsonPath').value});
     };
-    $('publishBtn').onclick = () => {
-      if (!$('publishCheck').checked) return alert('Marca la confirmación antes de publicar.');
-      run('publish', {json_path: $('jsonPath').value});
-    };
     $('stopBtn').onclick = async () => { await api('/api/stop', {method:'POST'}); await safeRefresh(); };
     $('refreshBtn').onclick = safeRefresh;
+    $('restartBtn').onclick = restartApp;
     $('logoutBtn').onclick = async () => {
       if (!confirm('Esto vaciara CARM_USUARIO/CARM_CONTRASENA en .env y borrara la sesion recordada. Tendras que volver a introducir credenciales para usar el panel. Continuar?')) return;
       const result = await api('/api/auth/logout', {method:'POST'});
@@ -2225,8 +2351,10 @@ HTML = r"""<!doctype html>
     $('unidad').onchange = updateActivityOptions;
     $('advancedUnidad').onchange = updateAdvancedActivityOptions;
     updateAdvancedForm();
+    window.addEventListener('hashchange', handleHashTarget);
     setInterval(safeRefresh, 3000);
     safeRefresh();
+    setTimeout(handleHashTarget, 300);
   </script>
 </body>
 </html>
@@ -2294,8 +2422,13 @@ class Handler(BaseHTTPRequestHandler):
             send_json(self, {"ok": False, "auth_required": True, "message": "Credenciales CARM requeridas."}, HTTPStatus.UNAUTHORIZED)
             return
         if parsed.path == "/api/stop":
-            audit_ui_event("detener_tarea", action=RUNNER.action)
+            audit_ui_event("detener_tarea", tarea=RUNNER.action)
             send_json(self, {"ok": RUNNER.stop()})
+            return
+        if parsed.path == "/api/restart":
+            audit_ui_event("reiniciar_app")
+            send_json(self, {"ok": True, "message": "Reiniciando Corrector CARM..."})
+            restart_app()
             return
         if parsed.path == "/api/auth/logout":
             RUNNER.stop()
@@ -2390,7 +2523,7 @@ class Handler(BaseHTTPRequestHandler):
             action = str(body.get("action", ""))
             args = build_args(action, body)
             ok, message = RUNNER.start(action, args)
-            audit_ui_event("ejecutar_accion", "iniciada" if ok else "rechazada", action=action)
+            audit_ui_event("ejecutar_accion", "iniciada" if ok else "rechazada", accion=action)
             send_json(self, {"ok": ok, "message": message})
         except Exception as exc:
             audit_ui_event("ejecutar_accion", "error", error=exc)
@@ -2438,7 +2571,7 @@ def build_args(action: str, body: dict) -> list[str]:
             args.append("--publicar-carm")
         if action == "assist_publish":
             revisar_publicacion_segura()
-            args.append("--subida-asistida-carm")
+            args.extend(["--subida-asistida-carm", "--mantener-navegador"])
         return args
 
     if action == "diagnose":
@@ -2563,7 +2696,7 @@ def install_startup() -> Path:
     cmd_path.write_text(
         "@echo off\n"
         f'cd /d "{ROOT}"\n'
-        f'start "" "{runner}" "{ROOT / "interfaz_app.py"}" --tray --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser\n',
+        f'start "" "{runner}" "{ROOT / "interfaz_app.py"}" --tray --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser --auto-correct\n',
         encoding="utf-8",
     )
     return cmd_path
@@ -2595,7 +2728,7 @@ def run_tray(server: ThreadingHTTPServer, url: str, startup_scan: bool) -> None:
             "Instala requirements.txt y reinicia la app."
         )
         print(message)
-        notify("Corrector CARM", message)
+        notify("Corrector CARM", message, target="settings")
         if startup_scan:
             start_startup_work()
         server.serve_forever()
@@ -2608,12 +2741,17 @@ def run_tray(server: ThreadingHTTPServer, url: str, startup_scan: bool) -> None:
         server.shutdown()
         icon.stop()
 
+    def restart_from_tray(icon, item=None) -> None:
+        notify("Corrector CARM", "Reiniciando aplicacion...", target="activity")
+        restart_app(delay=0.2)
+
     icon = pystray.Icon(
         "Corrector CARM",
         tray_image(),
         "Corrector CARM",
         menu=pystray.Menu(
             pystray.MenuItem("Abrir interfaz", open_ui, default=True),
+            pystray.MenuItem("Reiniciar app", restart_from_tray),
             pystray.MenuItem("Cerrar programa", quit_app),
         ),
     )
@@ -2645,7 +2783,7 @@ def start_periodic_scan(disabled: bool) -> None:
                 continue
             ok, _ = RUNNER.start("detect_course", ["--cachear-curso"])
             if ok:
-                notify("Corrector CARM", "Primera deteccion periodica de CARM iniciada.")
+                notify("Corrector CARM", "Primera deteccion periodica de CARM iniciada.", target="activity")
 
     threading.Thread(target=loop, daemon=True).start()
 
@@ -2679,7 +2817,7 @@ def main() -> None:
         help="No ejecuta autodeteccion periodica de CARM.",
     )
     args = parser.parse_args()
-    global AUTO_CORRECT_AFTER_SCAN
+    global AUTO_CORRECT_AFTER_SCAN, APP_URL
     AUTO_CORRECT_AFTER_SCAN = args.auto_correct and not args.no_auto_correct
 
     if args.install_startup:
@@ -2693,12 +2831,15 @@ def main() -> None:
 
     try:
         server, active_port, attempted_ports = create_local_server(args.host, args.port)
+        global APP_SERVER
+        APP_SERVER = server
     except OSError as exc:
         print(f"No se pudo iniciar la interfaz local: {exc}")
         print("Cierra otra instancia del Corrector CARM o prueba con --port 0 para usar un puerto libre automatico.")
         return
     url_host = "127.0.0.1" if args.host in {"0.0.0.0", "::"} else args.host
     url = f"http://{url_host}:{active_port}"
+    APP_URL = url
     save_app_config({"last_local_url": url, "last_local_port": active_port})
     print(f"Interfaz Corrector CARM: {url}")
     if args.port and active_port != args.port:

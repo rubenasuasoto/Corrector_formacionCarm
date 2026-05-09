@@ -4,11 +4,18 @@
 *api*.txt
 *key*.txt
 *token*.txt
-*__pycache__/
+__pycache__/
+**/__pycache__/
 *.py[cod]
+.venv/
+venv/
 
 logs_correcciones/
 respuestas_extraidas/
 correcciones_validadas/
 tmp_prueba/
 cache_carm/
+*.log
+*.sqlite
+*.sqlite3
+*.db
