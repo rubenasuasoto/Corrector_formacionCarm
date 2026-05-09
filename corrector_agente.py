@@ -31,7 +31,7 @@ from html import escape as html_escape, unescape
 from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 try:
     from dotenv import load_dotenv
@@ -57,8 +57,13 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 
 CARM_LOGIN_URL = "https://formacion.carm.es/login/index.php"
-CARM_MY_URL = "https://formacion.carm.es/my/index.php"
-CARM_COURSE_URL = os.getenv("CARM_COURSE_URL", "https://formacion.carm.es/course/view.php?id=1592")
+DEFAULT_CARM_DASHBOARD_URL = "https://formacion.carm.es/course/my/index.php"
+DEFAULT_CARM_COURSE_URL = "https://formacion.carm.es/course/view.php?id=1592"
+_ENV_CARM_COURSE_URL = os.getenv("CARM_COURSE_URL", DEFAULT_CARM_COURSE_URL).strip()
+CARM_MY_URL = os.getenv("CARM_DASHBOARD_URL", "").strip() or (
+    _ENV_CARM_COURSE_URL if re.fullmatch(r"https://formacion\.carm\.es/(?:course/my|my)/index\.php", _ENV_CARM_COURSE_URL) else DEFAULT_CARM_DASHBOARD_URL
+)
+CARM_COURSE_URL = _ENV_CARM_COURSE_URL if re.fullmatch(r"https://formacion\.carm\.es/course/view\.php\?id=\d+", _ENV_CARM_COURSE_URL) else DEFAULT_CARM_COURSE_URL
 CARM_COURSE_END_DATE = os.getenv("CARM_COURSE_END_DATE", "").strip()
 CARM_HEADLESS = os.getenv("CARM_HEADLESS", "0").strip().lower() in {"1", "true", "yes"}
 try:
@@ -3015,6 +3020,60 @@ class ExtractorCarm:
                 await context.close()
                 await browser.close()
 
+    async def listar_cursos_disponibles(self) -> list[dict]:
+        if async_playwright is None:
+            raise RuntimeError(
+                "Playwright no esta disponible. Ejecuta: pip install -r requirements.txt y luego playwright install chromium"
+            )
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=CARM_HEADLESS)
+            context = await self._crear_contexto(browser)
+            page = await context.new_page()
+            self._configurar_page(page)
+            try:
+                await self._login(page)
+                await page.goto(CARM_MY_URL, wait_until="domcontentloaded")
+                enlaces = await page.query_selector_all("a[href*='course/view.php']")
+                cursos: dict[str, dict] = {}
+                for enlace in enlaces:
+                    href = await enlace.get_attribute("href")
+                    if not href:
+                        continue
+                    url = urljoin(CARM_MY_URL, href)
+                    course_id = CacheCursoCarm._extraer_course_id(url)
+                    if not course_id:
+                        continue
+                    titulo = self._texto_limpio(await enlace.text_content() or "")
+                    if not titulo:
+                        try:
+                            titulo = self._texto_limpio(
+                                await enlace.evaluate(
+                                    """(el) => {
+                                        const card = el.closest('.coursebox, .card, li, article, .dashboard-card');
+                                        return card ? card.textContent : el.textContent;
+                                    }"""
+                                )
+                            )
+                        except Exception:
+                            titulo = ""
+                    cursos[course_id] = {
+                        "id": course_id,
+                        "url": self._url_vista_actividad(url),
+                        "titulo": titulo[:180] or f"Curso {course_id}",
+                    }
+                resultado = sorted(cursos.values(), key=lambda item: item["titulo"].lower())
+                RESPUESTAS_DIR.mkdir(parents=True, exist_ok=True)
+                salida = RESPUESTAS_DIR / "cursos_detectados.json"
+                salida.write_text(json.dumps(resultado, indent=2, ensure_ascii=False), encoding="utf-8")
+                logger.info("Cursos CARM detectados: %s", len(resultado))
+                logger.info("Listado de cursos guardado en: %s", salida)
+                return resultado
+            finally:
+                await self._cerrar_contexto(context, page)
+                await context.close()
+                await browser.close()
+
     async def diagnosticar(self, incluir_enlaces: bool = False) -> Path:
         if async_playwright is None:
             raise RuntimeError(
@@ -4407,6 +4466,25 @@ async def ejecutar_flujo(args) -> None:
         registrar_auditoria("comprobar_login_carm", course_id=cache_curso.course_id)
         return
 
+    if getattr(args, "listar_cursos_carm", False):
+        credenciales = obtener_credenciales_carm_interactivo("listar cursos CARM")
+        if not credenciales:
+            return
+        usuario, contrasena = credenciales
+        extractor = ExtractorCarm(
+            usuario,
+            contrasena,
+            pendientes_dir,
+            mantener_navegador=False,
+            cache=cache_curso,
+            usar_cache=True,
+        )
+        cursos = await extractor.listar_cursos_disponibles()
+        for curso in cursos:
+            logger.info("- %s: %s", curso.get("id", ""), curso.get("titulo", ""))
+        registrar_auditoria("listar_cursos_carm", cursos=len(cursos))
+        return
+
     if getattr(args, "importar_correcciones_codex", ""):
         salida = GeneradorSalidas(pendientes_dir, temporal_dir, actividad_codigo=args.actividad_codigo)
         correcciones_path = Path(args.importar_correcciones_codex)
@@ -4823,6 +4901,11 @@ def parse_args() -> argparse.Namespace:
         "--comprobar-login-carm",
         action="store_true",
         help="Comprueba credenciales CARM, guarda sesion recordada y sale.",
+    )
+    parser.add_argument(
+        "--listar-cursos-carm",
+        action="store_true",
+        help="Lista cursos visibles en CARM y guarda respuestas_extraidas/cursos_detectados.json.",
     )
     parser.add_argument(
         "--guardar-evidencias",

@@ -12,6 +12,39 @@ Esta seccion prevalece sobre notas historicas anteriores cuando haya contradicci
 - Se crea `ARQUITECTURA_PROYECTO.md` como guia de orden profesional y refactor por fases.
 - `sincronizador_moodle.py` queda marcado como legado/referencia, no ruta principal.
 
+### Multi-curso iniciado el 2026-05-09
+
+Implementado:
+
+- `corrector_agente.py --listar-cursos-carm` entra en CARM, lista cursos visibles y guarda `respuestas_extraidas/cursos_detectados.json`.
+- Se separan dos URLs:
+  - `CARM_DASHBOARD_URL`: area personal para detectar todos los cursos, por defecto `https://formacion.carm.es/course/my/index.php`.
+  - `CARM_COURSE_URL`: curso activo concreto `course/view.php?id=...`.
+- Compatibilidad: si una instalacion antigua puso la URL del area personal en `CARM_COURSE_URL`, la app la usa como dashboard y mantiene un curso activo valido.
+- La interfaz muestra un selector de curso activo en la cabecera.
+- La configuracion permite activar `Separar carpetas por curso`.
+- Con carpetas por curso activadas, las rutas de trabajo pasan a:
+  - `C:\temp\vscodec\cursos\<course_id>\pendientes`
+  - `C:\temp\vscodec\cursos\<course_id>\temporal`
+- La configuracion permite marcar varios cursos para autoprompteo.
+- Si hay varios cursos seleccionados y las carpetas por curso estan activas, el autoprompteo los recorre en cola, de uno en uno, pasando cada curso al subproceso con su propia `CARM_COURSE_URL`, `--pendientes` y `--temporal`.
+- Si hay varios cursos seleccionados pero no esta activa la separacion por curso, la app evita mezclar datos y usa solo el curso activo.
+
+Pendiente antes de darlo por cerrado:
+
+- Probar en CARM real con dos cursos visibles.
+- Verificar que cada curso genera prompts en su carpeta propia y que el selector de curso muestra el CSV correcto.
+- Mejorar la comprobacion periodica para que tambien recorra cursos seleccionados, no solo el curso activo.
+- Mostrar un resumen mas claro por curso: prompts pendientes, CSV pendiente y errores por curso.
+
+Validacion ejecutada:
+
+```powershell
+python -m py_compile interfaz_app.py corrector_agente.py
+python -c "import interfaz_app as app; print(app.selected_course_ids()); print(app.selected_courses_for_auto()[:1])"
+python -c "import interfaz_app as app; print(app.dashboard_url()); print(app.current_course_url())"
+```
+
 ## ActualizaciÃ³n operativa 2026-05-08
 
 - La previsualizaciÃ³n desde la interfaz ya no intenta esperar `Enter` en un proceso sin consola. Rellena solo la primera correcciÃ³n y deja Chromium abierto hasta que el usuario cierre la pestaÃ±a.
@@ -302,6 +335,9 @@ Implementado:
 
 - Login con Playwright.
 - Entrada al curso configurado en `CARM_COURSE_URL`.
+- Deteccion de cursos visibles desde CARM con `--listar-cursos-carm`.
+- Selector de curso activo en la interfaz.
+- Separacion opcional de carpetas por curso en `C:\temp\vscodec\cursos\<course_id>\`.
 - Deteccion de tareas obligatorias tipo caso practico.
 - Dedupe de actividades repetidas.
 - Uso preferente del enlace con `filter=require_grading`.
