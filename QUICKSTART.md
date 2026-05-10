@@ -86,7 +86,7 @@ En ese modo la app descarga entregas y genera archivos `.md` pendientes de resol
 Desde la interfaz:
 
 1. Abre configuracion.
-2. En el campo de curso puedes usar el area personal `https://formacion.carm.es/course/my/index.php` para configurar la deteccion.
+2. En el campo de curso puedes usar el area personal `https://formacion.carm.es/my/index.php` para configurar la deteccion.
 3. Pulsa `Detectar cursos CARM`.
 4. Elige el curso activo en el selector superior.
 5. Si vas a trabajar con varios cursos, activa `Separar carpetas por curso`.
@@ -95,11 +95,11 @@ Desde la interfaz:
 Variables relacionadas:
 
 ```env
-CARM_DASHBOARD_URL=https://formacion.carm.es/course/my/index.php
-CARM_COURSE_URL=https://formacion.carm.es/course/view.php?id=1592
+CARM_DASHBOARD_URL=https://formacion.carm.es/my/index.php
+CARM_COURSE_URL=
 ```
 
-`CARM_DASHBOARD_URL` sirve para listar cursos. `CARM_COURSE_URL` es el curso activo concreto.
+`CARM_DASHBOARD_URL` sirve para listar cursos. `CARM_COURSE_URL` es el curso activo concreto y lo rellena la interfaz al elegir uno; no hay curso por defecto.
 
 Con `Separar carpetas por curso`, cada curso usa:
 
@@ -109,6 +109,12 @@ C:\temp\vscodec\cursos\<course_id>\temporal
 ```
 
 Si hay varios cursos seleccionados, el autoprompteo al iniciar los procesa de uno en uno. La app no llama a la API ni sube a CARM automaticamente.
+
+Si no hay curso activo todavia, `Escanear ahora` y el arranque de la app detectan cursos desde el area personal. Cuando elijas uno, ya podra actualizar cache, preparar prompts y mostrar el CSV de ese curso.
+
+En configuracion, `Estado por curso` muestra de un vistazo si cada curso seleccionado tiene cache, prompts, JSON de correccion, filas en CSV e incidencias que bloquearian la subida.
+
+La deteccion oculta enlaces auxiliares de CARM como `FAQS` o `CARM - Curso CARM`. Si esos nombres reaparecen, pulsa `Detectar cursos CARM` de nuevo y revisa el listado filtrado.
 
 ## 3. Probar sin CARM y sin IA
 

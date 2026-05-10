@@ -136,6 +136,10 @@ Estado actual:
 - La interfaz permite marcar varios cursos para autoprompteo.
 - El autoprompteo secuencial de varios cursos tiene una primera version: solo se usa cuando hay varios cursos seleccionados y la separacion por curso esta activa.
 - Cada subproceso recibe `CARM_COURSE_URL`, `--pendientes` y `--temporal` especificos para el curso.
+- Si no hay curso activo, el arranque y el boton de escaneo detectan cursos desde el area personal en vez de cachear un curso inexistente.
+- La interfaz expone un resumen por curso seleccionado: cache, fecha de cache, prompts, JSON de correccion, filas CSV, actividades e incidencias bloqueantes.
+- La deteccion de cursos filtra enlaces auxiliares conocidos para no ofrecer `FAQS` o `CARM - Curso CARM` como cursos corregibles.
+- Los controles de cursos en configuracion preservan cambios sin guardar durante el refresco automatico del panel.
 
 Regla: antes de activar varios cursos a la vez, cada curso debe tener rutas, CSV, prompts y logs suficientemente visibles para que el docente sepa que esta subiendo al curso correcto.
 

@@ -58,8 +58,8 @@ UNIT_RE = re.compile(r"^ud\d{2}$")
 ACTIVITY_RE = re.compile(r"^ud\d{2}cp\d{2}$")
 COURSE_URL_RE = re.compile(r"^https://formacion\.carm\.es/course/view\.php\?id=\d+$")
 DASHBOARD_URL_RE = re.compile(r"^https://formacion\.carm\.es/(?:course/my|my)/index\.php$")
-DEFAULT_CARM_DASHBOARD_URL = "https://formacion.carm.es/course/my/index.php"
-DEFAULT_CARM_COURSE_URL = "https://formacion.carm.es/course/view.php?id=1592"
+DEFAULT_CARM_DASHBOARD_URL = "https://formacion.carm.es/my/index.php"
+DEFAULT_CARM_COURSE_URL = ""
 TRAY_ICON = None
 APP_SERVER: ThreadingHTTPServer | None = None
 APP_URL = ""
@@ -119,12 +119,17 @@ def _course_safe_id(course_id: str) -> str:
 def _apply_course_scope(base_pendientes: Path, base_temporal: Path) -> tuple[Path, Path]:
     if not course_scoped_dirs_enabled():
         return base_pendientes, base_temporal
-    course_id = _course_safe_id(active_course_id())
+    active_id = active_course_id()
+    if not active_id:
+        return base_pendientes, base_temporal
+    course_id = _course_safe_id(active_id)
     course_root = DEFAULT_COURSES_DIR / course_id
     return course_root / "pendientes", course_root / "temporal"
 
 
 def course_work_dirs(course_id: str) -> tuple[Path, Path]:
+    if not str(course_id or "").strip():
+        return BASE_PENDIENTES_DIR, BASE_TEMPORAL_DIR
     course_id = _course_safe_id(course_id)
     if course_scoped_dirs_enabled():
         course_root = DEFAULT_COURSES_DIR / course_id
@@ -501,7 +506,7 @@ def current_course_url() -> str:
             course_id = str(item or "").strip()
             if course_id.isdigit():
                 return course_url_from_id(course_id)
-    return DEFAULT_CARM_COURSE_URL
+    return ""
 
 
 def dashboard_url() -> str:
@@ -893,6 +898,38 @@ def file_info(path: Path) -> dict:
     }
 
 
+def revision_csv_state(path: Path) -> dict:
+    rows = 0
+    blocking = 0
+    activities: dict[str, int] = {}
+    states: dict[str, int] = {}
+    read_error = ""
+    estados_bloqueantes = {"revision_manual_necesaria", "error", "error_descarga", "sin_archivo_detectado", "sin_entrega"}
+    if path.exists():
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                data = list(csv.DictReader(handle, delimiter=";"))
+            rows = len(data)
+            for row in data:
+                estado = (row.get("estado") or "sin_estado").strip().lower() or "sin_estado"
+                actividad = (row.get("actividad") or "sin_actividad").strip().lower() or "sin_actividad"
+                states[estado] = states.get(estado, 0) + 1
+                activities[actividad] = activities.get(actividad, 0) + 1
+                if estado in estados_bloqueantes:
+                    blocking += 1
+        except Exception as exc:
+            blocking = 1
+            read_error = str(exc)
+    return {
+        "file": file_info(path),
+        "rows": rows,
+        "blocking": blocking,
+        "activities": activities,
+        "states": states,
+        "read_error": read_error,
+    }
+
+
 def pending_publication_state() -> dict:
     combined = file_info(COMBINED_JSON)
     revision = file_info(REVISION_CSV)
@@ -900,21 +937,10 @@ def pending_publication_state() -> dict:
     source = file_info(source_path)
     published = file_info(SUBIDA_PUBLICADA_JSON)
     assisted = file_info(SUBIDA_ASISTIDA_JSON)
-    rows = 0
-    blocking = 0
-    activities: dict[str, int] = {}
-    if REVISION_CSV.exists():
-        try:
-            with REVISION_CSV.open("r", encoding="utf-8-sig", newline="") as handle:
-                data = list(csv.DictReader(handle, delimiter=";"))
-            rows = len(data)
-            estados_bloqueantes = {"revision_manual_necesaria", "error", "error_descarga", "sin_archivo_detectado", "sin_entrega"}
-            blocking = sum(1 for row in data if (row.get("estado") or "").strip().lower() in estados_bloqueantes)
-            for row in data:
-                actividad = (row.get("actividad") or "sin_actividad").strip().lower() or "sin_actividad"
-                activities[actividad] = activities.get(actividad, 0) + 1
-        except Exception:
-            blocking = 1
+    revision_state = revision_csv_state(REVISION_CSV)
+    rows = revision_state["rows"]
+    blocking = revision_state["blocking"]
+    activities = revision_state["activities"]
     base_modified = max(source["modified"], revision["modified"])
     pending = bool(revision["exists"] and rows and published["modified"] < base_modified)
     return {
@@ -922,6 +948,8 @@ def pending_publication_state() -> dict:
         "rows": rows,
         "blocking": blocking,
         "activities": activities,
+        "states": revision_state["states"],
+        "read_error": revision_state["read_error"],
         "ready_for_assisted_upload": pending and blocking == 0,
         "source": source,
         "combined": combined,
@@ -992,6 +1020,10 @@ def start_startup_work() -> None:
     if not carm_credentials_present():
         notify("Corrector CARM", "Faltan credenciales CARM. Abre la interfaz para configurarlas.", target="settings")
         return
+    if not active_course_id():
+        notify("Corrector CARM", "No hay curso activo. Detecto cursos disponibles desde el area personal.", target="settings")
+        RUNNER.start("detect_courses", ["--listar-cursos-carm"])
+        return
     if has_cached_course_data():
         RUNNER.last_detection_at = time.time()
         if AUTO_CORRECT_AFTER_SCAN:
@@ -1027,6 +1059,23 @@ def _cache_path_for_current_course() -> Path | None:
     return path if path.exists() else None
 
 
+def cache_path_for_course_id(course_id: str) -> Path | None:
+    course_id = str(course_id or "").strip()
+    if not course_id.isdigit():
+        return None
+    path = ROOT / "cache_carm" / f"curso_{course_id}.sqlite"
+    return path if path.exists() else None
+
+
+def is_detected_course_allowed(title: str) -> bool:
+    normalized = re.sub(r"\s+", " ", str(title or "").strip().lower())
+    normalized = normalized.replace("_", " ").replace(":", " ").strip()
+    blocked = {"faq", "faqs", "curso carm", "carm curso carm", "carm - curso carm"}
+    if normalized in blocked:
+        return False
+    return "faq" not in normalized
+
+
 def detected_courses() -> list[dict]:
     cursos_por_id: dict[str, dict] = {}
     for path in _cache_paths():
@@ -1044,10 +1093,13 @@ def detected_courses() -> list[dict]:
                     titulo = row[1] or ""
         except sqlite3.Error:
             pass
+        titulo = titulo or f"Curso {course_id}"
+        if not is_detected_course_allowed(titulo):
+            continue
         cursos_por_id[course_id] = {
             "id": course_id,
             "url": url,
-            "titulo": titulo or f"Curso {course_id}",
+            "titulo": titulo,
             "cache_path": str(path),
             "modified": updated,
             "source": "cache",
@@ -1065,10 +1117,13 @@ def detected_courses() -> list[dict]:
                     if not course_id:
                         continue
                     existente = cursos_por_id.get(course_id, {})
+                    titulo = str(item.get("titulo") or existente.get("titulo") or f"Curso {course_id}")
+                    if not is_detected_course_allowed(titulo):
+                        continue
                     cursos_por_id[course_id] = {
                         "id": course_id,
                         "url": str(item.get("url") or existente.get("url") or course_url_from_id(course_id)),
-                        "titulo": str(item.get("titulo") or existente.get("titulo") or f"Curso {course_id}"),
+                        "titulo": titulo,
                         "cache_path": existente.get("cache_path", ""),
                         "modified": max(float(existente.get("modified") or 0), CURSOS_DETECTADOS_JSON.stat().st_mtime),
                         "source": "cache+y_carm" if existente else "carm",
@@ -1200,6 +1255,43 @@ def selected_courses_for_auto() -> list[dict[str, str]]:
     return courses
 
 
+def selected_course_summaries() -> list[dict]:
+    detected = {str(item.get("id") or ""): item for item in detected_courses()}
+    summaries: list[dict] = []
+    for course in selected_courses_for_auto():
+        course_id = course["id"]
+        pendientes = Path(course["pendientes"])
+        temporal = Path(course["temporal"])
+        prompts_dir = pendientes / "prompts_codex"
+        prompts = sorted(prompts_dir.glob("prompt_*.md")) if prompts_dir.exists() else []
+        corrections = sorted(prompts_dir.glob("*_correccion.json")) if prompts_dir.exists() else []
+        revision_csv = temporal / "revision_pendiente.csv"
+        revision_state = revision_csv_state(revision_csv)
+        cache_path = cache_path_for_course_id(course_id)
+        cache_info = file_info(cache_path) if cache_path else file_info(ROOT / "cache_carm" / f"curso_{course_id}.sqlite")
+        summaries.append(
+            {
+                "id": course_id,
+                "titulo": str(detected.get(course_id, {}).get("titulo") or f"Curso {course_id}"),
+                "url": course["url"],
+                "pendientes_dir": str(pendientes),
+                "temporal_dir": str(temporal),
+                "cache_exists": bool(cache_path),
+                "cache_path": str(cache_path or ""),
+                "cache": cache_info,
+                "prompts": len(prompts),
+                "corrections": len(corrections),
+                "revision_csv": revision_state["file"],
+                "revision_rows": revision_state["rows"],
+                "revision_blocking": revision_state["blocking"],
+                "revision_activities": revision_state["activities"],
+                "revision_states": revision_state["states"],
+                "revision_read_error": revision_state["read_error"],
+            }
+        )
+    return summaries
+
+
 def auto_prepare_args_for_course(course: dict[str, str]) -> list[str]:
     return [
         "--preparar-carm-codex",
@@ -1223,6 +1315,15 @@ def start_auto_prepare_for_course(course: dict[str, str]) -> tuple[bool, str]:
     )
 
 
+def start_detect_course_for_course(course: dict[str, str]) -> tuple[bool, str]:
+    notify("Corrector CARM", f"Actualizo cache didactica del curso {course['id']}.", target="activity")
+    return RUNNER.start(
+        "detect_course",
+        ["--cachear-curso"],
+        env_overrides={"CARM_COURSE_URL": course["url"]},
+    )
+
+
 def project_state() -> dict:
     prompts = sorted(PROMPTS_DIR.glob("prompt_*.md")) if PROMPTS_DIR.exists() else []
     corrections = sorted(PROMPTS_DIR.glob("*_correccion.json")) if PROMPTS_DIR.exists() else []
@@ -1239,7 +1340,11 @@ def project_state() -> dict:
         "course_scoped_dirs": course_scoped_dirs_enabled(),
         "course_id": active_course_id(),
         "selected_course_ids": selected_course_ids(),
+        "selected_courses": selected_course_summaries(),
         "auto_course_queue": [course.get("id", "") for course in AUTO_COURSE_QUEUE],
+        "auto_correct_after_scan": AUTO_CORRECT_AFTER_SCAN,
+        "startup_installed": startup_cmd_path().exists(),
+        "startup_auto_correct_enabled": startup_auto_correct_enabled(),
         "auto_scan_interval_minutes": auto_scan_interval_minutes(),
         "json_options": json_options(),
         "prompts": [file_info(p) for p in prompts],
@@ -1834,7 +1939,7 @@ HTML = r"""<!doctype html>
           <div class="stack">
             <div>
               <label for="courseUrl">URL area personal, URL de curso o ID</label>
-              <input id="courseUrl" placeholder="https://formacion.carm.es/course/my/index.php">
+              <input id="courseUrl" placeholder="https://formacion.carm.es/my/index.php">
             </div>
             <div>
               <label for="detectedCourse">Cursos detectados</label>
@@ -1843,6 +1948,10 @@ HTML = r"""<!doctype html>
             <div>
               <label>Cursos para autoprompteo</label>
               <div id="selectedCoursesList" class="list"></div>
+            </div>
+            <div>
+              <label>Estado por curso</label>
+              <div id="selectedCoursesSummary" class="list"></div>
             </div>
             <div class="path" id="courseMessage">Curso pendiente de cargar.</div>
             <div class="row">
@@ -2040,6 +2149,7 @@ HTML = r"""<!doctype html>
     };
     let courseOptions = {units: [], activities: []};
     let authState = {configured: false, session_saved: false};
+    let coursePickSelectionOverride = null;
 
     function showSystemNotice(message) {
       $('systemNoticeText').textContent = message;
@@ -2139,9 +2249,27 @@ HTML = r"""<!doctype html>
     }
 
     function courseCheckboxHtml(item) {
-      const selected = (courseOptions.selected_course_ids || []).includes(String(item.id));
+      const selectedIds = coursePickSelectionOverride || courseOptions.selected_course_ids || [];
+      const selected = selectedIds.includes(String(item.id));
       const suffix = item.current ? ' · activo' : '';
       return `<label class="check"><input type="checkbox" class="coursePick" value="${escapeAttr(item.id)}" ${selected ? 'checked' : ''}> ${escapeHtml(item.id + ' · ' + item.titulo + suffix)}</label>`;
+    }
+
+    function checkedCourseIds() {
+      return Array.from(document.querySelectorAll('.coursePick:checked')).map((item) => item.value);
+    }
+
+    function selectedCourseSummaryHtml(item) {
+      const cache = item.cache_exists ? 'cache OK' : 'sin cache';
+      const csv = item.revision_csv && item.revision_csv.exists
+        ? `${item.revision_rows || 0} fila(s) CSV`
+        : 'sin CSV';
+      const blocking = item.revision_blocking ? ` · ${item.revision_blocking} incidencia(s)` : '';
+      const activities = item.revision_activities ? Object.entries(item.revision_activities).map(([key, value]) => `${key}:${value}`).join(', ') : '';
+      const cacheDate = item.cache && item.cache.modified ? new Date(item.cache.modified * 1000).toLocaleString() : 'cache sin fecha';
+      const detail = `${cache} · ${cacheDate} · ${item.prompts} prompt(s) · ${item.corrections} JSON · ${csv}${blocking}`;
+      const extra = activities ? `<br><small>${escapeHtml(activities)}</small>` : '';
+      return `<div class="item"><span>${escapeHtml(item.id + ' · ' + item.titulo)}<br><small>${escapeHtml(detail)}</small>${extra}</span></div>`;
     }
 
     function activityLabel(act) {
@@ -2374,7 +2502,7 @@ HTML = r"""<!doctype html>
     }
 
     async function saveSelectedCourses() {
-      const ids = Array.from(document.querySelectorAll('.coursePick:checked')).map((item) => item.value);
+      const ids = checkedCourseIds();
       $('saveSelectedCoursesBtn').disabled = true;
       $('courseMessage').textContent = 'Guardando cursos seleccionados...';
       const result = await api('/api/config/selected-courses', {
@@ -2436,6 +2564,11 @@ HTML = r"""<!doctype html>
       const scrollX = window.scrollX;
       const scrollY = window.scrollY;
       const shouldRestoreScroll = !isEditingControl();
+      const settingsOpen = $('settingsModal').classList.contains('open');
+      const previousCourseUrlInput = $('courseUrl').value;
+      const previousDetectedCourse = $('detectedCourse').value;
+      const hadCoursePicks = document.querySelectorAll('.coursePick').length > 0;
+      const previousCoursePicks = checkedCourseIds();
       await loadAuth();
       if (!authState.configured) {
         setBusy(false);
@@ -2456,18 +2589,25 @@ HTML = r"""<!doctype html>
         : state.correction_source.path;
       fillSelect($('jsonPath'), jsonHtml, correctionSourceValue);
       fillSelect($('importJsonPath'), jsonHtml, $('importJsonPath').value);
-      setInputValue('courseUrl', courseOptions.course_url || '');
+      if (!settingsOpen || !previousCourseUrlInput) {
+        setInputValue('courseUrl', courseOptions.course_url || courseOptions.dashboard_url || '');
+      }
       const detectedHtml = courseOptions.detected_courses.length
         ? courseOptions.detected_courses.map(courseOptionHtml).join('')
         : '<option value="">Sin cursos detectados todavia</option>';
-      fillSelect($('detectedCourse'), detectedHtml, courseOptions.course_url || '');
+      fillSelect($('detectedCourse'), detectedHtml, settingsOpen ? previousDetectedCourse : (courseOptions.course_url || ''));
       const activeCourseHtml = courseOptions.detected_courses.length
         ? courseOptions.detected_courses.map(courseOptionHtml).join('')
         : `<option value="${escapeAttr(courseOptions.course_url || '')}">Curso ${escapeHtml(courseOptions.course_id || 'actual')}</option>`;
       fillSelect($('activeCourseSelect'), activeCourseHtml, courseOptions.course_url || '');
+      coursePickSelectionOverride = settingsOpen && hadCoursePicks ? previousCoursePicks : null;
       $('selectedCoursesList').innerHTML = courseOptions.detected_courses.length
         ? courseOptions.detected_courses.map(courseCheckboxHtml).join('')
         : '<div class="item"><span>Detecta cursos CARM para elegir varios.</span></div>';
+      coursePickSelectionOverride = null;
+      $('selectedCoursesSummary').innerHTML = state.selected_courses && state.selected_courses.length
+        ? state.selected_courses.map(selectedCourseSummaryHtml).join('')
+        : '<div class="item"><span>Sin cursos seleccionados para autoprompteo.</span></div>';
       $('useDetectedCourseBtn').disabled = !courseOptions.detected_courses.length;
       setText('courseMessage', courseOptions.cache_path
         ? `Curso ${courseOptions.course_id} · cache: ${courseOptions.cache_path} · trabajo: ${state.pendientes_dir}`
@@ -2763,10 +2903,11 @@ class Handler(BaseHTTPRequestHandler):
                 scope = "carpetas separadas por curso" if course_scoped_dirs_enabled() else "carpetas globales"
                 dashboard_saved = DASHBOARD_URL_RE.fullmatch(str(body.get("course") or "").strip()) is not None
                 audit_ui_event("configurar_curso", course_id=course_id_from_url(url), dashboard=dashboard_saved)
+                active_label = course_id_from_url(url) or "sin seleccionar"
                 message = (
-                    f"Area personal guardada para detectar cursos. Curso activo: {course_id_from_url(url)} ({scope})."
+                    f"Area personal guardada para detectar cursos. Curso activo: {active_label} ({scope})."
                     if dashboard_saved
-                    else f"Curso activo guardado: {course_id_from_url(url)} ({scope}). Actualiza datos didacticos para cargar sus unidades."
+                    else f"Curso activo guardado: {active_label} ({scope}). Actualiza datos didacticos para cargar sus unidades."
                 )
                 send_json(
                     self,
@@ -2898,6 +3039,8 @@ def build_args(action: str, body: dict) -> list[str]:
         return ["--diagnosticar-carm", "--guardar-evidencias"]
 
     if action == "detect_course":
+        if not active_course_id():
+            return ["--listar-cursos-carm"]
         return ["--cachear-curso", "--refrescar-cache"]
 
     if action == "detect_courses":
@@ -3022,6 +3165,25 @@ def install_startup() -> Path:
     return cmd_path
 
 
+def startup_auto_correct_enabled() -> bool:
+    try:
+        path = startup_cmd_path()
+        return path.exists() and "--auto-correct" in path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return False
+
+
+def repair_startup_if_installed() -> bool:
+    try:
+        path = startup_cmd_path()
+        if path.exists() and not startup_auto_correct_enabled():
+            install_startup()
+            return True
+    except Exception:
+        return False
+    return False
+
+
 def uninstall_startup() -> bool:
     path = startup_cmd_path()
     if path.exists():
@@ -3099,6 +3261,20 @@ def start_periodic_scan(disabled: bool) -> None:
             snapshot = RUNNER.snapshot()
             if snapshot.get("running"):
                 continue
+            selected = selected_courses_for_auto()
+            if len(selected) > 1 and course_scoped_dirs_enabled():
+                missing = [course for course in selected if not cache_path_for_course_id(course["id"])]
+                if not missing:
+                    continue
+                ok, _ = start_detect_course_for_course(missing[0])
+                if ok:
+                    notify("Corrector CARM", f"Deteccion periodica iniciada para curso {missing[0]['id']}.", target="activity")
+                continue
+            if not active_course_id():
+                ok, _ = RUNNER.start("detect_courses", ["--listar-cursos-carm"])
+                if ok:
+                    notify("Corrector CARM", "Deteccion periodica de cursos CARM iniciada.", target="activity")
+                continue
             if has_cached_course_data():
                 continue
             ok, _ = RUNNER.start("detect_course", ["--cachear-curso"])
@@ -3165,6 +3341,8 @@ def main() -> None:
     if args.port and active_port != args.port:
         print(f"Puerto {args.port} ocupado; se ha usado automaticamente el puerto {active_port}.")
     notify_pending_publication()
+    if repair_startup_if_installed():
+        print("Arranque automatico actualizado para incluir --auto-correct.")
     start_periodic_scan(disabled=args.no_periodic_scan)
     if args.tray:
         if not args.no_browser:

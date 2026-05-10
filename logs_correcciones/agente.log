@@ -2567,3 +2567,10 @@ Evalúa solo lo que el alumno ha e
 2026-05-09 17:23:21,970 - INFO - Resumen por actividad generado en: tmp_prueba\temporal\resumen_ud02cp03.txt
 2026-05-09 17:23:21,970 - INFO - Hoja de revisión manual generada en: tmp_prueba\temporal\revision_pendiente.csv
 2026-05-09 17:23:21,971 - INFO - Trazabilidad de lote en: correcciones_validadas\correcciones_lote.json
+2026-05-10 13:04:31,103 - INFO - Cursos CARM detectados: 0
+2026-05-10 13:04:31,105 - INFO - Listado de cursos guardado en: respuestas_extraidas\cursos_detectados.json
+2026-05-10 13:09:24,463 - INFO - Cursos CARM detectados: 3
+2026-05-10 13:09:24,465 - INFO - Listado de cursos guardado en: respuestas_extraidas\cursos_detectados.json
+2026-05-10 13:09:24,645 - INFO - - 52: FAQS
+2026-05-10 13:09:24,645 - INFO - - 1589: SPF142026
+2026-05-10 13:09:24,646 - INFO - - 1592: SPF172026

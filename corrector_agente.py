@@ -57,13 +57,13 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 
 CARM_LOGIN_URL = "https://formacion.carm.es/login/index.php"
-DEFAULT_CARM_DASHBOARD_URL = "https://formacion.carm.es/course/my/index.php"
-DEFAULT_CARM_COURSE_URL = "https://formacion.carm.es/course/view.php?id=1592"
+DEFAULT_CARM_DASHBOARD_URL = "https://formacion.carm.es/my/index.php"
+DEFAULT_CARM_COURSE_URL = ""
 _ENV_CARM_COURSE_URL = os.getenv("CARM_COURSE_URL", DEFAULT_CARM_COURSE_URL).strip()
 CARM_MY_URL = os.getenv("CARM_DASHBOARD_URL", "").strip() or (
     _ENV_CARM_COURSE_URL if re.fullmatch(r"https://formacion\.carm\.es/(?:course/my|my)/index\.php", _ENV_CARM_COURSE_URL) else DEFAULT_CARM_DASHBOARD_URL
 )
-CARM_COURSE_URL = _ENV_CARM_COURSE_URL if re.fullmatch(r"https://formacion\.carm\.es/course/view\.php\?id=\d+", _ENV_CARM_COURSE_URL) else DEFAULT_CARM_COURSE_URL
+CARM_COURSE_URL = _ENV_CARM_COURSE_URL if re.fullmatch(r"https://formacion\.carm\.es/course/view\.php\?id=\d+", _ENV_CARM_COURSE_URL) else ""
 CARM_COURSE_END_DATE = os.getenv("CARM_COURSE_END_DATE", "").strip()
 CARM_HEADLESS = os.getenv("CARM_HEADLESS", "0").strip().lower() in {"1", "true", "yes"}
 try:
@@ -74,6 +74,16 @@ except ValueError:
 DEFAULT_PENDIENTES_DIR = Path(r"C:\temp\vscodec\pendientes")
 DEFAULT_TEMPORAL_DIR = Path(r"C:\temp\vscodec\temporal")
 DEFAULT_ACTIVIDAD_CODIGO = "ud01cp01"
+
+
+def requiere_curso_carm_configurado(accion: str) -> bool:
+    if CARM_COURSE_URL:
+        return True
+    logger.error(
+        "No hay curso CARM activo para %s. Primero detecta cursos desde el area personal y selecciona uno en la interfaz.",
+        accion,
+    )
+    return False
 
 LOG_DIR = Path("logs_correcciones")
 RESPUESTAS_DIR = Path("respuestas_extraidas")
@@ -3057,6 +3067,11 @@ class ExtractorCarm:
                             )
                         except Exception:
                             titulo = ""
+                    titulo_normalizado = self._normalizar(titulo)
+                    if titulo_normalizado in {"faq", "faqs", "curso carm", "carm curso carm", "carm - curso carm"}:
+                        continue
+                    if "faq" in titulo_normalizado:
+                        continue
                     cursos[course_id] = {
                         "id": course_id,
                         "url": self._url_vista_actividad(url),
@@ -4533,6 +4548,8 @@ async def ejecutar_flujo(args) -> None:
         return
 
     if getattr(args, "subir_correcciones_carm", ""):
+        if not requiere_curso_carm_configurado("subir correcciones a CARM"):
+            return
         credenciales = obtener_credenciales_carm_interactivo("subir/previsualizar correcciones en CARM")
         if not credenciales:
             return
@@ -4644,6 +4661,8 @@ async def ejecutar_flujo(args) -> None:
         or getattr(args, "solo_listar_carm", False)
         or getattr(args, "cachear_curso", False)
     ):
+        if not requiere_curso_carm_configurado("extraer/cachear datos del curso"):
+            return
         credenciales = obtener_credenciales_carm_interactivo("extraer o cachear datos desde CARM")
         if not credenciales:
             return
