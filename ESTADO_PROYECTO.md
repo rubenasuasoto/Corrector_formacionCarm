@@ -18,9 +18,10 @@ Implementado:
 
 - `corrector_agente.py --listar-cursos-carm` entra en CARM, lista cursos visibles y guarda `respuestas_extraidas/cursos_detectados.json`.
 - Se separan dos URLs:
-  - `CARM_DASHBOARD_URL`: area personal para detectar todos los cursos, por defecto `https://formacion.carm.es/course/my/index.php`.
-  - `CARM_COURSE_URL`: curso activo concreto `course/view.php?id=...`.
-- Compatibilidad: si una instalacion antigua puso la URL del area personal en `CARM_COURSE_URL`, la app la usa como dashboard y mantiene un curso activo valido.
+  - `CARM_DASHBOARD_URL`: area personal para detectar todos los cursos, por defecto `https://formacion.carm.es/my/index.php`.
+  - `CARM_COURSE_URL`: curso activo concreto `course/view.php?id=...`; no tiene valor por defecto porque cada usuario puede tener cursos distintos.
+- Compatibilidad: si una instalacion antigua puso la URL del area personal en `CARM_COURSE_URL`, la app la usa como dashboard. Despues hay que elegir un curso activo desde la interfaz.
+- Compatibilidad adicional: la app acepta la variante antigua `https://formacion.carm.es/course/my/index.php`, pero el valor canonico documentado es `https://formacion.carm.es/my/index.php`.
 - La interfaz muestra un selector de curso activo en la cabecera.
 - La configuracion permite activar `Separar carpetas por curso`.
 - Con carpetas por curso activadas, las rutas de trabajo pasan a:
@@ -29,13 +30,24 @@ Implementado:
 - La configuracion permite marcar varios cursos para autoprompteo.
 - Si hay varios cursos seleccionados y las carpetas por curso estan activas, el autoprompteo los recorre en cola, de uno en uno, pasando cada curso al subproceso con su propia `CARM_COURSE_URL`, `--pendientes` y `--temporal`.
 - Si hay varios cursos seleccionados pero no esta activa la separacion por curso, la app evita mezclar datos y usa solo el curso activo.
+- Los comandos que necesitan un curso concreto se bloquean con un error claro si aun no hay curso activo seleccionado.
+- Si no hay curso activo, incluso con `Separar carpetas por curso` activo, la interfaz mantiene las carpetas base y no crea una carpeta falsa `sin_curso`.
+- Arranque sin curso activo: la app ya no intenta cachear un curso inexistente; lanza deteccion de cursos desde el area personal.
+- `Escanear ahora` sin curso activo tambien ejecuta deteccion de cursos, no cache de curso.
+- La comprobacion periodica ya contempla cursos seleccionados: si hay varios cursos seleccionados y carpetas por curso activadas, actualiza la cache del primer curso seleccionado que aun no tenga cache.
+- La interfaz muestra `Estado por curso` con cache, fecha de cache, prompts, JSON de correccion, filas CSV, actividades e incidencias bloqueantes por cada curso seleccionado.
+- La deteccion de cursos filtra entradas auxiliares como `FAQS` y `CARM - Curso CARM`; se mantiene compatibilidad con datos antiguos, pero la interfaz ya no los muestra como cursos seleccionables.
+- La configuracion de cursos ya no pisa cada pocos segundos el desplegable ni los checkboxes de autoprompteo mientras el modal de ajustes esta abierto.
+- El estado local expone si el arranque de Windows esta instalado y si ese arranque incluye `--auto-correct`.
+- Se detecto un arranque antiguo sin `--auto-correct`; se actualizo el `.cmd` instalado para que vuelva a autopromptear al iniciar Windows.
 
 Pendiente antes de darlo por cerrado:
 
 - Probar en CARM real con dos cursos visibles.
 - Verificar que cada curso genera prompts en su carpeta propia y que el selector de curso muestra el CSV correcto.
-- Mejorar la comprobacion periodica para que tambien recorra cursos seleccionados, no solo el curso activo.
-- Mostrar un resumen mas claro por curso: prompts pendientes, CSV pendiente y errores por curso.
+- Mejorar la comprobacion periodica para que, ademas de cachear cursos sin cache, pueda decidir si conviene autopromptear cursos con entregas nuevas.
+- Ampliar el resumen por curso con ultima ejecucion/log especifico por curso.
+- Si en el futuro CARM muestra cursos reales con nombres muy distintos a `SPF...`, revisar el filtro de cursos auxiliares para no ocultarlos por error.
 
 Validacion ejecutada:
 
@@ -43,7 +55,14 @@ Validacion ejecutada:
 python -m py_compile interfaz_app.py corrector_agente.py
 python -c "import interfaz_app as app; print(app.selected_course_ids()); print(app.selected_courses_for_auto()[:1])"
 python -c "import interfaz_app as app; print(app.dashboard_url()); print(app.current_course_url())"
+python corrector_agente.py --cachear-curso
+python -c "import interfaz_app as app; app.load_app_config=lambda:{}; app.read_env_values=lambda:{}; print(app.build_args('detect_course', {})); print(app.project_state()['selected_courses'])"
+python -c "import interfaz_app as app; print(app.revision_csv_state(app.REVISION_CSV)); print(app.selected_course_summaries()[:1])"
+python -c "import interfaz_app as app; print(app.detected_courses()); state=app.project_state(); print(state['startup_installed'], state['startup_auto_correct_enabled'], state['auto_correct_after_scan'])"
+python -c "import interfaz_app as app; print(app.is_detected_course_allowed('FAQS'), app.is_detected_course_allowed('CARM - Curso CARM'), app.is_detected_course_allowed('SPF142026'))"
 ```
+
+El ultimo comando debe mostrar error controlado si no hay `CARM_COURSE_URL` de curso activo.
 
 ## ActualizaciÃ³n operativa 2026-05-08
 

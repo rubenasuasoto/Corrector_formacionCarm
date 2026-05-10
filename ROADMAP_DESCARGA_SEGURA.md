@@ -103,8 +103,12 @@ Implementacion por pasos:
 4. Separar cache/opciones visibles por curso.
 5. Migrar rutas de trabajo a `cursos/<course_id>/`. Estado: implementado como opcion activable "Separar carpetas por curso"; por defecto se mantienen las rutas globales para no romper instalaciones existentes.
 6. Activar autoprompteo secuencial para cursos seleccionados. Estado: primera version implementada; solo se activa de forma segura cuando hay varios cursos seleccionados y carpetas por curso activadas.
+7. Hacer que el arranque sin curso activo detecte cursos desde el area personal. Estado: implementado.
+8. Mostrar estado por curso en la interfaz. Estado: implementado con cache, fecha de cache, prompts, JSON, filas CSV, actividades e incidencias bloqueantes.
+9. Filtrar enlaces auxiliares detectados como cursos. Estado: implementado para `FAQS` y `CARM - Curso CARM`.
+10. Evitar que el refresco automatico de la interfaz pise cambios no guardados en la configuracion de cursos. Estado: implementado.
 
-Esta fase debe hacerse con cambios pequenos y verificables. La primera cola multi-curso ya existe, pero falta prueba real con varios cursos CARM y una vista resumen por curso antes de considerarlo terminado.
+Esta fase debe hacerse con cambios pequenos y verificables. La primera cola multi-curso y el resumen por curso ya existen, pero falta prueba real con varios cursos CARM antes de considerarlo terminado.
 
 ## Fase 2: Seguridad operativa local
 
