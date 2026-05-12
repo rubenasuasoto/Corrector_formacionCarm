@@ -136,15 +136,17 @@ Objetivo: controles sencillos con impacto real.
 Objetivo: que cada version local sea reproducible sin montar infraestructura grande.
 
 - Checklist de release local.
+- Chequeo local desde interfaz para dependencias, Chromium, carpetas, credenciales, curso activo y artefactos sensibles en Git. Estado: implementado.
 - Comando unico de verificacion:
   - compilacion Python
   - pruebas offline
   - validacion de configuracion
   - comprobacion de endpoints locales
-- Versionado semantico sencillo.
-- Etiquetas Git para versiones que funcionen.
+- Estado: implementado como `verificar_app.py` y lanzadores `verificar_app_windows.cmd` / `verificar_app_windows.ps1`.
+- Versionado semantico sencillo. Estado: implementado con `VERSION`, cabecera de interfaz y salida de `verificar_app.py`.
+- Etiquetas Git para versiones que funcionen. Estado: flujo preparado con `preparar_release.py`; la etiqueta solo se crea con `--crear-tag` si la verificacion pasa y no hay cambios locales.
 - Documentar cambios relevantes en `ESTADO_PROYECTO.md`.
-- Mantener `.env.example` actualizado sin secretos.
+- Mantener `.env.example` actualizado sin secretos. Estado: actualizado con variables CARM, OpenAI, Codex, retencion y limites de tokens.
 
 Esta fase aplica las ideas de Git, build reproducible y pruebas del documento, pero en escala local.
 
@@ -153,9 +155,9 @@ Esta fase aplica las ideas de Git, build reproducible y pruebas del documento, p
 Objetivo: facilitar uso en Windows sin depender de conocimientos tecnicos.
 
 - Script de instalacion guiado.
-- Comprobacion de Python, dependencias y Playwright.
-- Instalacion de Chromium para Playwright.
-- Acceso directo de escritorio o menu inicio.
+- Comprobacion de Python, dependencias y Playwright. Estado: instalador valida Python 3.12+, instala dependencias y ejecuta `verificar_app.py --instalacion --sin-prueba-offline`.
+- Instalacion de Chromium para Playwright. Estado: implementado.
+- Acceso directo de escritorio o menu inicio. Estado: acceso directo opcional con `-CrearAccesoDirecto`.
 - Arranque opcional del panel local.
 - Mensajes claros cuando Windows bloquee permisos.
 

@@ -1,7 +1,9 @@
 param(
     [switch]$ConExtraccion,
     [switch]$InstalarArranque,
-    [switch]$AutoPrepararAlInicio
+    [switch]$AutoPrepararAlInicio,
+    [switch]$CrearAccesoDirecto,
+    [switch]$OmitirVerificacion
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,7 +26,30 @@ function Find-Python {
     throw "No se encontro Python. Instala Python 3.12+ para Windows y vuelve a ejecutar este instalador."
 }
 
+function Test-PythonVersion {
+    param([string]$PythonCommand)
+    $versionText = & $PythonCommand -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+    $parts = $versionText.Trim().Split(".")
+    if ([int]$parts[0] -lt 3 -or ([int]$parts[0] -eq 3 -and [int]$parts[1] -lt 12)) {
+        throw "Python 3.12+ requerido. Detectado: $versionText"
+    }
+}
+
+function New-DesktopShortcut {
+    param([string]$Target)
+    $Desktop = [Environment]::GetFolderPath("Desktop")
+    $ShortcutPath = Join-Path $Desktop "Corrector CARM.lnk"
+    $Shell = New-Object -ComObject WScript.Shell
+    $Shortcut = $Shell.CreateShortcut($ShortcutPath)
+    $Shortcut.TargetPath = $Target
+    $Shortcut.WorkingDirectory = $Root
+    $Shortcut.Description = "Iniciar Corrector CARM"
+    $Shortcut.Save()
+    Write-Host "Acceso directo creado: $ShortcutPath" -ForegroundColor Green
+}
+
 $Python = Find-Python
+Test-PythonVersion -PythonCommand $Python
 
 if (-not (Test-Path ".venv\Scripts\python.exe")) {
     Write-Step "Creando entorno virtual .venv"
@@ -70,6 +95,17 @@ if ($InstalarArranque) {
     }
 }
 
+if ($CrearAccesoDirecto) {
+    Write-Step "Creando acceso directo en el escritorio"
+    New-DesktopShortcut -Target (Join-Path $Root "iniciar_app_windows.cmd")
+}
+
+if (-not $OmitirVerificacion) {
+    Write-Step "Verificando instalacion"
+    & $VenvPython verificar_app.py --instalacion --sin-prueba-offline
+}
+
 Write-Host ""
 Write-Host "Instalacion completada." -ForegroundColor Green
 Write-Host "Para iniciar la app en bandeja: .\iniciar_app_windows.cmd"
+Write-Host "Para verificar todo tras configurar CARM: .\verificar_app_windows.cmd"

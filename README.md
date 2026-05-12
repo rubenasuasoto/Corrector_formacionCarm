@@ -25,10 +25,13 @@ Lee estos archivos en este orden:
 3. `SEGURIDAD_ASVS.md`: controles OWASP ASVS aplicables a esta app.
 4. `SEGURIDAD_CVSS.md`: criterio de priorizaciÃ³n de riesgos basado en CVSS v4.0.
 5. `ARQUITECTURA_PROYECTO.md`: estructura profesional objetivo y estado de archivos.
-6. `prompts_correccion.json`: prompts editables por actividad.
-7. `corrector_agente.py`: flujo principal.
+6. `RELEASE_CHECKLIST.md`: comprobaciones antes de distribuir o usar una version en real.
+7. `prompts_correccion.json`: prompts editables por actividad.
+8. `corrector_agente.py`: flujo principal.
 
 El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_PROYECTO.md`, manda `ESTADO_PROYECTO.md`.
+
+La version local esta en `VERSION`. La interfaz y `verificar_app.py` muestran version, commit y si hay cambios locales.
 
 ## InstalaciÃ³n
 
@@ -38,6 +41,34 @@ El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_P
 ```
 
 El instalador crea `.venv`, instala dependencias, instala Chromium de Playwright y deja `.env` preparado si no existe.
+
+Opciones utiles:
+
+```powershell
+.\instalar_windows.cmd -ConExtraccion
+.\instalar_windows.cmd -InstalarArranque
+.\instalar_windows.cmd -CrearAccesoDirecto
+```
+
+Para verificar dependencias, Chromium, configuracion local y prueba offline:
+
+```powershell
+.\verificar_app_windows.cmd
+```
+
+Tambien comprueba endpoints locales basicos y que el token local bloquea peticiones sin autorizacion.
+
+En una instalacion nueva sin credenciales ni curso activo:
+
+```powershell
+.\verificar_app_windows.cmd --instalacion
+```
+
+Para preparar un release local con manifiesto:
+
+```powershell
+.\preparar_release_windows.cmd
+```
 
 Dependencias opcionales para leer PDF, PPTX, XLSX, ZIP e imÃ¡genes con OCR:
 

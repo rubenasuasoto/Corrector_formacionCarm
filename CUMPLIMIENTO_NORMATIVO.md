@@ -108,6 +108,7 @@ Esta purga es manual para evitar perdidas accidentales antes de cerrar una evalu
 - Archivado de prompts, correcciones y resumenes usados para evitar duplicidades.
 - Purga manual fuerte de salidas con datos personales.
 - Retencion automatica de logs/auditoria antiguos.
+- Chequeo local de preparacion del equipo antes de operar o distribuir.
 
 ## Pendientes por fase
 

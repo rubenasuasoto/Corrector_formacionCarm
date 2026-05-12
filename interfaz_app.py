@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import importlib.util
 import os
 import json
 import re
@@ -31,6 +32,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parent
 APP_CONFIG_PATH = ROOT / ".corrector_app.json"
+VERSION_PATH = ROOT / "VERSION"
 DEFAULT_PENDIENTES_DIR = Path(r"C:\temp\vscodec\pendientes")
 DEFAULT_TEMPORAL_DIR = Path(r"C:\temp\vscodec\temporal")
 DEFAULT_COURSES_DIR = Path(r"C:\temp\vscodec\cursos")
@@ -71,6 +73,50 @@ API_TOKEN = secrets.token_urlsafe(32)
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 PORT_FALLBACK_ATTEMPTS = 30
+
+
+def app_version() -> str:
+    try:
+        value = VERSION_PATH.read_text(encoding="utf-8").strip()
+    except Exception:
+        value = ""
+    return value or "0.0.0-local"
+
+
+def git_revision() -> dict:
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+        ).stdout.strip()
+        dirty_proc = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+        )
+        return {"commit": commit or "sin-git", "dirty": bool(dirty_proc.stdout.strip())}
+    except Exception:
+        return {"commit": "sin-git", "dirty": False}
+
+
+def release_info() -> dict:
+    git = git_revision()
+    return {
+        "version": app_version(),
+        "commit": git["commit"],
+        "dirty": git["dirty"],
+    }
 
 
 def load_app_config() -> dict:
@@ -391,6 +437,126 @@ def auth_status() -> dict:
         "openai_api_configured": openai_api_key_present(),
         "correction_mode": correction_mode(),
         "openai_model": read_env_values().get("OPENAI_MODEL", "gpt-5-mini") or "gpt-5-mini",
+    }
+
+
+def _check_module(label: str, module_name: str, required: bool = True) -> dict:
+    found = importlib.util.find_spec(module_name) is not None
+    return {
+        "name": label,
+        "ok": found or not required,
+        "required": required,
+        "message": "Disponible." if found else ("Falta dependencia obligatoria." if required else "No instalada; solo afecta a lectura avanzada."),
+    }
+
+
+def _check_chromium_installed() -> dict:
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "playwright", "install", "--dry-run", "chromium"],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        locations: list[Path] = []
+        for line in proc.stdout.splitlines():
+            if "Install location:" not in line:
+                continue
+            raw = line.split("Install location:", 1)[1].strip()
+            if raw:
+                locations.append(Path(raw))
+        installed = any(path.exists() for path in locations)
+        return {
+            "name": "Chromium de Playwright",
+            "ok": proc.returncode == 0 and installed,
+            "required": True,
+            "message": str(next((path for path in locations if path.exists()), "")) if installed else "Ejecuta: playwright install chromium",
+        }
+    except Exception as exc:
+        return {
+            "name": "Chromium de Playwright",
+            "ok": False,
+            "required": True,
+            "message": f"No se pudo comprobar Chromium: {exc}",
+        }
+
+
+def _check_git_sensitive_index() -> dict:
+    try:
+        proc = subprocess.run(
+            ["git", "ls-files", ".env", "logs_correcciones", "correcciones_validadas", "respuestas_extraidas", "cache_carm"],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+        tracked = [line for line in proc.stdout.splitlines() if line.strip()]
+        ok = proc.returncode == 0 and not tracked
+        return {
+            "name": "Git sin artefactos sensibles",
+            "ok": ok,
+            "required": True,
+            "message": "Correcto." if ok else f"Hay {len(tracked)} archivo(s) sensible(s) versionados.",
+        }
+    except Exception as exc:
+        return {
+            "name": "Git sin artefactos sensibles",
+            "ok": False,
+            "required": True,
+            "message": f"No se pudo comprobar Git: {exc}",
+        }
+
+
+def local_health_status() -> dict:
+    checks = [
+        _check_module("Playwright", "playwright"),
+        _check_chromium_installed(),
+        _check_module("OpenAI SDK", "openai"),
+        _check_module("python-dotenv", "dotenv"),
+        _check_module("pystray", "pystray"),
+        _check_module("Pillow", "PIL"),
+        _check_module("pypdf", "pypdf", required=False),
+        _check_module("python-pptx", "pptx", required=False),
+        _check_module("openpyxl", "openpyxl", required=False),
+        _check_module("pytesseract", "pytesseract", required=False),
+        _check_git_sensitive_index(),
+    ]
+    checks.extend(
+        [
+            {
+                "name": "Credenciales CARM",
+                "ok": carm_credentials_present(),
+                "required": True,
+                "message": "Configuradas." if carm_credentials_present() else "Pendientes de configurar en la app.",
+            },
+            {
+                "name": "Curso activo",
+                "ok": bool(active_course_id()),
+                "required": True,
+                "message": f"Curso {active_course_id()}." if active_course_id() else "Selecciona o detecta un curso CARM.",
+            },
+            {
+                "name": "Carpetas de trabajo",
+                "ok": PENDIENTES_DIR.exists() and TEMPORAL_DIR.exists() and PROMPTS_DIR.exists(),
+                "required": True,
+                "message": f"{PENDIENTES_DIR} | {TEMPORAL_DIR}",
+            },
+        ]
+    )
+    required_ok = all(item["ok"] for item in checks if item.get("required"))
+    optional_missing = sum(1 for item in checks if not item["ok"] and not item.get("required"))
+    return {
+        "ok": required_ok,
+        "optional_missing": optional_missing,
+        "checks": checks,
+        "message": "Equipo listo para operar." if required_ok else "Hay puntos obligatorios pendientes.",
     }
 
 
@@ -1332,6 +1498,7 @@ def project_state() -> dict:
     corrections = sorted(PROMPTS_DIR.glob("*_correccion.json")) if PROMPTS_DIR.exists() else []
     resumenes = sorted(TEMPORAL_DIR.glob("resumen*.txt")) if TEMPORAL_DIR.exists() else []
     return {
+        "release": release_info(),
         "combined": file_info(COMBINED_JSON),
         "revision_csv": file_info(REVISION_CSV),
         "correction_source": file_info(default_correction_source_path()),
@@ -1691,7 +1858,7 @@ HTML = r"""<!doctype html>
       <div class="brand-mark">C</div>
       <div>
         <h1>Corrector CARM</h1>
-        <small>Panel local de preparacion, revision y subida</small>
+        <small id="releaseInfo">Panel local de preparacion, revision y subida</small>
       </div>
     </div>
     <div class="topbar-actions">
@@ -2011,6 +2178,20 @@ HTML = r"""<!doctype html>
 
         <section style="box-shadow:none">
           <div class="section-head">
+            <h2>Estado local</h2>
+            <p>Comprueba dependencias, Chromium, configuracion y que Git no versiona datos sensibles.</p>
+          </div>
+          <div class="stack">
+            <div class="path" id="healthMessage">Comprobacion pendiente.</div>
+            <div id="healthChecks" class="list"></div>
+            <div class="row">
+              <button id="checkHealthBtn" type="button">Comprobar equipo</button>
+            </div>
+          </div>
+        </section>
+
+        <section style="box-shadow:none">
+          <div class="section-head">
             <h2>OpenAI</h2>
             <p>Con API key la app corrige automaticamente. Sin API key genera prompts para corregir fuera e importar el JSON.</p>
           </div>
@@ -2297,6 +2478,11 @@ HTML = r"""<!doctype html>
       return `<div class="item"><span>${escapeHtml(item.id + ' · ' + item.titulo)}<br><small>${escapeHtml(detail)}</small>${extra}</span></div>`;
     }
 
+    function healthCheckHtml(item) {
+      const status = item.ok ? 'OK' : (item.required ? 'Pendiente' : 'Opcional');
+      return `<div class="item"><span>${escapeHtml(item.name)}<br><small>${escapeHtml(item.message || '')}</small></span><small>${escapeHtml(status)}</small></div>`;
+    }
+
     function activityLabel(act) {
       const tipo = act.tipo ? ` · ${act.tipo}` : '';
       return `${act.codigo} · ${act.nombre}${tipo}`;
@@ -2566,6 +2752,15 @@ HTML = r"""<!doctype html>
       await refresh();
     }
 
+    async function checkHealth() {
+      $('checkHealthBtn').disabled = true;
+      $('healthMessage').textContent = 'Comprobando equipo...';
+      const result = await api('/api/health');
+      $('healthMessage').textContent = result.message || (result.ok ? 'Equipo listo.' : 'Hay puntos pendientes.');
+      $('healthChecks').innerHTML = (result.checks || []).map(healthCheckHtml).join('');
+      $('checkHealthBtn').disabled = false;
+    }
+
     async function saveOpenAIConfig(checkOnly = false) {
       $('saveOpenaiBtn').disabled = true;
       $('checkOpenaiBtn').disabled = true;
@@ -2617,6 +2812,10 @@ HTML = r"""<!doctype html>
       const status = await api('/api/status');
       const state = await api('/api/state');
       await loadOptions();
+      if (state.release) {
+        const dirty = state.release.dirty ? ' · cambios locales' : '';
+        setText('releaseInfo', `Panel local · v${state.release.version} · ${state.release.commit}${dirty}`);
+      }
       setInputValue('pendientesDir', state.base_pendientes_dir || state.pendientes_dir);
       setInputValue('temporalDir', state.base_temporal_dir || state.temporal_dir);
       if ($('courseScopedDirs')) $('courseScopedDirs').checked = Boolean(state.course_scoped_dirs);
@@ -2786,6 +2985,7 @@ HTML = r"""<!doctype html>
     $('saveSelectedCoursesBtn').onclick = saveSelectedCourses;
     $('saveAutomationBtn').onclick = saveAutomation;
     $('saveStartupBtn').onclick = saveStartup;
+    $('checkHealthBtn').onclick = checkHealth;
     $('saveOpenaiBtn').onclick = () => saveOpenAIConfig(false);
     $('checkOpenaiBtn').onclick = () => saveOpenAIConfig(true);
     $('scanNowBtn').onclick = () => {
@@ -2852,6 +3052,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/auth":
             send_json(self, auth_status())
+            return
+        if parsed.path == "/api/health":
+            send_json(self, local_health_status())
             return
         if not carm_credentials_present():
             if parsed.path == "/api/status":

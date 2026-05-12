@@ -32,6 +32,7 @@ Documentacion viva:
 - `SEGURIDAD_CVSS.md`: criterio de priorizacion.
 - `INSTRUCCIONES_CODEX_PERSONALIZADAS.md`: flujo sin API para Codex.
 - `ROADMAP_DESCARGA_SEGURA.md`: roadmap historico de descarga segura.
+- `RELEASE_CHECKLIST.md`: checklist antes de distribuir o usar en una sesion real.
 
 Legado o referencia:
 
