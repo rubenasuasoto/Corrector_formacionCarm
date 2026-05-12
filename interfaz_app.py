@@ -182,6 +182,8 @@ def save_automation_config(interval_minutes: str | int) -> int:
 def correction_source_options() -> list[dict]:
     paths = [REVISION_CSV]
     if PROMPTS_DIR.exists():
+        if COMBINED_JSON.exists():
+            paths.append(COMBINED_JSON)
         paths.extend(sorted(PROMPTS_DIR.glob("*_correccion.json")))
         corrections_dir = PROMPTS_DIR / "correcciones_codex"
         if corrections_dir.exists():
@@ -204,6 +206,7 @@ def json_options() -> list[dict]:
 def allowed_json_paths() -> set[str]:
     allowed = {item["path"] for item in correction_source_options()}
     allowed.add(str(REVISION_CSV))
+    allowed.add(str(COMBINED_JSON))
     allowed.update(
         str(PROMPTS_DIR / name)
         for name in (
@@ -2900,6 +2903,7 @@ class Handler(BaseHTTPRequestHandler):
                 body = read_json_body(self)
                 save_course_scope_config(bool(body.get("course_scoped_dirs")))
                 url = save_course_url(str(body.get("course") or ""))
+                configure_work_dirs()
                 scope = "carpetas separadas por curso" if course_scoped_dirs_enabled() else "carpetas globales"
                 dashboard_saved = DASHBOARD_URL_RE.fullmatch(str(body.get("course") or "").strip()) is not None
                 audit_ui_event("configurar_curso", course_id=course_id_from_url(url), dashboard=dashboard_saved)
@@ -3151,15 +3155,16 @@ def startup_cmd_path() -> Path:
     return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "Corrector CARM.cmd"
 
 
-def install_startup() -> Path:
+def install_startup(auto_correct: bool = False) -> Path:
     pythonw = Path(sys.executable).with_name("pythonw.exe")
     runner = pythonw if pythonw.exists() else Path(sys.executable)
     cmd_path = startup_cmd_path()
     cmd_path.parent.mkdir(parents=True, exist_ok=True)
+    auto_correct_arg = " --auto-correct" if auto_correct else ""
     cmd_path.write_text(
         "@echo off\n"
         f'cd /d "{ROOT}"\n'
-        f'start "" "{runner}" "{ROOT / "interfaz_app.py"}" --tray --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser --auto-correct\n',
+        f'start "" "{runner}" "{ROOT / "interfaz_app.py"}" --tray --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser{auto_correct_arg}\n',
         encoding="utf-8",
     )
     return cmd_path
@@ -3174,13 +3179,8 @@ def startup_auto_correct_enabled() -> bool:
 
 
 def repair_startup_if_installed() -> bool:
-    try:
-        path = startup_cmd_path()
-        if path.exists() and not startup_auto_correct_enabled():
-            install_startup()
-            return True
-    except Exception:
-        return False
+    # No reactivamos --auto-correct de forma silenciosa: arrancar la app y
+    # autopreparar prompts son decisiones separadas del usuario.
     return False
 
 
@@ -3301,6 +3301,11 @@ def main() -> None:
         help="No lanza correccion automatica tras el escaneo inicial.",
     )
     parser.add_argument("--install-startup", action="store_true", help="Instala el arranque automatico de Windows.")
+    parser.add_argument(
+        "--install-startup-auto-correct",
+        action="store_true",
+        help="Al instalar el arranque de Windows, activa tambien autoprompteo al iniciar.",
+    )
     parser.add_argument("--uninstall-startup", action="store_true", help="Elimina el arranque automatico de Windows.")
     parser.add_argument(
         "--no-startup-scan",
@@ -3317,8 +3322,10 @@ def main() -> None:
     AUTO_CORRECT_AFTER_SCAN = args.auto_correct and not args.no_auto_correct
 
     if args.install_startup:
-        path = install_startup()
+        path = install_startup(auto_correct=args.install_startup_auto_correct)
         print(f"Arranque automatico instalado: {path}")
+        if args.install_startup_auto_correct:
+            print("Autoprompteo al inicio activado en el arranque automatico.")
         return
     if args.uninstall_startup:
         removed = uninstall_startup()
@@ -3341,8 +3348,7 @@ def main() -> None:
     if args.port and active_port != args.port:
         print(f"Puerto {args.port} ocupado; se ha usado automaticamente el puerto {active_port}.")
     notify_pending_publication()
-    if repair_startup_if_installed():
-        print("Arranque automatico actualizado para incluir --auto-correct.")
+    repair_startup_if_installed()
     start_periodic_scan(disabled=args.no_periodic_scan)
     if args.tray:
         if not args.no_browser:

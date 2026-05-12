@@ -18,6 +18,12 @@ Para dejar tambien el arranque automatico en bandeja:
 .\instalar_windows.cmd -InstalarArranque
 ```
 
+Ese arranque abre la app y hace el escaneo inicial normal. Si quieres que ademas prepare prompts automaticamente al iniciar Windows, usa:
+
+```powershell
+.\instalar_windows.cmd -InstalarArranque -AutoPrepararAlInicio
+```
+
 Para instalar dependencias opcionales de lectura avanzada:
 
 ```powershell

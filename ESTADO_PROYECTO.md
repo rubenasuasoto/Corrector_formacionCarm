@@ -1,5 +1,17 @@
 ﻿# Estado del proyecto: agente corrector CARM
 
+## Actualizacion 2026-05-12
+
+Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-curso.
+
+- Estado real: backend operativo, interfaz local en maduracion, autoprompteo multi-curso en primera version y subida asistida como flujo recomendado.
+- El proyecto esta en fase de endurecimiento local antes de distribuir: higiene de git, rutas multi-curso, arranque de Windows, seguridad y documentacion coherente.
+- Se corrigio la configuracion de curso para recalcular rutas de trabajo despues de cambiar curso o activar/desactivar carpetas por curso.
+- El arranque de Windows ya no reintroduce `--auto-correct` automaticamente si el usuario no lo pidio. Para instalar arranque con autoprompteo explicito se usa `--install-startup --install-startup-auto-correct`.
+- La interfaz acepta tambien `correcciones_codex_combinadas.json` como fuente permitida si existe, manteniendo `revision_pendiente.csv` como fuente fiable de subida.
+- Se corrigio deuda critica de repositorio: `.env`, logs y algunas correcciones generadas salieron del indice con `git rm --cached`, sin borrarse del equipo local.
+- Arquitectura: Fase 1 queda centrada en cerrar artefactos no versionables y documentacion coherente. Fase 2, refactor modular, sigue pendiente.
+
 ## Actualizacion profesional 2026-05-09
 
 Esta seccion prevalece sobre notas historicas anteriores cuando haya contradiccion.
