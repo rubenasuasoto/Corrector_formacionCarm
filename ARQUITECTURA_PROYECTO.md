@@ -57,7 +57,8 @@ Motivo: contienen credenciales, estado local, datos de alumnos, notas, logs, cac
 ## Flujo funcional actual
 
 1. Inicio en bandeja:
-   - Windows lanza `interfaz_app.py --tray --no-browser --auto-correct`.
+   - Windows puede lanzar `interfaz_app.py --tray --no-browser`.
+   - Si el usuario lo activa expresamente, el arranque incluye `--auto-correct`.
    - `--auto-correct` significa autoprompteo, no gasto automatico de API ni publicacion.
 
 2. Preparacion:

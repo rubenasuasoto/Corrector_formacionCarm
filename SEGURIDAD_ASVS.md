@@ -49,6 +49,7 @@ Superficie principal:
 - [x] Cachear curso no recorre tablas de alumnos.
 - [x] Notificaciones en errores y revision manual.
 - [x] Proteger endpoints locales con token de sesion local para evitar peticiones desde paginas externas del navegador.
+- [x] Separar arranque de Windows y autoprompteo al inicio como opciones explicitas.
 - [ ] Separar cache didactica de datos personales y purgar datos de alumnos tras finalizar curso.
 - [ ] Redactar nombres/emails en diagnosticos exportables por defecto.
 

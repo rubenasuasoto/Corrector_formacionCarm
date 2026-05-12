@@ -99,7 +99,7 @@ Esta purga es manual para evitar perdidas accidentales antes de cerrar una evalu
 - Token local obligatorio en endpoints `/api/*`.
 - Recuperacion de token caducado en la interfaz.
 - Fallback de puerto local si `8765` esta ocupado.
-- Separacion entre arranque automatico de la app y autoprompteo al inicio: el autoprompteo requiere configuracion explicita.
+- Separacion entre arranque automatico de la app y autoprompteo al inicio: el autoprompteo requiere configuracion explicita desde interfaz o CLI.
 - Auditoria local JSONL.
 - Redaccion basica de logs y eventos.
 - Sanitizado de feedback.

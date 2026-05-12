@@ -1989,6 +1989,28 @@ HTML = r"""<!doctype html>
 
         <section style="box-shadow:none">
           <div class="section-head">
+            <h2>Windows</h2>
+            <p>Controla que ocurre al iniciar sesion en Windows.</p>
+          </div>
+          <div class="stack">
+            <label class="check">
+              <input type="checkbox" id="startupEnabled">
+              Iniciar Corrector CARM en bandeja con Windows
+            </label>
+            <label class="check">
+              <input type="checkbox" id="startupAutoCorrect">
+              Preparar prompts automaticamente al iniciar
+            </label>
+            <p class="hint">La preparacion automatica no llama a la API ni publica en CARM. Solo revisa pendientes y genera prompts.</p>
+            <div class="path" id="startupMessage">Arranque pendiente de comprobar.</div>
+            <div class="row">
+              <button id="saveStartupBtn" type="button">Guardar arranque</button>
+            </div>
+          </div>
+        </section>
+
+        <section style="box-shadow:none">
+          <div class="section-head">
             <h2>OpenAI</h2>
             <p>Con API key la app corrige automaticamente. Sin API key genera prompts para corregir fuera e importar el JSON.</p>
           </div>
@@ -2529,6 +2551,21 @@ HTML = r"""<!doctype html>
       await refresh();
     }
 
+    async function saveStartup() {
+      $('saveStartupBtn').disabled = true;
+      $('startupMessage').textContent = 'Guardando arranque de Windows...';
+      const result = await api('/api/config/startup', {
+        method: 'POST',
+        body: JSON.stringify({
+          enabled: $('startupEnabled').checked,
+          auto_correct: $('startupAutoCorrect').checked
+        })
+      });
+      $('startupMessage').textContent = result.message || (result.ok ? 'Arranque guardado.' : 'No se pudo guardar el arranque.');
+      $('saveStartupBtn').disabled = false;
+      await refresh();
+    }
+
     async function saveOpenAIConfig(checkOnly = false) {
       $('saveOpenaiBtn').disabled = true;
       $('checkOpenaiBtn').disabled = true;
@@ -2585,6 +2622,13 @@ HTML = r"""<!doctype html>
       if ($('courseScopedDirs')) $('courseScopedDirs').checked = Boolean(state.course_scoped_dirs);
       setInputValue('autoScanInterval', state.auto_scan_interval_minutes);
       $('pauseScanBtn').textContent = state.auto_scan_interval_minutes > 0 ? 'Pausar autoescaneo' : 'Autoescaneo pausado';
+      if ($('startupEnabled')) $('startupEnabled').checked = Boolean(state.startup_installed);
+      if ($('startupAutoCorrect')) $('startupAutoCorrect').checked = Boolean(state.startup_auto_correct_enabled);
+      if ($('startupMessage')) {
+        $('startupMessage').textContent = state.startup_installed
+          ? (state.startup_auto_correct_enabled ? 'Arranque instalado con autopreparacion de prompts.' : 'Arranque instalado sin autopreparacion de prompts.')
+          : 'Arranque automatico no instalado.';
+      }
       const jsonHtml = state.json_options.map(jsonOptionHtml).join('');
       const selectedCorrectionSource = state.json_options.find((item) => item.path === $('jsonPath').value);
       const correctionSourceValue = selectedCorrectionSource && selectedCorrectionSource.exists
@@ -2741,6 +2785,7 @@ HTML = r"""<!doctype html>
     $('saveCourseBtn').onclick = () => saveCourse();
     $('saveSelectedCoursesBtn').onclick = saveSelectedCourses;
     $('saveAutomationBtn').onclick = saveAutomation;
+    $('saveStartupBtn').onclick = saveStartup;
     $('saveOpenaiBtn').onclick = () => saveOpenAIConfig(false);
     $('checkOpenaiBtn').onclick = () => saveOpenAIConfig(true);
     $('scanNowBtn').onclick = () => {
@@ -2955,6 +3000,45 @@ class Handler(BaseHTTPRequestHandler):
                 audit_ui_event("configurar_autoescaneo", intervalo_minutos=interval)
                 send_json(self, {"ok": True, "message": message, "auto_scan_interval_minutes": interval})
             except Exception as exc:
+                send_json(self, {"ok": False, "message": str(exc)}, 400)
+            return
+        if parsed.path == "/api/config/startup":
+            try:
+                body = read_json_body(self)
+                enabled = bool(body.get("enabled"))
+                auto_correct = bool(body.get("auto_correct"))
+                if enabled:
+                    path = install_startup(auto_correct=auto_correct)
+                    message = (
+                        "Arranque de Windows guardado con autopreparacion de prompts."
+                        if auto_correct
+                        else "Arranque de Windows guardado sin autopreparacion de prompts."
+                    )
+                    audit_ui_event("configurar_arranque_windows", "instalado", auto_correct=auto_correct)
+                    send_json(
+                        self,
+                        {
+                            "ok": True,
+                            "message": message,
+                            "startup_path": str(path),
+                            "startup_installed": True,
+                            "startup_auto_correct_enabled": auto_correct,
+                        },
+                    )
+                    return
+                removed = uninstall_startup()
+                audit_ui_event("configurar_arranque_windows", "desinstalado")
+                send_json(
+                    self,
+                    {
+                        "ok": True,
+                        "message": "Arranque de Windows desactivado." if removed else "El arranque automatico ya estaba desactivado.",
+                        "startup_installed": False,
+                        "startup_auto_correct_enabled": False,
+                    },
+                )
+            except Exception as exc:
+                audit_ui_event("configurar_arranque_windows", "error", error=exc)
                 send_json(self, {"ok": False, "message": str(exc)}, 400)
             return
         if parsed.path == "/api/config/openai":
