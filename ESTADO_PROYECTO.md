@@ -15,7 +15,10 @@ Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-cur
 - Se anade versionado local con `VERSION`; la interfaz y el verificador muestran version, commit y si hay cambios locales.
 - Se anade preparacion de release local con `preparar_release.py`, `preparar_release_windows.cmd` y `preparar_release_windows.ps1`; genera manifiesto y solo etiqueta con `--crear-tag`.
 - `.env.example` queda actualizado, sin secretos, y cubre variables CARM, OpenAI, Codex, retencion y limites de tokens.
-- Inicio Fase 4: `instalar_windows.ps1` valida Python 3.12+, ejecuta verificacion de instalacion y permite crear acceso directo con `-CrearAccesoDirecto`.
+- Inicio Fase 4: `instalar_windows.ps1` valida Python 3.12+, comprueba codigos de salida, evita reinstalar Chromium si ya existe, ejecuta verificacion de instalacion y permite crear acceso directo con `-CrearAccesoDirecto`.
+- `reparar_dependencias_windows.cmd` deja de llamar al instalador completo y usa `reparar_dependencias_windows.ps1`, con opciones para reinstalar dependencias, reinstalar Chromium y limpiar `ms-playwright\__dirlock`.
+- `iniciar_app_windows.cmd` pasa a usar `iniciar_app_windows.ps1`, con comprobacion rapida y opciones de inicio `-AbrirNavegador`, `-AutoPreparar`, `-SinEscaneoInicial`.
+- El chequeo local detecta `ms-playwright\__dirlock` y se documenta `SOLUCION_PROBLEMAS_WINDOWS.md` para permisos, Chromium, bandeja y puerto local.
 - La interfaz acepta tambien `correcciones_codex_combinadas.json` como fuente permitida si existe, manteniendo `revision_pendiente.csv` como fuente fiable de subida.
 - Se corrigio deuda critica de repositorio: `.env`, logs y algunas correcciones generadas salieron del indice con `git rm --cached`, sin borrarse del equipo local.
 - Arquitectura: Fase 1 queda centrada en cerrar artefactos no versionables y documentacion coherente. Fase 2, refactor modular, sigue pendiente.

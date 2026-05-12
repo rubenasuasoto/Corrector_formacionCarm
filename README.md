@@ -26,8 +26,9 @@ Lee estos archivos en este orden:
 4. `SEGURIDAD_CVSS.md`: criterio de priorizaciÃ³n de riesgos basado en CVSS v4.0.
 5. `ARQUITECTURA_PROYECTO.md`: estructura profesional objetivo y estado de archivos.
 6. `RELEASE_CHECKLIST.md`: comprobaciones antes de distribuir o usar una version en real.
-7. `prompts_correccion.json`: prompts editables por actividad.
-8. `corrector_agente.py`: flujo principal.
+7. `SOLUCION_PROBLEMAS_WINDOWS.md`: ayuda para Playwright, dependencias, bandeja y puerto local.
+8. `prompts_correccion.json`: prompts editables por actividad.
+9. `corrector_agente.py`: flujo principal.
 
 El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_PROYECTO.md`, manda `ESTADO_PROYECTO.md`.
 
@@ -48,6 +49,8 @@ Opciones utiles:
 .\instalar_windows.cmd -ConExtraccion
 .\instalar_windows.cmd -InstalarArranque
 .\instalar_windows.cmd -CrearAccesoDirecto
+.\reparar_dependencias_windows.cmd
+.\iniciar_app_windows.cmd -AbrirNavegador
 ```
 
 Para verificar dependencias, Chromium, configuracion local y prueba offline:
