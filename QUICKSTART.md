@@ -36,10 +36,32 @@ Para instalar dependencias opcionales de lectura avanzada:
 .\instalar_windows.cmd -ConExtraccion
 ```
 
+Si una instalacion queda a medias o Windows bloquea Playwright/Chromium:
+
+```powershell
+.\reparar_dependencias_windows.cmd
+```
+
+Para limpiar el lock de Playwright y reinstalar Chromium:
+
+```powershell
+.\reparar_dependencias_windows.cmd -LimpiarPlaywrightLock -ReinstalarChromium
+```
+
+Mas incidencias comunes: `SOLUCION_PROBLEMAS_WINDOWS.md`.
+
 Despues inicia la app con:
 
 ```powershell
 .\iniciar_app_windows.cmd
+```
+
+Opciones utiles de inicio:
+
+```powershell
+.\iniciar_app_windows.cmd -AbrirNavegador
+.\iniciar_app_windows.cmd -AutoPreparar
+.\iniciar_app_windows.cmd -SinEscaneoInicial
 ```
 
 Para comprobar que el equipo esta listo:

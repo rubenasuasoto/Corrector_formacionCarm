@@ -485,6 +485,21 @@ def _check_chromium_installed() -> dict:
         }
 
 
+def _check_playwright_lock() -> dict:
+    lock_path = Path(os.getenv("LOCALAPPDATA", "")) / "ms-playwright" / "__dirlock"
+    exists = lock_path.exists()
+    return {
+        "name": "Lock de Playwright",
+        "ok": not exists,
+        "required": False,
+        "message": (
+            f"Detectado {lock_path}. Si hay fallos de instalacion, ejecuta reparar_dependencias_windows.cmd -LimpiarPlaywrightLock."
+            if exists
+            else "No detectado."
+        ),
+    }
+
+
 def _check_git_sensitive_index() -> dict:
     try:
         proc = subprocess.run(
@@ -518,6 +533,7 @@ def local_health_status() -> dict:
     checks = [
         _check_module("Playwright", "playwright"),
         _check_chromium_installed(),
+        _check_playwright_lock(),
         _check_module("OpenAI SDK", "openai"),
         _check_module("python-dotenv", "dotenv"),
         _check_module("pystray", "pystray"),

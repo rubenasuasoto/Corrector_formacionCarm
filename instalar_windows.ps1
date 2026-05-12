@@ -15,6 +15,17 @@ function Write-Step($Message) {
     Write-Host "==> $Message" -ForegroundColor Cyan
 }
 
+function Invoke-Native {
+    param(
+        [string]$Description,
+        [scriptblock]$Command
+    )
+    & $Command
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Description fallo con codigo $LASTEXITCODE"
+    }
+}
+
 function Find-Python {
     $candidates = @("py", "python")
     foreach ($candidate in $candidates) {
@@ -48,15 +59,23 @@ function New-DesktopShortcut {
     Write-Host "Acceso directo creado: $ShortcutPath" -ForegroundColor Green
 }
 
+function Test-PlaywrightChromiumInstalled {
+    $MsPlaywright = Join-Path $env:LOCALAPPDATA "ms-playwright"
+    if (-not (Test-Path $MsPlaywright)) {
+        return $false
+    }
+    return [bool](Get-ChildItem -LiteralPath $MsPlaywright -Directory -Filter "chromium-*" -ErrorAction SilentlyContinue | Select-Object -First 1)
+}
+
 $Python = Find-Python
 Test-PythonVersion -PythonCommand $Python
 
 if (-not (Test-Path ".venv\Scripts\python.exe")) {
     Write-Step "Creando entorno virtual .venv"
     if ($Python -eq "py") {
-        & py -3 -m venv .venv
+        Invoke-Native "Creacion de .venv" { & py -3 -m venv .venv }
     } else {
-        & python -m venv .venv
+        Invoke-Native "Creacion de .venv" { & python -m venv .venv }
     }
 } else {
     Write-Step "Entorno virtual encontrado"
@@ -65,18 +84,22 @@ if (-not (Test-Path ".venv\Scripts\python.exe")) {
 $VenvPython = Join-Path $Root ".venv\Scripts\python.exe"
 
 Write-Step "Actualizando pip"
-& $VenvPython -m pip install --upgrade pip
+Invoke-Native "Actualizacion de pip" { & $VenvPython -m pip install --upgrade pip }
 
 Write-Step "Instalando dependencias base"
-& $VenvPython -m pip install -r requirements.txt
+Invoke-Native "Instalacion de dependencias base" { & $VenvPython -m pip install -r requirements.txt }
 
 if ($ConExtraccion) {
     Write-Step "Instalando dependencias opcionales de extraccion"
-    & $VenvPython -m pip install -r requirements-extraccion.txt
+    Invoke-Native "Instalacion de dependencias opcionales" { & $VenvPython -m pip install -r requirements-extraccion.txt }
 }
 
-Write-Step "Instalando Chromium para Playwright"
-& $VenvPython -m playwright install chromium
+if (Test-PlaywrightChromiumInstalled) {
+    Write-Step "Chromium de Playwright ya instalado"
+} else {
+    Write-Step "Instalando Chromium para Playwright"
+    Invoke-Native "Instalacion de Chromium para Playwright" { & $VenvPython -m playwright install chromium }
+}
 
 if (-not (Test-Path ".env")) {
     Write-Step "Creando .env desde .env.example"
@@ -84,14 +107,14 @@ if (-not (Test-Path ".env")) {
 }
 
 Write-Step "Verificando app"
-& $VenvPython -m py_compile corrector_agente.py interfaz_app.py
+Invoke-Native "Compilacion de la app" { & $VenvPython -m py_compile corrector_agente.py interfaz_app.py }
 
 if ($InstalarArranque) {
     Write-Step "Instalando arranque automatico en Windows"
     if ($AutoPrepararAlInicio) {
-        & $VenvPython interfaz_app.py --install-startup --install-startup-auto-correct
+        Invoke-Native "Instalacion de arranque automatico" { & $VenvPython interfaz_app.py --install-startup --install-startup-auto-correct }
     } else {
-        & $VenvPython interfaz_app.py --install-startup
+        Invoke-Native "Instalacion de arranque automatico" { & $VenvPython interfaz_app.py --install-startup }
     }
 }
 
@@ -102,7 +125,7 @@ if ($CrearAccesoDirecto) {
 
 if (-not $OmitirVerificacion) {
     Write-Step "Verificando instalacion"
-    & $VenvPython verificar_app.py --instalacion --sin-prueba-offline
+    Invoke-Native "Verificacion de instalacion" { & $VenvPython verificar_app.py --instalacion --sin-prueba-offline }
 }
 
 Write-Host ""
