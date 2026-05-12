@@ -99,6 +99,7 @@ Esta purga es manual para evitar perdidas accidentales antes de cerrar una evalu
 - Token local obligatorio en endpoints `/api/*`.
 - Recuperacion de token caducado en la interfaz.
 - Fallback de puerto local si `8765` esta ocupado.
+- Separacion entre arranque automatico de la app y autoprompteo al inicio: el autoprompteo requiere configuracion explicita.
 - Auditoria local JSONL.
 - Redaccion basica de logs y eventos.
 - Sanitizado de feedback.
@@ -112,6 +113,7 @@ Esta purga es manual para evitar perdidas accidentales antes de cerrar una evalu
 
 ### Antes de distribuir a otros usuarios
 
+- Confirmar con `git ls-files` que `.env`, logs, caches, salidas y correcciones generadas no estan versionados.
 - Revisar con el Delegado de Proteccion de Datos o responsable del centro.
 - Definir base juridica y rol: responsable/encargado, uso personal docente o herramienta institucional.
 - Decidir si se requiere Evaluacion de Impacto de Proteccion de Datos.

@@ -4,6 +4,8 @@ Este documento aterriza el material de despliegue seguro al estado real del Corr
 
 ## Decision actual
 
+Actualizacion 2026-05-12: la app ya ha avanzado hacia un flujo mas directo de autoprompteo y subida asistida. La interfaz de descarga clasica sigue siendo una referencia de seguridad y usabilidad, pero no bloquea el flujo actual si la app ya detecta, descarga y genera prompts de forma comprensible para el docente.
+
 La siguiente fase del proyecto es completar la interfaz y logica de descarga desde CARM. Antes de invertir en Docker, Kubernetes, Terraform, CI/CD avanzada o despliegue cloud, conviene cerrar bien el flujo local:
 
 1. Detectar curso, unidades y casos reales desde CARM.
@@ -26,7 +28,7 @@ Objetivo: que la app sepa donde esta, que curso corrige y si tiene permisos para
 - No mostrar unidades/casos que no existan en CARM.
 - Separar cache didactica de datos personales siempre que sea posible.
 
-Estado: en marcha.
+Estado: implementado en primera version; pendiente de pruebas reales repetidas con varios cursos y permisos Windows/Chromium.
 
 ## Fase 1: Interfaz de descarga CARM
 
@@ -48,7 +50,7 @@ Objetivo: que una persona pueda descargar sin conocer comandos.
 - Boton "Descargar seleccionadas".
 - Resumen claro de archivos descargados, omitidos y casos sin envio.
 
-Esta fase es prioritaria porque reduce errores humanos y evita relanzar Playwright para pasos separados.
+Estado: parcialmente absorbida por el flujo de autoprompteo. Sigue pendiente si se quiere una tabla de descarga manual mas detallada, pero no debe duplicar el flujo principal ni obligar a reabrir Playwright para pasos separados.
 
 ## Fase 1.5: Multi-curso sin pisarse
 
@@ -108,7 +110,7 @@ Implementacion por pasos:
 9. Filtrar enlaces auxiliares detectados como cursos. Estado: implementado para `FAQS` y `CARM - Curso CARM`.
 10. Evitar que el refresco automatico de la interfaz pise cambios no guardados en la configuracion de cursos. Estado: implementado.
 
-Esta fase debe hacerse con cambios pequenos y verificables. La primera cola multi-curso y el resumen por curso ya existen, pero falta prueba real con varios cursos CARM antes de considerarlo terminado.
+Esta fase debe hacerse con cambios pequenos y verificables. La primera cola multi-curso y el resumen por curso ya existen, pero falta prueba real con varios cursos CARM antes de considerarlo terminado. Tambien se debe verificar que cambiar curso recalcula rutas y que ningun CSV de un curso se muestra como si perteneciera a otro.
 
 ## Fase 2: Seguridad operativa local
 

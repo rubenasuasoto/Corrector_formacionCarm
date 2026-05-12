@@ -1,6 +1,6 @@
 # Arquitectura y orden del proyecto
 
-Estado: 2026-05-09.
+Estado: 2026-05-12.
 
 Este documento define la organizacion objetivo del Corrector CARM y separa codigo activo, documentacion, configuracion y artefactos locales. La idea es ordenar el proyecto sin romper rutas internas de golpe.
 
@@ -90,6 +90,8 @@ Fase 1, sin romper imports:
 - Mantener documentacion actualizada y coherente.
 - Marcar `sincronizador_moodle.py` como legado.
 
+Estado 2026-05-12: fase en cierre. La documentacion ya existe, la app funciona con rutas multi-curso y `.env`, logs, caches, salidas y correcciones generadas ya no aparecen en `git ls-files`.
+
 Fase 2, refactor gradual:
 
 ```text
@@ -140,6 +142,7 @@ Estado actual:
 - La interfaz expone un resumen por curso seleccionado: cache, fecha de cache, prompts, JSON de correccion, filas CSV, actividades e incidencias bloqueantes.
 - La deteccion de cursos filtra enlaces auxiliares conocidos para no ofrecer `FAQS` o `CARM - Curso CARM` como cursos corregibles.
 - Los controles de cursos en configuracion preservan cambios sin guardar durante el refresco automatico del panel.
+- Al guardar curso o cambiar la opcion de carpetas por curso, la interfaz recalcula rutas inmediatamente para evitar usar rutas del curso anterior.
 
 Regla: antes de activar varios cursos a la vez, cada curso debe tener rutas, CSV, prompts y logs suficientemente visibles para que el docente sepa que esta subiendo al curso correcto.
 

@@ -1,6 +1,7 @@
 param(
     [switch]$ConExtraccion,
-    [switch]$InstalarArranque
+    [switch]$InstalarArranque,
+    [switch]$AutoPrepararAlInicio
 )
 
 $ErrorActionPreference = "Stop"
@@ -62,7 +63,11 @@ Write-Step "Verificando app"
 
 if ($InstalarArranque) {
     Write-Step "Instalando arranque automatico en Windows"
-    & $VenvPython interfaz_app.py --install-startup
+    if ($AutoPrepararAlInicio) {
+        & $VenvPython interfaz_app.py --install-startup --install-startup-auto-correct
+    } else {
+        & $VenvPython interfaz_app.py --install-startup
+    }
 }
 
 Write-Host ""
