@@ -24,6 +24,12 @@ Ese arranque abre la app y hace el escaneo inicial normal. Si quieres que ademas
 .\instalar_windows.cmd -InstalarArranque -AutoPrepararAlInicio
 ```
 
+Para crear tambien un acceso directo en el escritorio:
+
+```powershell
+.\instalar_windows.cmd -CrearAccesoDirecto
+```
+
 Para instalar dependencias opcionales de lectura avanzada:
 
 ```powershell
@@ -34,6 +40,26 @@ Despues inicia la app con:
 
 ```powershell
 .\iniciar_app_windows.cmd
+```
+
+Para comprobar que el equipo esta listo:
+
+```powershell
+.\verificar_app_windows.cmd
+```
+
+Este comando tambien levanta brevemente el servidor local en un puerto temporal para comprobar token y endpoints basicos.
+
+Justo despues de instalar, antes de configurar credenciales o curso, puedes usar:
+
+```powershell
+.\verificar_app_windows.cmd --instalacion
+```
+
+Para preparar un release local y guardar un manifiesto en `respuestas_extraidas`:
+
+```powershell
+.\preparar_release_windows.cmd
 ```
 
 Instalacion manual equivalente:

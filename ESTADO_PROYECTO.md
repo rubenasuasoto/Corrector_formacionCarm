@@ -9,6 +9,13 @@ Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-cur
 - Se corrigio la configuracion de curso para recalcular rutas de trabajo despues de cambiar curso o activar/desactivar carpetas por curso.
 - El arranque de Windows ya no reintroduce `--auto-correct` automaticamente si el usuario no lo pidio. Para instalar arranque con autoprompteo explicito se usa `--install-startup --install-startup-auto-correct`.
 - La interfaz permite activar/desactivar el arranque de Windows y elegir si ese arranque debe preparar prompts automaticamente.
+- La interfaz incorpora `Estado local`, un chequeo de dependencias, Chromium, carpetas, credenciales, curso activo y artefactos sensibles en Git.
+- Se anade verificacion por consola con `verificar_app.py`, `verificar_app_windows.cmd` y `verificar_app_windows.ps1`, incluyendo endpoints locales basicos con token.
+- Se crea `RELEASE_CHECKLIST.md` como checklist de release local antes de distribuir o hacer una sesion real.
+- Se anade versionado local con `VERSION`; la interfaz y el verificador muestran version, commit y si hay cambios locales.
+- Se anade preparacion de release local con `preparar_release.py`, `preparar_release_windows.cmd` y `preparar_release_windows.ps1`; genera manifiesto y solo etiqueta con `--crear-tag`.
+- `.env.example` queda actualizado, sin secretos, y cubre variables CARM, OpenAI, Codex, retencion y limites de tokens.
+- Inicio Fase 4: `instalar_windows.ps1` valida Python 3.12+, ejecuta verificacion de instalacion y permite crear acceso directo con `-CrearAccesoDirecto`.
 - La interfaz acepta tambien `correcciones_codex_combinadas.json` como fuente permitida si existe, manteniendo `revision_pendiente.csv` como fuente fiable de subida.
 - Se corrigio deuda critica de repositorio: `.env`, logs y algunas correcciones generadas salieron del indice con `git rm --cached`, sin borrarse del equipo local.
 - Arquitectura: Fase 1 queda centrada en cerrar artefactos no versionables y documentacion coherente. Fase 2, refactor modular, sigue pendiente.

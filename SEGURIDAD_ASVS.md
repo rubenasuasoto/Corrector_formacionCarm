@@ -62,6 +62,7 @@ Superficie principal:
 - [ ] Confirmacion fuerte antes de `--publicar-carm`.
 - [ ] Timeouts y reintentos controlados para Playwright.
 - [x] Sanitizar feedback antes de insertarlo en editores Moodle.
+- [x] Chequeo local de dependencias y artefactos sensibles antes de operar/distribuir.
 
 ### Prioridad Baja
 
