@@ -36,7 +36,7 @@ La app local debe poder usarse en Windows por un docente con:
 ### Flujo CARM real
 
 - [ ] Ejecutar deteccion de cursos en CARM real.
-- [ ] Probar selector de curso activo.
+- [x] Probar por codigo que el selector de curso activo recalcula rutas y no reutiliza cursos de otra cuenta.
 - [ ] Probar carpetas por curso con al menos dos cursos reales si el docente los tiene.
 - [ ] Confirmar que unidades/casos visibles son solo los existentes en CARM.
 - [ ] Confirmar obligatorios antes que opcionales.

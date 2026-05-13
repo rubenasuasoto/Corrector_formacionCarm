@@ -1,6 +1,6 @@
 # Arquitectura y orden del proyecto
 
-Estado: 2026-05-12.
+Estado: 2026-05-13.
 
 Este documento define la organizacion objetivo del Corrector CARM y separa codigo activo, documentacion, configuracion y artefactos locales. La idea es ordenar el proyecto sin romper rutas internas de golpe.
 
@@ -144,6 +144,8 @@ Estado actual:
 - La deteccion de cursos filtra enlaces auxiliares conocidos para no ofrecer `FAQS` o `CARM - Curso CARM` como cursos corregibles.
 - Los controles de cursos en configuracion preservan cambios sin guardar durante el refresco automatico del panel.
 - Al guardar curso o cambiar la opcion de carpetas por curso, la interfaz recalcula rutas inmediatamente para evitar usar rutas del curso anterior.
+- Al guardar credenciales de una cuenta CARM distinta, la interfaz limpia curso activo, cursos seleccionados y sesion recordada para no reutilizar carpetas o CSV de otro docente.
+- El verificador local simula cambio de cuenta y comprueba que los cursos seleccionados antiguos no se heredan.
 
 Regla: antes de activar varios cursos a la vez, cada curso debe tener rutas, CSV, prompts y logs suficientemente visibles para que el docente sepa que esta subiendo al curso correcto.
 

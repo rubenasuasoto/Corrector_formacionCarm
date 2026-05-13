@@ -125,7 +125,7 @@ if ($CrearAccesoDirecto) {
 
 if (-not $OmitirVerificacion) {
     Write-Step "Verificando instalacion"
-    Invoke-Native "Verificacion de instalacion" { & $VenvPython verificar_app.py --instalacion --sin-prueba-offline }
+    Invoke-Native "Verificacion de instalacion" { & $VenvPython verificar_app.py --instalacion }
 }
 
 Write-Host ""
