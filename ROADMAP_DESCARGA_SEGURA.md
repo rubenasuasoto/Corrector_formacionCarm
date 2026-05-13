@@ -164,6 +164,21 @@ Objetivo: facilitar uso en Windows sin depender de conocimientos tecnicos.
 
 PyInstaller o instalador completo pueden esperar hasta que el flujo de descarga/publicacion sea estable.
 
+Estado: fase local implementada en primera version. Antes de abrir Fase 5 hay que cerrar la puerta `CIERRE_APP_LOCAL.md`, centrada en pruebas CARM reales, calidad de correcciones y revision humana.
+
+## Puerta antes de Fase 5: terminar app local
+
+Objetivo: no saltar a infraestructura futura antes de que la herramienta local sea estable.
+
+- Ejecutar `verificar_app_windows.cmd` en verde.
+- Ejecutar prueba CARM real de deteccion, prompts, importacion CSV y previsualizacion.
+- Probar cambio de curso y carpetas por curso si hay varios cursos reales.
+- Confirmar que la subida asistida mantiene guardado humano.
+- Confirmar que no se duplican prompts, pendientes ni CSV al repetir ejecuciones.
+- Revisar `CIERRE_APP_LOCAL.md` y aceptar explicitamente cualquier punto pendiente.
+
+Estado: abierto. Es el punto actual del proyecto.
+
 ## Fase 5: Pospuesto de forma consciente
 
 Estas practicas del documento son valiosas, pero no rentan antes de terminar la app local:

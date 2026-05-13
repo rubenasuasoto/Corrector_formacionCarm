@@ -25,6 +25,16 @@ function Invoke-Native {
     }
 }
 
+function Test-LocalPanel {
+    param([int]$Port)
+    try {
+        $response = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/" -TimeoutSec 2
+        return ($response.StatusCode -eq 200)
+    } catch {
+        return $false
+    }
+}
+
 $Python = Join-Path $Root ".venv\Scripts\python.exe"
 $Pythonw = Join-Path $Root ".venv\Scripts\pythonw.exe"
 
@@ -41,6 +51,14 @@ if (-not (Test-Path $Pythonw)) {
 if (-not (Test-Path ".env")) {
     Write-Host "No existe .env. Creo una plantilla desde .env.example; despues abre la app y configura credenciales CARM." -ForegroundColor Yellow
     Copy-Item ".env.example" ".env"
+}
+
+if (Test-LocalPanel -Port $Puerto) {
+    Write-Host "Corrector CARM ya esta abierto en http://127.0.0.1:$Puerto" -ForegroundColor Green
+    if ($AbrirNavegador) {
+        Start-Process "http://127.0.0.1:$Puerto"
+    }
+    exit 0
 }
 
 Write-Step "Comprobando archivos principales"

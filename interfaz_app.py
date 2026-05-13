@@ -75,6 +75,12 @@ DEFAULT_PORT = 8765
 PORT_FALLBACK_ATTEMPTS = 30
 
 
+def hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
+
+
 def app_version() -> str:
     try:
         value = VERSION_PATH.read_text(encoding="utf-8").strip()
@@ -94,6 +100,7 @@ def git_revision() -> dict:
             encoding="utf-8",
             errors="replace",
             timeout=5,
+            **hidden_subprocess_kwargs(),
         ).stdout.strip()
         dirty_proc = subprocess.run(
             ["git", "status", "--short"],
@@ -104,6 +111,7 @@ def git_revision() -> dict:
             encoding="utf-8",
             errors="replace",
             timeout=5,
+            **hidden_subprocess_kwargs(),
         )
         return {"commit": commit or "sin-git", "dirty": bool(dirty_proc.stdout.strip())}
     except Exception:
@@ -228,9 +236,12 @@ def save_automation_config(interval_minutes: str | int) -> int:
 def correction_source_options() -> list[dict]:
     paths = [REVISION_CSV]
     if PROMPTS_DIR.exists():
+        json_pendientes = sorted(PROMPTS_DIR.glob("*_correccion.json"))
+        if json_pendientes:
+            paths.append(PROMPTS_DIR)
         if COMBINED_JSON.exists():
             paths.append(COMBINED_JSON)
-        paths.extend(sorted(PROMPTS_DIR.glob("*_correccion.json")))
+        paths.extend(json_pendientes)
         corrections_dir = PROMPTS_DIR / "correcciones_codex"
         if corrections_dir.exists():
             paths.extend(sorted(corrections_dir.glob("*_correccion.json")))
@@ -241,7 +252,12 @@ def correction_source_options() -> list[dict]:
         if key in seen:
             continue
         seen.add(key)
-        options.append({"path": key, "label": path.name, "exists": path.exists()})
+        if path == PROMPTS_DIR:
+            count = len(list(PROMPTS_DIR.glob("*_correccion.json")))
+            label = f"Todos los JSON pendientes ({count})"
+        else:
+            label = path.name
+        options.append({"path": key, "label": label, "exists": path.exists(), "is_dir": path.is_dir()})
     return options
 
 
@@ -366,6 +382,7 @@ def notify(title: str, message: str, target: str = "") -> None:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=13,
+            **hidden_subprocess_kwargs(),
         )
         return
     except Exception:
@@ -461,6 +478,7 @@ def _check_chromium_installed() -> dict:
             encoding="utf-8",
             errors="replace",
             timeout=30,
+            **hidden_subprocess_kwargs(),
         )
         locations: list[Path] = []
         for line in proc.stdout.splitlines():
@@ -511,6 +529,7 @@ def _check_git_sensitive_index() -> dict:
             encoding="utf-8",
             errors="replace",
             timeout=10,
+            **hidden_subprocess_kwargs(),
         )
         tracked = [line for line in proc.stdout.splitlines() if line.strip()]
         ok = proc.returncode == 0 and not tracked
@@ -591,6 +610,7 @@ def verify_carm_credentials(usuario: str, contrasena: str) -> tuple[bool, str]:
         encoding="utf-8",
         errors="replace",
         timeout=180,
+        **hidden_subprocess_kwargs(),
     )
     ok = proc.returncode == 0 and " - ERROR - " not in proc.stdout
     lines = [line for line in proc.stdout.splitlines() if line.strip()]
@@ -1958,13 +1978,11 @@ HTML = r"""<!doctype html>
         </div>
         <label for="jsonPath">Archivo de correcciones</label>
         <select id="jsonPath">
-          <option value="C:\temp\vscodec\temporal\revision_pendiente.csv">revision_pendiente.csv</option>
-          <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01_correccion.json">prompt_ud01cp01_correccion.json</option>
-          <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02_correccion.json">prompt_ud01cp02_correccion.json</option>
-          <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03_correccion.json">prompt_ud02cp03_correccion.json</option>
+          <option value="">Cargando fuentes de correccion...</option>
         </select>
         <div id="uploadPendingDetail" class="hint"></div>
         <div class="button-row">
+          <button id="importCodexBtn">Importar JSON a revision</button>
           <button class="primary" id="assistPublishBtn">Sin pendientes para subir</button>
         </div>
         <label class="check" style="margin-top:10px">
@@ -2314,9 +2332,7 @@ HTML = r"""<!doctype html>
           <div>
             <label for="importJsonPath">JSON/CSV de correcciones</label>
             <select id="importJsonPath">
-              <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01_correccion.json">prompt_ud01cp01_correccion.json</option>
-              <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp02_correccion.json">prompt_ud01cp02_correccion.json</option>
-              <option value="C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03_correccion.json">prompt_ud02cp03_correccion.json</option>
+              <option value="">Cargando fuentes de correccion...</option>
             </select>
           </div>
         </div>
@@ -2607,9 +2623,10 @@ HTML = r"""<!doctype html>
       $('prepareBtn').disabled = locked || !hasUnits || !hasSelectedActivity;
       $('prepareBtn').textContent = 'Preparar prompts';
       $('solveApiBtn').disabled = locked || !authState.openai_api_configured;
+      $('importCodexBtn').disabled = locked || !window.__selectedCorrectionIsImportable;
       const pendingRows = Number(window.__pendingUploadRows || 0);
       const pendingBlocking = Number(window.__pendingUploadBlocking || 0);
-      $('assistPublishBtn').disabled = locked || !$('publishCheck').checked || pendingRows <= 0 || pendingBlocking > 0;
+      $('assistPublishBtn').disabled = locked || !window.__selectedCorrectionCanUpload || !$('publishCheck').checked || pendingRows <= 0 || pendingBlocking > 0;
       $('restartBtn').disabled = running;
       $('stopBtn').disabled = !running;
       $('runAdvancedBtn').disabled = locked;
@@ -2851,6 +2868,9 @@ HTML = r"""<!doctype html>
         : state.correction_source.path;
       fillSelect($('jsonPath'), jsonHtml, correctionSourceValue);
       fillSelect($('importJsonPath'), jsonHtml, $('importJsonPath').value);
+      const selectedJsonPath = $('jsonPath').value || '';
+      window.__selectedCorrectionIsImportable = selectedJsonPath === state.prompts_dir || selectedJsonPath.toLowerCase().endsWith('.json');
+      window.__selectedCorrectionCanUpload = selectedJsonPath !== state.prompts_dir;
       if (!settingsOpen || !previousCourseUrlInput) {
         setInputValue('courseUrl', courseOptions.course_url || courseOptions.dashboard_url || '');
       }
@@ -2948,6 +2968,7 @@ HTML = r"""<!doctype html>
       max_entregas: $('maxEntregas').value
     });
     $('solveApiBtn').onclick = () => run('solve_prompts_api');
+    $('importCodexBtn').onclick = () => run('import_codex', {json_path: $('jsonPath').value});
     $('assistPublishBtn').onclick = () => {
       if (!$('publishCheck').checked) return alert('Marca la confirmación antes de iniciar la subida asistida.');
       run('assist_publish', {json_path: $('jsonPath').value});
@@ -3039,6 +3060,7 @@ HTML = r"""<!doctype html>
       });
     };
     $('publishCheck').onchange = safeRefresh;
+    $('jsonPath').onchange = safeRefresh;
     $('prepareMode').onchange = updateActivityOptions;
     $('unidad').onchange = updateActivityOptions;
     $('advancedUnidad').onchange = updateAdvancedActivityOptions;
@@ -3328,6 +3350,8 @@ def build_args(action: str, body: dict) -> list[str]:
             allowed_json_paths(),
             "Archivo de correcciones",
         )
+        if Path(json_path).is_dir():
+            raise ValueError("Para subir a CARM selecciona revision_pendiente.csv o un JSON concreto, no 'Todos los JSON pendientes'.")
         args = ["--subir-correcciones-carm", str(json_path)]
         if action == "preview":
             args.extend(["--solo-primera-previsualizacion-carm", "--mantener-navegador"])
@@ -3336,7 +3360,7 @@ def build_args(action: str, body: dict) -> list[str]:
             args.append("--publicar-carm")
         if action == "assist_publish":
             revisar_publicacion_segura()
-            args.extend(["--subida-asistida-carm", "--mantener-navegador"])
+            args.append("--subida-asistida-carm")
         return args
 
     if action == "diagnose":
@@ -3443,7 +3467,14 @@ def build_args(action: str, body: dict) -> list[str]:
     if action == "import_codex":
         json_path = str(body.get("json_path") or "").strip()
         require_allowed(json_path, allowed_json_paths(), "JSON")
-        return ["--temporal", str(TEMPORAL_DIR), "--importar-correcciones-codex", json_path]
+        return [
+            "--pendientes",
+            str(PENDIENTES_DIR),
+            "--temporal",
+            str(TEMPORAL_DIR),
+            "--importar-correcciones-codex",
+            json_path,
+        ]
 
     if action == "delete_cache":
         return ["--borrar-cache-curso"]
@@ -3467,7 +3498,7 @@ def install_startup(auto_correct: bool = False) -> Path:
     cmd_path.write_text(
         "@echo off\n"
         f'cd /d "{ROOT}"\n'
-        f'start "" "{runner}" "{ROOT / "interfaz_app.py"}" --tray --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser{auto_correct_arg}\n',
+        f'start "" /min "{runner}" "{ROOT / "interfaz_app.py"}" --tray --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser{auto_correct_arg}\n',
         encoding="utf-8",
     )
     return cmd_path
