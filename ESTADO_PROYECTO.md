@@ -4,6 +4,7 @@
 
 Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-curso.
 
+- Actualizacion 2026-05-13: verificacion local correcta, Git limpio antes de release y etiqueta `v0.3.0-local` creada tras generar manifiesto de release.
 - Estado real: backend operativo, interfaz local en maduracion, autoprompteo multi-curso en primera version y subida asistida como flujo recomendado.
 - El proyecto esta en fase de endurecimiento local antes de distribuir: higiene de git, rutas multi-curso, arranque de Windows, seguridad y documentacion coherente.
 - Se corrigio la configuracion de curso para recalcular rutas de trabajo despues de cambiar curso o activar/desactivar carpetas por curso.

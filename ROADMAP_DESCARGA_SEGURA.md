@@ -144,7 +144,7 @@ Objetivo: que cada version local sea reproducible sin montar infraestructura gra
   - comprobacion de endpoints locales
 - Estado: implementado como `verificar_app.py` y lanzadores `verificar_app_windows.cmd` / `verificar_app_windows.ps1`.
 - Versionado semantico sencillo. Estado: implementado con `VERSION`, cabecera de interfaz y salida de `verificar_app.py`.
-- Etiquetas Git para versiones que funcionen. Estado: flujo preparado con `preparar_release.py`; la etiqueta solo se crea con `--crear-tag` si la verificacion pasa y no hay cambios locales.
+- Etiquetas Git para versiones que funcionen. Estado: flujo preparado con `preparar_release.py`; creada etiqueta local `v0.3.0-local` tras verificacion correcta.
 - Documentar cambios relevantes en `ESTADO_PROYECTO.md`.
 - Mantener `.env.example` actualizado sin secretos. Estado: actualizado con variables CARM, OpenAI, Codex, retencion y limites de tokens.
 
