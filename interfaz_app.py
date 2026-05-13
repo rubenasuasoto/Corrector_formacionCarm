@@ -149,6 +149,19 @@ def save_app_config(config: dict) -> None:
     APP_CONFIG_PATH.write_text(json.dumps(current, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+def carm_account_ref(usuario: str | None = None) -> str:
+    usuario = (usuario if usuario is not None else read_env_values().get("CARM_USUARIO", "")).strip().lower()
+    if not usuario:
+        return ""
+    return hashlib.sha256(usuario.encode("utf-8", errors="ignore")).hexdigest()[:12]
+
+
+def account_context_matches_current_user() -> bool:
+    stored = str(load_app_config().get("carm_account_ref") or "").strip()
+    current = carm_account_ref()
+    return not stored or not current or stored == current
+
+
 def auto_scan_interval_minutes() -> int:
     config = load_app_config()
     try:
@@ -628,18 +641,34 @@ def save_carm_credentials(usuario: str, contrasena: str) -> tuple[bool, str]:
     contrasena = contrasena.strip()
     if not usuario or not contrasena:
         return False, "Usuario y contrasena son obligatorios."
+    previous_env_ref = carm_account_ref()
+    previous_config_ref = str(load_app_config().get("carm_account_ref") or "").strip()
+    new_ref = carm_account_ref(usuario)
     ok, message = verify_carm_credentials(usuario, contrasena)
     if not ok:
         if CARM_STORAGE_STATE.exists():
             CARM_STORAGE_STATE.unlink()
         return False, message
+    account_changed = bool(new_ref and ((previous_config_ref and previous_config_ref != new_ref) or (previous_env_ref and previous_env_ref != new_ref)))
     write_env_values(
         {
             "CARM_USUARIO": usuario,
             "CARM_CONTRASENA": contrasena,
             "CARM_RECORDAR_CUENTA": "1",
+            **({"CARM_COURSE_URL": ""} if account_changed else {}),
         }
     )
+    if account_changed and CARM_STORAGE_STATE.exists():
+        CARM_STORAGE_STATE.unlink()
+    save_app_config(
+        {
+            "carm_account_ref": new_ref,
+            **({"selected_course_ids": []} if account_changed else {}),
+        }
+    )
+    configure_work_dirs()
+    if account_changed:
+        return True, "Credenciales CARM guardadas. Cuenta distinta detectada: selecciona de nuevo el curso para usar sus carpetas propias."
     return True, "Credenciales CARM guardadas y verificadas."
 
 
@@ -711,6 +740,8 @@ def current_course_url() -> str:
     value = (read_env_values().get("CARM_COURSE_URL") or "").strip()
     if COURSE_URL_RE.fullmatch(value):
         return value
+    if not account_context_matches_current_user():
+        return ""
     raw_selected = load_app_config().get("selected_course_ids", [])
     if isinstance(raw_selected, list):
         for item in raw_selected:
@@ -745,6 +776,7 @@ def course_url_from_id(course_id: str) -> str:
 
 def save_course_url(url_or_id: str) -> str:
     value = str(url_or_id or "").strip()
+    previous_active = active_course_id()
     if value.isdigit():
         value = course_url_from_id(value)
     if DASHBOARD_URL_RE.fullmatch(value):
@@ -754,6 +786,12 @@ def save_course_url(url_or_id: str) -> str:
     if not COURSE_URL_RE.fullmatch(value):
         raise ValueError("Introduce una URL de curso CARM, una URL de area personal CARM valida o solo el ID numerico del curso.")
     write_env_values({"CARM_COURSE_URL": value})
+    new_course_id = course_id_from_url(value)
+    selected_raw = load_app_config().get("selected_course_ids", [])
+    selected = [str(item).strip() for item in selected_raw] if isinstance(selected_raw, list) else []
+    selected = [item for item in selected if item.isdigit()]
+    if new_course_id and (not selected or selected == [previous_active]):
+        save_app_config({"selected_course_ids": [new_course_id]})
     configure_work_dirs()
     return value
 
@@ -767,6 +805,8 @@ configure_work_dirs()
 
 
 def selected_course_ids() -> list[str]:
+    if not account_context_matches_current_user():
+        return []
     raw = load_app_config().get("selected_course_ids", [])
     ids: list[str] = []
     if isinstance(raw, list):
@@ -1550,6 +1590,7 @@ def project_state() -> dict:
         "temporal_dir": str(TEMPORAL_DIR),
         "base_temporal_dir": str(BASE_TEMPORAL_DIR),
         "course_scoped_dirs": course_scoped_dirs_enabled(),
+        "account_context_ok": account_context_matches_current_user(),
         "course_id": active_course_id(),
         "selected_course_ids": selected_course_ids(),
         "selected_courses": selected_course_summaries(),

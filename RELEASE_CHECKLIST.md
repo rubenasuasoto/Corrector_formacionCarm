@@ -25,8 +25,9 @@ Debe validar:
 - Chromium de Playwright;
 - dependencias opcionales si se van a leer PDF, PPTX, XLSX u OCR;
 - importacion offline de JSON de varias unidades a `revision_pendiente.csv` sin duplicados;
+- aislamiento offline de cursos seleccionados cuando cambia la cuenta CARM;
 - endpoints locales con token;
-- prueba offline;
+- pruebas offline de importacion y contexto cuenta/curso;
 - credenciales CARM, curso activo y carpetas de trabajo.
 
 Para una instalacion nueva sin credenciales:

@@ -217,6 +217,37 @@ def check_importacion_json_csv() -> bool:
             shutil.rmtree(tmp_root, ignore_errors=True)
 
 
+def check_contexto_cursos_cuenta() -> bool:
+    safe_print("\n==> Contexto de cuenta y curso")
+    import interfaz_app as app
+
+    original_read_env = app.read_env_values
+    original_load_config = app.load_app_config
+    try:
+        old_ref = app.hashlib.sha256("cuenta_antigua".encode()).hexdigest()[:12]
+        app.read_env_values = lambda: {"CARM_USUARIO": "cuenta_nueva", "CARM_COURSE_URL": ""}
+        app.load_app_config = lambda: {"carm_account_ref": old_ref, "selected_course_ids": ["1592"]}
+        if app.account_context_matches_current_user() or app.current_course_url() or app.selected_course_ids():
+            safe_print("ERROR: una cuenta distinta puede reutilizar cursos seleccionados antiguos.")
+            return False
+
+        same_ref = app.hashlib.sha256("misma_cuenta".encode()).hexdigest()[:12]
+        app.read_env_values = lambda: {"CARM_USUARIO": "misma_cuenta", "CARM_COURSE_URL": ""}
+        app.load_app_config = lambda: {"carm_account_ref": same_ref, "selected_course_ids": ["1592"]}
+        if not app.account_context_matches_current_user() or app.active_course_id() != "1592":
+            safe_print("ERROR: una misma cuenta no conserva correctamente su curso seleccionado.")
+            return False
+
+        safe_print("OK: cambio de cuenta bloquea cursos antiguos y misma cuenta conserva seleccion.")
+        return True
+    except Exception as exc:
+        safe_print(f"ERROR: prueba de contexto cuenta/curso fallo: {exc}")
+        return False
+    finally:
+        app.read_env_values = original_read_env
+        app.load_app_config = original_load_config
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verificacion local del Corrector CARM.")
     parser.add_argument(
@@ -250,6 +281,7 @@ def main() -> int:
     ok &= print_health(operacion=not args.instalacion)
     if not args.sin_prueba_offline:
         ok &= check_importacion_json_csv()
+        ok &= check_contexto_cursos_cuenta()
     if not args.sin_endpoints:
         ok &= check_local_endpoints()
 

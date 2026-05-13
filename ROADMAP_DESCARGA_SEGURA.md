@@ -109,8 +109,9 @@ Implementacion por pasos:
 8. Mostrar estado por curso en la interfaz. Estado: implementado con cache, fecha de cache, prompts, JSON, filas CSV, actividades e incidencias bloqueantes.
 9. Filtrar enlaces auxiliares detectados como cursos. Estado: implementado para `FAQS` y `CARM - Curso CARM`.
 10. Evitar que el refresco automatico de la interfaz pise cambios no guardados en la configuracion de cursos. Estado: implementado.
+11. Aislar contexto de cuenta CARM para no reutilizar cursos/carpetas de otra cuenta. Estado: implementado con referencia local seudonima de cuenta y prueba offline en `verificar_app.py`.
 
-Esta fase debe hacerse con cambios pequenos y verificables. La primera cola multi-curso y el resumen por curso ya existen, pero falta prueba real con varios cursos CARM antes de considerarlo terminado. Tambien se debe verificar que cambiar curso recalcula rutas y que ningun CSV de un curso se muestra como si perteneciera a otro.
+Esta fase debe hacerse con cambios pequenos y verificables. La primera cola multi-curso, el resumen por curso y el aislamiento offline por cuenta ya existen, pero falta prueba real con varios cursos CARM antes de considerarlo terminado. Tambien se debe verificar en CARM real que cambiar curso recalcula rutas y que ningun CSV de un curso se muestra como si perteneciera a otro.
 
 ## Fase 2: Seguridad operativa local
 
@@ -155,7 +156,7 @@ Esta fase aplica las ideas de Git, build reproducible y pruebas del documento, p
 Objetivo: facilitar uso en Windows sin depender de conocimientos tecnicos.
 
 - Script de instalacion guiado.
-- Comprobacion de Python, dependencias y Playwright. Estado: instalador valida Python 3.12+, revisa codigos de salida, instala dependencias y ejecuta `verificar_app.py --instalacion --sin-prueba-offline`.
+- Comprobacion de Python, dependencias y Playwright. Estado: instalador valida Python 3.12+, revisa codigos de salida, instala dependencias y ejecuta `verificar_app.py --instalacion`.
 - Instalacion de Chromium para Playwright. Estado: implementado; si Chromium ya existe, no lo reinstala para evitar locks de Windows.
 - Acceso directo de escritorio o menu inicio. Estado: acceso directo opcional con `-CrearAccesoDirecto`.
 - Arranque opcional del panel local. Estado: implementado; inicio manual usa `iniciar_app_windows.ps1` con comprobacion rapida y opciones `-AbrirNavegador`, `-AutoPreparar`, `-SinEscaneoInicial`.
