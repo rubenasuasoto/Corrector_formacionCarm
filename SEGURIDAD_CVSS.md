@@ -67,7 +67,8 @@ Estado:
 - [x] Proteger endpoints locales con token de sesion local.
 - [x] Endurecer lectura de ZIP y archivos de alumnos.
 - [x] Bloquear publicacion si existen errores o revision manual.
-- [ ] Revisar redaccion/retencion de logs con datos personales.
+- [x] Aplicar retencion configurable de logs y auditoria local.
+- [ ] Validar en una prueba real que logs, auditoria y diagnosticos no conservan nombres/emails o HTML sensible sin redaccion.
 
 No priorizado ahora:
 

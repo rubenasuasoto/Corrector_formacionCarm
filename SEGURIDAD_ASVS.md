@@ -21,7 +21,7 @@ Superficie principal:
 - Endpoints HTTP locales.
 - Procesos Playwright contra CARM.
 - Descarga y lectura de archivos entregados por alumnos.
-- Llamadas a Codex CLI/OpenAI.
+- Llamadas a OpenAI API o uso externo de IA por parte del docente para resolver prompts.
 
 ## Reglas de diseno
 
@@ -50,8 +50,10 @@ Superficie principal:
 - [x] Notificaciones en errores y revision manual.
 - [x] Proteger endpoints locales con token de sesion local para evitar peticiones desde paginas externas del navegador.
 - [x] Separar arranque de Windows y autoprompteo al inicio como opciones explicitas.
-- [ ] Separar cache didactica de datos personales y purgar datos de alumnos tras finalizar curso.
-- [ ] Redactar nombres/emails en diagnosticos exportables por defecto.
+- [x] Separar rutas de cache didactica, pendientes, temporales y artefactos por curso cuando la opcion multi-curso esta activada.
+- [ ] Verificar en una prueba real de fin de curso que la purga elimina datos de alumnos sin borrar recursos didacticos necesarios antes de tiempo.
+- [x] Redactar secretos, tokens, cookies y emails en logs/diagnosticos por defecto.
+- [ ] Revisar capturas o evidencias HTML antes de compartir diagnosticos fuera del equipo local.
 
 ### Prioridad Media
 
@@ -59,8 +61,8 @@ Superficie principal:
 - [x] Endurecer ZIP: limite de numero de ficheros, tamano total y proteccion contra zip-slip.
 - [x] Registrar auditoria local de acciones sensibles: descargar, corregir, previsualizar, publicar.
 - [x] Bloquear publicacion si hay `revision_manual_necesaria` o errores en CSV/JSON.
-- [ ] Confirmacion fuerte antes de `--publicar-carm`.
-- [ ] Timeouts y reintentos controlados para Playwright.
+- [ ] Confirmacion fuerte antes de `--publicar-carm` si se conserva como comando directo de administracion.
+- [x] Timeouts y reintentos controlados para Playwright en los flujos principales de CARM.
 - [x] Sanitizar feedback antes de insertarlo en editores Moodle.
 - [x] Chequeo local de dependencias y artefactos sensibles antes de operar/distribuir.
 

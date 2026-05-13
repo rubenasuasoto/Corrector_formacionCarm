@@ -146,7 +146,7 @@ Objetivo: que cada version local sea reproducible sin montar infraestructura gra
 - Versionado semantico sencillo. Estado: implementado con `VERSION`, cabecera de interfaz y salida de `verificar_app.py`.
 - Etiquetas Git para versiones que funcionen. Estado: flujo preparado con `preparar_release.py`; creada etiqueta local `v0.3.0-local` tras verificacion correcta.
 - Documentar cambios relevantes en `ESTADO_PROYECTO.md`.
-- Mantener `.env.example` actualizado sin secretos. Estado: actualizado con variables CARM, OpenAI, Codex, retencion y limites de tokens.
+- Mantener `.env.example` actualizado sin secretos. Estado: actualizado con variables CARM, OpenAI, retencion, rutas por curso y limites de tokens.
 
 Esta fase aplica las ideas de Git, build reproducible y pruebas del documento, pero en escala local.
 

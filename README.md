@@ -100,15 +100,17 @@ No subas `.env` al repositorio.
 
 ## Uso sin API
 
-Para aprovechar Codex/ChatGPT manualmente sin pagar llamadas de API:
+Para aprovechar Codex/ChatGPT manualmente sin llamadas de API:
 
 ```powershell
 python corrector_agente.py --preparar-carm-codex --unidad ud01
 ```
 
-El agente lee las entregas, las agrupa por actividad y genera archivos en la carpeta activa de prompts. Con `Separar carpetas por curso`: `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex`. Copia el `.md` de la actividad en Codex/ChatGPT y pide que devuelva el JSON de correcciones junto al prompt.
+El agente lee las entregas, las agrupa por actividad y genera archivos en la carpeta activa de prompts. Con `Separar carpetas por curso`: `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex`.
 
-Cuando Codex/ChatGPT devuelva `*_correccion.json`, vuelve a la interfaz y pulsa `Importar JSON a revision`. La app importara los JSON a `revision_pendiente.csv` y archivara los prompts ya usados.
+Despues puedes usar las instrucciones de `INSTRUCCIONES_CODEX_PERSONALIZADAS.md` y escribir `$C`, `$C ud01cp02` o `$C todas` en Codex. Ese flujo no entra en CARM, no mueve archivos y crea un `*_correccion.json` por prompt en la misma carpeta.
+
+Cuando existan los `*_correccion.json`, vuelve a la interfaz y pulsa `Importar JSON a revision`. Puedes importar un JSON concreto o todos los JSON pendientes. La app los pasara a `revision_pendiente.csv` y archivara los prompts ya usados.
 
 ## Uso con entregas locales
 
