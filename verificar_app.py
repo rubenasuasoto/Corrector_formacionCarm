@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
+import shutil
 import subprocess
 import sys
 import threading
@@ -114,6 +116,107 @@ def check_local_endpoints() -> bool:
         thread.join(timeout=5)
 
 
+def check_importacion_json_csv() -> bool:
+    safe_print("\n==> Importacion JSON a revision_pendiente.csv")
+    from corrector_agente import GeneradorSalidas
+
+    tmp_root = ROOT / ".tmp_verificacion_importacion"
+    pendientes = tmp_root / "pendientes"
+    prompts_dir = pendientes / "prompts_codex"
+    temporal = tmp_root / "temporal"
+    try:
+        if tmp_root.exists():
+            shutil.rmtree(tmp_root)
+        prompts_dir.mkdir(parents=True, exist_ok=True)
+        temporal.mkdir(parents=True, exist_ok=True)
+
+        json_ud01 = prompts_dir / "prompt_ud01cp01_correccion.json"
+        json_ud02 = prompts_dir / "prompt_ud02cp01_correccion.json"
+        json_ud01.write_text(
+            json.dumps(
+                {
+                    "actividad": "ud01cp01",
+                    "correcciones": [
+                        {
+                            "id": "0",
+                            "alumno": "Alumno Uno",
+                            "nota": 8,
+                            "criterios": [],
+                            "retroalimentacion": "Feedback inicial UD01.",
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        json_ud02.write_text(
+            json.dumps(
+                {
+                    "actividad": "ud02cp01",
+                    "correcciones": [
+                        {
+                            "id": "0",
+                            "alumno": "Alumno Dos",
+                            "nota": 7,
+                            "criterios": [],
+                            "retroalimentacion": "Feedback inicial UD02.",
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        salida = GeneradorSalidas(pendientes, temporal)
+        salida.importar_correcciones_codex(json_ud01)
+        salida.importar_correcciones_codex(json_ud02)
+
+        revision = temporal / "revision_pendiente.csv"
+        with revision.open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter=";"))
+        claves = {(row.get("actividad"), row.get("alumno")) for row in rows}
+        if claves != {("ud01cp01", "Alumno Uno"), ("ud02cp01", "Alumno Dos")}:
+            safe_print(f"ERROR: el CSV no conserva correctamente varias actividades: {claves}")
+            return False
+
+        json_ud01.write_text(
+            json.dumps(
+                {
+                    "actividad": "ud01cp01",
+                    "correcciones": [
+                        {
+                            "id": "0",
+                            "alumno": "Alumno Uno",
+                            "nota": 9,
+                            "criterios": [],
+                            "retroalimentacion": "Feedback actualizado UD01.",
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        salida.importar_correcciones_codex(json_ud01)
+        with revision.open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter=";"))
+        filas_ud01 = [row for row in rows if row.get("actividad") == "ud01cp01" and row.get("alumno") == "Alumno Uno"]
+        if len(rows) != 2 or len(filas_ud01) != 1 or filas_ud01[0].get("nota") != "9.0":
+            safe_print("ERROR: reimportar una correccion no sustituyo la fila anterior como se esperaba.")
+            return False
+
+        safe_print("OK: JSON de varias unidades importan al CSV sin duplicar filas.")
+        return True
+    except Exception as exc:
+        safe_print(f"ERROR: prueba de importacion JSON/CSV fallo: {exc}")
+        return False
+    finally:
+        if tmp_root.exists():
+            shutil.rmtree(tmp_root, ignore_errors=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verificacion local del Corrector CARM.")
     parser.add_argument(
@@ -124,7 +227,7 @@ def main() -> int:
     parser.add_argument(
         "--sin-prueba-offline",
         action="store_true",
-        help="Compatibilidad: la prueba offline antigua fue retirada.",
+        help="Omite la prueba offline de importacion JSON a revision_pendiente.csv.",
     )
     parser.add_argument(
         "--sin-endpoints",
@@ -145,6 +248,8 @@ def main() -> int:
         ],
     )
     ok &= print_health(operacion=not args.instalacion)
+    if not args.sin_prueba_offline:
+        ok &= check_importacion_json_csv()
     if not args.sin_endpoints:
         ok &= check_local_endpoints()
 

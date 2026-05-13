@@ -48,13 +48,13 @@ Fuentes oficiales consultadas:
 - La cache del curso debe guardar recursos estables: unidades, actividades, enunciados, rubricas y contenido imprimible.
 - La cache didactica no debe guardar entregas, emails, cookies ni tablas completas de alumnos.
 - La interfaz debe mostrar solo unidades y casos detectados realmente en CARM.
-- Los diagnósticos deben generarse redactados por defecto.
+- Los diagnosticos deben generarse redactados por defecto.
 
 ### Limitacion de finalidad
 
 - Los datos se usan solo para correccion, revision y publicacion en CARM.
 - No se reutilizan entregas de alumnos para entrenar modelos.
-- No se envia automaticamente nada a terceros salvo que el usuario ejecute conscientemente Codex, una IA externa o la accion `Corregir prompts con API`.
+- No se envia automaticamente nada a terceros salvo que el usuario ejecute conscientemente una IA externa, use el flujo `$C` fuera de la app o pulse la accion `Corregir prompts con API`.
 
 ### Revision humana
 
@@ -127,7 +127,7 @@ Esta purga es manual para evitar perdidas accidentales antes de cerrar una evalu
 - Procedimiento de incidentes.
 - Registro de actividades de tratamiento.
 - Pruebas de seguridad de endpoints locales.
-- Revision de proveedores de IA/CLI usados.
+- Revision de proveedores de IA/API externos usados.
 - Control de versiones y checklist de release.
 
 ### Si pasa a servidor o multiusuario

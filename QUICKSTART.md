@@ -2,6 +2,29 @@
 
 Antes de tocar nada, revisa `ESTADO_PROYECTO.md`: ahÃ­ queda la memoria del trabajo realizado, decisiones tomadas y prÃ³ximos pasos.
 
+## Ruta recomendada actual
+
+Para uso real, el camino normal es este:
+
+1. Iniciar la app con `.\iniciar_app_windows.cmd`.
+2. Detectar o elegir curso desde la interfaz.
+3. Preparar prompts desde la interfaz o con `--preparar-carm-codex`.
+4. Corregir con API o resolver los prompts fuera de la app y luego pulsar `Importar JSON a revision`.
+5. Revisar `revision_pendiente.csv` desde la interfaz.
+6. Usar subida asistida: la app rellena nota y feedback, pero el docente guarda en CARM.
+
+Evita usar comandos directos de publicacion salvo prueba controlada. La subida asistida es el flujo que mantiene revision humana y limpia el CSV al confirmar cada caso.
+
+## Documentacion de apoyo
+
+- `ESTADO_PROYECTO.md`: estado real y decisiones recientes.
+- `ARQUITECTURA_PROYECTO.md`: archivos activos, obsoletos y artefactos locales.
+- `CUMPLIMIENTO_NORMATIVO.md`: RGPD, LOPDGDD, ENS, IA y revision humana.
+- `SEGURIDAD_ASVS.md` y `SEGURIDAD_CVSS.md`: controles y priorizacion de riesgos.
+- `SOLUCION_PROBLEMAS_WINDOWS.md`: Playwright, dependencias, bandeja, puerto local y reparacion.
+- `RELEASE_CHECKLIST.md`: comprobaciones antes de una sesion real.
+- `CIERRE_APP_LOCAL.md`: puntos pendientes antes de abrir Fase 5.
+
 ## 1. Instalar
 
 En Windows, usa el instalador del proyecto:
@@ -389,13 +412,13 @@ python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\cursos\<cou
 
 El navegador queda abierto para revisar el formulario. Para terminar la previsualizaciÃ³n, cierra la pestaÃ±a de Chromium o detÃ©n la tarea desde la interfaz.
 
-Cuando hayas comprobado que el formulario se rellena bien, publica de verdad con:
+El flujo recomendado no usa publicacion directa. Si aun necesitas una prueba controlada desde CLI, usa:
 
 ```powershell
 python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json --publicar-carm
 ```
 
-Con varias correcciones de la misma actividad, se intenta usar `Guardar cambios y mostrar siguiente` entre alumnos. En la Ãºltima correcciÃ³n del lote usa `Guardar cambios` para no avanzar de mÃ¡s.
+Con varias correcciones de la misma actividad, se intenta usar `Guardar cambios y mostrar siguiente` entre alumnos. En la Ãºltima correcciÃ³n del lote usa `Guardar cambios` para no avanzar de mÃ¡s. Para sesiones reales, prioriza `--subida-asistida-carm` desde la interfaz.
 
 Cada intento deja registro en `respuestas_extraidas\subida_carm_previsualizacion.json` o `respuestas_extraidas\subida_carm_publicada.json`.
 
@@ -412,4 +435,4 @@ Cuando una entrega ya ha sido copiada a `temporal` y tiene su correcciÃ³n gene
 
 Los `.txt`, `.docx`, `.odt`, `.rtf`, `.csv`, `.html`, `.json`, `.xml` y similares se intentan leer automÃ¡ticamente. Con las dependencias opcionales tambiÃ©n se intentan leer `.pdf`, `.pptx`, `.xlsx`, `.zip`, `.jpg` y `.png`. Los multimedia, `.doc` antiguo, comprimidos no soportados o formatos no extraÃ­bles quedan marcados en `revision_pendiente.csv` como `revision_manual_necesaria` y no se eliminan de `pendientes`.
 
-El flujo normal deja todo revisable antes de publicar. Solo se guarda en CARM cuando ejecutas explÃ­citamente `--publicar-carm`.
+El flujo normal deja todo revisable antes de publicar. La opcion preferente es la subida asistida, donde el docente pulsa guardar en CARM y la app confirma el avance.

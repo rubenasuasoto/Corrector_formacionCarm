@@ -31,7 +31,7 @@ La app local debe poder usarse en Windows por un docente con:
 - [x] Endpoints `/api/*` requieren token local.
 - [x] Publicacion automatica no es flujo normal.
 - [x] Subida a CARM mantiene guardado humano.
-- [ ] Revisar una vez mas `SEGURIDAD_ASVS.md` antes de la siguiente sesion real.
+- [x] Revisar una vez mas `SEGURIDAD_ASVS.md` antes de la siguiente sesion real.
 
 ### Flujo CARM real
 
@@ -50,7 +50,7 @@ La app local debe poder usarse en Windows por un docente con:
 ### Calidad de correcciones
 
 - [ ] Revisar que prompts no incluyen mapas/ruido de Moodle.
-- [ ] Comprobar que varios prompts de distintas unidades importan bien al CSV.
+- [x] Comprobar que varios prompts de distintas unidades importan bien al CSV mediante verificacion offline.
 - [ ] Comprobar que reenvios de alumnos sustituyen nota/feedback anterior en previsualizacion.
 - [ ] Confirmar que entregas sin archivo quedan como incidencia y no se inventa correccion.
 - [ ] Confirmar que al completar el ultimo alumno la subida asistida termina y actualiza `revision_pendiente.csv` sin tener que cerrar la pestana manualmente.

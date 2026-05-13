@@ -24,6 +24,7 @@ Debe validar:
 - dependencias base;
 - Chromium de Playwright;
 - dependencias opcionales si se van a leer PDF, PPTX, XLSX u OCR;
+- importacion offline de JSON de varias unidades a `revision_pendiente.csv` sin duplicados;
 - endpoints locales con token;
 - prueba offline;
 - credenciales CARM, curso activo y carpetas de trabajo.

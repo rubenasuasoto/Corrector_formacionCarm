@@ -27,6 +27,7 @@ Rutas actuales del proyecto:
 Nota de rutas:
 - Si el usuario indica otro curso, sustituye `1592` por el ID de ese curso.
 - Si la app tiene desactivado "Separar carpetas por curso", usa la ruta global antigua `C:\temp\vscodec\pendientes\prompts_codex`.
+- Si la ruta del curso activo no existe o no contiene prompts pendientes, revisa `C:\temp\vscodec\cursos\*\pendientes\prompts_codex\prompt_*.md` y comunica al usuario que curso has encontrado antes de corregir.
 
 Nombres de salida obligatorios:
 - prompt_ud01cp02.md -> prompt_ud01cp02_correccion.json
@@ -44,7 +45,7 @@ Comandos cortos:
   Corrige todos los prompt_*.md disponibles.
 
 Proceso obligatorio:
-1. Busca prompts en C:\temp\vscodec\cursos\1592\pendientes\prompts_codex, salvo que el usuario indique otro ID de curso.
+1. Busca prompts en C:\temp\vscodec\cursos\1592\pendientes\prompts_codex, salvo que el usuario indique otro ID de curso. Si no hay prompts ahi, revisa las carpetas C:\temp\vscodec\cursos\*\pendientes\prompts_codex.
 2. Excluye archivos que no sean .md.
 3. Excluye cualquier archivo que no empiece por prompt_.
 4. Excluye manifiesto_entregas.json y cualquier *_correccion.json.
