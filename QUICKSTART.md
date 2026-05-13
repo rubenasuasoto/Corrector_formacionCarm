@@ -105,7 +105,7 @@ Para OCR de imÃ¡genes (`.jpg`, `.png`) tambiÃ©n hace falta tener instalado T
 
 Copia `.env.example` a `.env` y rellena las credenciales.
 
-Importante: `.env` contiene usuario y contraseÃ±a de CARM. `OPENAI_API_KEY` solo hace falta si quieres usar la API de OpenAI; el flujo recomendado con Codex CLI no la necesita. No subas `.env` al repositorio y rota cualquier clave que se haya compartido por error.
+Importante: `.env` contiene usuario y contraseÃ±a de CARM. `OPENAI_API_KEY` solo hace falta si quieres usar la API de OpenAI; el modo solo prompts no la necesita. No subas `.env` al repositorio y rota cualquier clave que se haya compartido por error.
 
 Los prompts de correcciÃ³n estÃ¡n en `prompts_correccion.json`. Puedes editar `default` para el criterio general o crear entradas por actividad, por ejemplo `ud02cp03`, para otros mÃ³dulos o casos prÃ¡cticos.
 
@@ -170,20 +170,12 @@ En configuracion, `Estado por curso` muestra de un vistazo si cada curso selecci
 
 La deteccion oculta enlaces auxiliares de CARM como `FAQS` o `CARM - Curso CARM`. Si esos nombres reaparecen, pulsa `Detectar cursos CARM` de nuevo y revisa el listado filtrado.
 
-## 3. Probar sin CARM y sin IA
-
-```powershell
-python prueba_correcciones.py
-```
-
-Esto crea envÃ­os ficticios en `tmp_prueba\pendientes`, genera correcciones de respaldo y deja las salidas en `tmp_prueba\temporal`.
-
-## 4. Preparar prompts para Codex sin API
+## 3. Preparar prompts para Codex sin API
 
 Para que el agente lea las entregas, las agrupe por actividad y genere archivos listos para pegar en Codex/ChatGPT, sin llamar a la API de OpenAI:
 
 ```powershell
-python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --preparar-prompts-codex
+python corrector_agente.py --preparar-carm-codex --unidad ud01
 ```
 
 Salidas:
@@ -196,40 +188,22 @@ Si `Separar carpetas por curso` esta desactivado, se usan las rutas globales ant
 
 El archivo `.md` se copia entero en Codex/ChatGPT. Codex debe devolver un JSON con las correcciones.
 
-### Comprobar Codex CLI
+### Resolver prompts sin API
 
-El flujo automatico sin API necesita que Codex CLI este instalado y con sesion iniciada en el usuario de Windows que ejecuta la app.
+El flujo sin API actual no usa Codex CLI integrado. Abre Codex/ChatGPT aparte, ejecuta `$C` o pega el prompt, guarda los `*_correccion.json` en la carpeta de prompts y vuelve a la interfaz para pulsar `Importar JSON a revision`.
 
-```powershell
-python corrector_agente.py --comprobar-codex-cli
-```
-
-Si indica que no hay sesion iniciada, abre VS Code e inicia sesion en la extension ChatGPT/Codex, o ejecuta el comando que muestre el diagnostico:
-
-```powershell
-codex login
-```
-
-Si la app se ejecuta en bandeja y no encuentra `codex`, configura en `.env` la ruta absoluta:
-
-```env
-CODEX_CLI_PATH=C:\Users\tu_usuario\.vscode\extensions\openai.chatgpt-...\bin\windows-x86_64\codex.exe
-```
-
-Despues reinicia la app en bandeja.
-
-## 5. Corregir archivos reales ya descargados
+## 4. Corregir archivos reales ya descargados
 
 Coloca las entregas en la carpeta `pendientes` activa. Con carpetas por curso activadas: `C:\temp\vscodec\cursos\<course_id>\pendientes`.
 
 ```powershell
-python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt
+python corrector_agente.py --preparar-prompts-codex
 ```
 
 Para usar otro archivo de prompts:
 
 ```powershell
-python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --prompts C:\ruta\prompts_modulo_02.json
+python corrector_agente.py --preparar-prompts-codex --prompts C:\ruta\prompts_modulo_02.json
 ```
 
 Salidas:
@@ -244,7 +218,7 @@ El cÃ³digo `ud01cp01` cambia segÃºn la actividad. Si se extrae desde CARM, e
 
 Si la respuesta del alumno ya es `.txt`, se copia como `ud01cp01_respuesta.txt` para no pisar la correcciÃ³n `ud01cp01.txt`.
 
-## 6. Diagnosticar navegaciÃ³n real en CARM
+## 5. Diagnosticar navegaciÃ³n real en CARM
 
 Antes de descargar entregas reales, ejecuta un diagnÃ³stico:
 
@@ -286,7 +260,7 @@ Para preparar la primera ejecuciÃ³n real solo con la unidad 1:
 python corrector_agente.py --solo-listar-carm --unidad ud01
 ```
 
-## 7. Cachear recursos estables del curso
+## 6. Cachear recursos estables del curso
 
 Para no releer en cada ejecuciÃ³n el contenido imprimible y los enunciados:
 
@@ -330,7 +304,7 @@ Si esa fecha ya pasÃ³, la cache se borra automÃ¡ticamente al iniciar. Para i
 python corrector_agente.py --extraer-carm --preparar-prompts-codex --unidad ud01 --sin-cache
 ```
 
-## 8. Extraer desde CARM
+## 7. Extraer desde CARM
 
 ```powershell
 python corrector_agente.py --extraer-carm
@@ -352,7 +326,7 @@ python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-po
 
 Esto abre Playwright una sola vez, entra en CARM, actualiza la cache del curso, registra las filas que requieren calificaciÃ³n, descarga los archivos, extrae el contenido imprimible de `ud01` y divide las entregas en lotes de hasta 6 por prompt. No usa API.
 
-## 9. Flujo principal actual
+## 8. Flujo principal actual
 
 Primero prepara prompts sin publicar en CARM ni gastar API:
 
@@ -399,7 +373,7 @@ python corrector_agente.py --importar-correcciones-codex C:\ruta\correcciones_ud
 
 El importador acepta una lista JSON directa o un objeto con clave `correcciones`. TambiÃ©n entiende respuestas pegadas dentro de un bloque de cÃ³digo `json`. Campos mÃ­nimos por entrega: `alumno`, `actividad`, `nota` y `retroalimentacion` o `comentario`.
 
-## 10. Previsualizar o subir a CARM
+## 9. Previsualizar o subir a CARM
 
 Primero prueba en modo previsualizaciÃ³n. Este modo abre CARM, busca el alumno y la actividad, rellena nota y retroalimentaciÃ³n, pero no pulsa guardar:
 

@@ -209,6 +209,12 @@ def normalizar_texto_para_cli(texto: str) -> str:
     return unicodedata.normalize("NFC", texto)
 
 
+def hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
+
+
 def openai_api_key_configurada() -> bool:
     api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
     return bool(api_key and api_key.lower() not in {"tu_api_key_aqui", "sk-...", "none", "null"})
@@ -225,129 +231,6 @@ def comprobar_openai_api_configurada() -> dict[str, object]:
         "model": modelo,
         "package": "openai",
     }
-
-
-def resolver_codex_cli() -> str:
-    configurado = os.getenv("CODEX_CLI_PATH", "").strip().strip('"')
-    candidatos: list[Path] = []
-    if configurado:
-        candidatos.append(Path(configurado))
-
-    encontrado = shutil.which("codex") or shutil.which("codex.exe")
-    if encontrado:
-        candidatos.append(Path(encontrado))
-
-    userprofile = os.getenv("USERPROFILE", "").strip()
-    if userprofile:
-        for raiz_extensiones in (
-            Path(userprofile) / ".vscode" / "extensions",
-            Path(userprofile) / ".cursor" / "extensions",
-        ):
-            if raiz_extensiones.exists():
-                candidatos.extend(
-                    sorted(
-                        raiz_extensiones.glob("openai.chatgpt-*/bin/windows-x86_64/codex.exe"),
-                        key=lambda ruta: ruta.stat().st_mtime if ruta.exists() else 0,
-                        reverse=True,
-                    )
-                )
-
-    for candidato in candidatos:
-        try:
-            if candidato.exists() and candidato.is_file():
-                return str(candidato)
-        except OSError:
-            continue
-
-    raise FileNotFoundError(
-        "No se encontro Codex CLI. Configura CODEX_CLI_PATH con la ruta de codex.exe "
-        "o abre la app desde un terminal donde 'codex' este en PATH."
-    )
-
-
-def comprobar_codex_cli_listo() -> dict[str, object]:
-    codex_cli = resolver_codex_cli()
-    version = subprocess.run(
-        [codex_cli, "--version"],
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        check=False,
-    )
-    if version.returncode != 0:
-        salida = (version.stderr or version.stdout or "").strip()
-        raise RuntimeError(f"Codex CLI existe pero no responde correctamente: {salida[:1000]}")
-
-    login = subprocess.run(
-        [codex_cli, "login", "status"],
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        check=False,
-    )
-    login_output = (login.stdout or login.stderr or "").strip()
-    return {
-        "path": codex_cli,
-        "version": (version.stdout or version.stderr or "").strip(),
-        "logged_in": login.returncode == 0,
-        "login_status": login_output,
-    }
-
-
-def asegurar_codex_cli_listo() -> str:
-    try:
-        estado = comprobar_codex_cli_listo()
-    except FileNotFoundError as exc:
-        raise RuntimeError(
-            f"{exc}\n"
-            "Opciones: instala la extension oficial ChatGPT/Codex en VS Code, instala Codex CLI "
-            "en PATH, o configura CODEX_CLI_PATH en .env con la ruta absoluta a codex.exe."
-        ) from exc
-
-    codex_cli = str(estado["path"])
-    if not estado["logged_in"]:
-        raise RuntimeError(
-            "Codex CLI esta instalado, pero no hay sesion iniciada.\n"
-            f"Ruta detectada: {codex_cli}\n"
-            f"Estado: {estado.get('login_status') or 'No autenticado'}\n"
-            "Solucion: abre VS Code e inicia sesion en ChatGPT/Codex, o ejecuta en PowerShell:\n"
-            f'  & "{codex_cli}" login\n'
-            "Despues reinicia la app en bandeja para que herede la sesion."
-        )
-    return codex_cli
-
-
-def resumir_error_codex(salida: str, limite: int = 1800) -> str:
-    lineas_utiles: list[str] = []
-    for linea in str(salida or "").splitlines():
-        limpia = linea.strip()
-        if not limpia:
-            continue
-        baja = limpia.lower()
-        if baja.startswith("user") or baja.startswith("# prompt para codex"):
-            break
-        if (
-            "error" in baja
-            or "warn" in baja
-            or "not logged in" in baja
-            or "reconnecting" in baja
-            or "failed" in baja
-            or "denied" in baja
-            or "unauthorized" in baja
-            or "forbidden" in baja
-            or "timeout" in baja
-            or "modelo" in baja
-            or "model" in baja
-        ):
-            lineas_utiles.append(limpia)
-    resumen = "\n".join(lineas_utiles[-12:]).strip()
-    if not resumen:
-        resumen = str(salida or "").strip()
-    if len(resumen) > limite:
-        resumen = resumen[-limite:]
-    return resumen or "Codex CLI termino con error sin detalle."
 
 
 class RedactingFilter(logging.Filter):
@@ -1889,7 +1772,7 @@ class ExtractorCarm:
 
     async def _extraer_enunciado_actividad(self, page, actividad_url: str) -> str:
         try:
-            await page.goto(self._url_vista_actividad(actividad_url), wait_until="networkidle")
+            await page.goto(self._url_vista_actividad(actividad_url), wait_until="domcontentloaded")
         except Exception as e:
             logger.warning(f"No se pudo extraer enunciado de {actividad_url}: {e}")
             return ""
@@ -1902,7 +1785,7 @@ class ExtractorCarm:
             "[role='main']",
         ):
             try:
-                texto = await page.locator(selector).first.text_content(timeout=1500)
+                texto = await page.locator(selector).first.text_content(timeout=800)
             except Exception:
                 continue
             texto = self._texto_limpio(texto or "")
@@ -2083,6 +1966,9 @@ class ExtractorCarm:
             logger.warning(f"No se detectó la columna de alumno en {actividad.get('codigo')}")
 
         filas = await page.query_selector_all("table.generaltable tbody tr")
+        if not filas:
+            logger.info("Sin entregas pendientes en %s.", actividad.get("codigo", ""))
+            return descargados
         for fila in filas:
             clase = await fila.get_attribute("class") or ""
             if "emptyrow" in clase:
@@ -2234,6 +2120,16 @@ class ExtractorCarm:
             total += 1
         return total
 
+    async def _actividad_tiene_filas_pendientes(self, page, actividad: dict) -> bool:
+        actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
+        await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
+        await self._asegurar_filtros_grading(page, actividad)
+        total = await self._contar_filas_grading(page)
+        if total <= 0:
+            logger.info("Sin filas en Requiere calificacion para %s; se omite.", actividad.get("codigo", ""))
+            return False
+        return True
+
     async def _buscar_url_calificador(self, page, actividad: dict, alumno: str) -> tuple[str, str]:
         actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
         await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
@@ -2242,6 +2138,8 @@ class ExtractorCarm:
         filas_requieren_calificacion = await self._contar_filas_grading(page)
         if href:
             return href, "pendiente"
+        if filas_requieren_calificacion == 0:
+            return "", "ya_no_requiere_calificacion"
 
         url_todos = self._url_grading_todos(actividad["url_grading"])
         logger.warning(
@@ -2289,7 +2187,7 @@ class ExtractorCarm:
                 continue
         return False
 
-    async def _esperar_formulario_calificacion(self, page, timeout_ms: int = 12000) -> bool:
+    async def _esperar_formulario_calificacion(self, page, timeout_ms: int = 7000) -> bool:
         limite = datetime.now().timestamp() + (timeout_ms / 1000)
         while datetime.now().timestamp() < limite:
             try:
@@ -2320,7 +2218,7 @@ class ExtractorCarm:
                     await enlace.scroll_into_view_if_needed()
                     await enlace.click()
                     try:
-                        await page.wait_for_load_state("networkidle", timeout=15000)
+                        await page.wait_for_load_state("domcontentloaded", timeout=5000)
                     except Exception:
                         pass
                     if await self._esperar_formulario_calificacion(page):
@@ -2333,7 +2231,7 @@ class ExtractorCarm:
         for intento in range(1, 3):
             await page.goto(url_calificador, wait_until="domcontentloaded")
             try:
-                await page.wait_for_load_state("networkidle", timeout=15000)
+                await page.wait_for_load_state("domcontentloaded", timeout=5000)
             except Exception:
                 pass
             if await self._esperar_formulario_calificacion(page):
@@ -2358,7 +2256,7 @@ class ExtractorCarm:
                     await locator.scroll_into_view_if_needed()
                     await locator.click()
                     try:
-                        await page.wait_for_load_state("networkidle", timeout=15000)
+                        await page.wait_for_load_state("domcontentloaded", timeout=5000)
                     except Exception:
                         pass
                     if await self._esperar_formulario_calificacion(page):
@@ -2590,7 +2488,10 @@ class ExtractorCarm:
             try:
                 if await locator.count():
                     await locator.click()
-                    await page.wait_for_load_state("networkidle")
+                    try:
+                        await page.wait_for_load_state("domcontentloaded", timeout=8000)
+                    except Exception:
+                        pass
                     return selector
             except Exception:
                 continue
@@ -2998,21 +2899,30 @@ class ExtractorCarm:
                     self.cache.guardar_curso(await page.title())
 
                 actividades = await self._obtener_actividades_obligatorias(page)
-                contexto = await self._extraer_contexto_imprimible(page)
-
                 logger.info(f"Actividades prioritarias encontradas: {len(actividades)}")
+                if not actividades:
+                    logger.info("No hay casos practicos coincidentes para promptear en el filtro seleccionado.")
+                    return "", []
 
                 todos_envios: list[EnvioPendiente] = []
                 for act in actividades:
                     logger.info(f"Procesando grading {act['codigo']}: {act['nombre']}")
                     if self.usar_cache and self.cache:
                         act = self.cache.enriquecer_actividad(act)
+                    if not await self._actividad_tiene_filas_pendientes(page, act):
+                        continue
                     if not act.get("enunciado"):
                         act["enunciado"] = await self._extraer_enunciado_actividad(page, act["url"])
                     if self.cache:
                         self.cache.guardar_actividad(act)
                     envios = await self._descargar_envios_actividad(page, act, descargar=not solo_listar)
                     todos_envios.extend(envios)
+
+                if todos_envios:
+                    await page.goto(CARM_COURSE_URL, wait_until="domcontentloaded")
+                    contexto = await self._extraer_contexto_imprimible(page)
+                else:
+                    contexto = ""
 
                 (RESPUESTAS_DIR / "envios_descargados.json").write_text(
                     json.dumps(
@@ -4246,99 +4156,6 @@ class GeneradorSalidas:
         rutas.append(manifiesto_path)
         return rutas
 
-    def corregir_prompts_con_codex(
-        self,
-        rutas_prompts: list[Path],
-        output_dir: Path | None = None,
-        importar: bool = False,
-        timeout_segundos: int = 0,
-    ) -> tuple[list[Path], Path | None]:
-        prompts = [
-            ruta for ruta in rutas_prompts
-            if ruta.suffix.lower() == ".md" and ruta.name.startswith("prompt_")
-        ]
-        if not prompts:
-            raise ValueError("No hay prompts .md para enviar a Codex.")
-
-        output_dir = output_dir or prompts_pendientes_dir(self.pendientes_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        for viejo in output_dir.glob("*_correccion.json"):
-            archivo_dir = output_dir / "archivados" / datetime.now().strftime("%Y%m%d_%H%M%S_pre_codex")
-            moved = _mover_si_existe(viejo, archivo_dir)
-            if moved:
-                logger.info("Correccion Codex anterior archivada antes de generar nueva salida: %s", moved)
-
-        rutas_correcciones: list[Path] = []
-        timeout = timeout_segundos if timeout_segundos and timeout_segundos > 0 else None
-        codex_cli = asegurar_codex_cli_listo()
-        logger.info("Codex CLI localizado: %s", codex_cli)
-        for prompt_path in prompts:
-            salida_path = output_dir / f"{prompt_path.stem}_correccion.json"
-            prompt_texto = normalizar_texto_para_cli(prompt_path.read_text(encoding="utf-8"))
-            instruccion = normalizar_texto_para_cli(
-                f"{prompt_texto}\n\n"
-                "IMPORTANTE: responde solo con JSON valido, sin markdown, sin explicaciones fuera del JSON. "
-                "Usa una lista JSON de correcciones."
-            )
-            logger.info(f"Enviando prompt a Codex CLI: {prompt_path}")
-            try:
-                env_codex = os.environ.copy()
-                env_codex.update(
-                    {
-                        "PYTHONIOENCODING": "utf-8",
-                        "PYTHONUTF8": "1",
-                        "LC_ALL": "C.UTF-8",
-                        "LANG": "C.UTF-8",
-                    }
-                )
-                resultado = subprocess.run(
-                    [
-                        codex_cli,
-                        "exec",
-                        "-C",
-                        str(Path.cwd()),
-                        "-s",
-                        "read-only",
-                        "--output-last-message",
-                        str(salida_path),
-                        "-",
-                    ],
-                    input=instruccion,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    capture_output=True,
-                    timeout=timeout,
-                    check=False,
-                    env=env_codex,
-                )
-            except FileNotFoundError as e:
-                raise RuntimeError(str(e)) from e
-
-            if resultado.returncode != 0:
-                stderr = (resultado.stderr or resultado.stdout or "").strip()
-                raise RuntimeError(f"Codex CLI fallo con {prompt_path.name}: {resumir_error_codex(stderr)}")
-            if not salida_path.exists() or not salida_path.read_text(encoding="utf-8").strip():
-                salida_path.write_text(resultado.stdout or "", encoding="utf-8")
-            rutas_correcciones.append(salida_path)
-            logger.info(f"Correccion Codex guardada en: {salida_path}")
-
-        combinado_path = output_dir / "correcciones_codex_combinadas.json"
-        correcciones_combinadas: list[dict] = []
-        for ruta in rutas_correcciones:
-            correcciones_combinadas.extend(self._leer_correcciones_codex(ruta))
-        combinado_path.write_text(
-            json.dumps(correcciones_combinadas, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        rutas_correcciones.append(combinado_path)
-
-        revision_path: Path | None = None
-        if importar:
-            _, revision_path, _ = self.importar_correcciones_codex(combinado_path)
-
-        return rutas_correcciones, revision_path
-
     def corregir_prompts_con_openai(
         self,
         rutas_prompts: list[Path] | None = None,
@@ -4465,25 +4282,21 @@ async def ejecutar_flujo(args) -> None:
         return
 
     if getattr(args, "comprobar_codex_cli", False):
-        try:
-            estado_codex = comprobar_codex_cli_listo()
-        except Exception as exc:
-            logger.error("Codex CLI no esta listo: %s", exc)
-            return
-        logger.info("Codex CLI localizado: %s", estado_codex["path"])
-        logger.info("Version Codex CLI: %s", estado_codex.get("version") or "desconocida")
-        if estado_codex["logged_in"]:
-            logger.info("Sesion Codex CLI: iniciada.")
-        else:
-            logger.error("Sesion Codex CLI no iniciada: %s", estado_codex.get("login_status") or "sin detalle")
-            logger.error('Inicia sesion con: & "%s" login', estado_codex["path"])
+        logger.warning(
+            "Codex CLI integrado esta desactivado en el flujo actual. "
+            "Usa $C desde Codex y despues importa los *_correccion.json desde la interfaz."
+        )
         return
 
     flujo_correccion_carm = getattr(args, "flujo_correccion_carm", False)
     if flujo_correccion_carm:
         args.preparar_carm_codex = True
-        args.corregir_con_codex = True
-        args.importar_tras_codex = True
+        args.corregir_con_codex = False
+        args.importar_tras_codex = False
+        logger.warning(
+            "--flujo-correccion-carm ya no llama a Codex CLI; solo prepara prompts. "
+            "Resuelvelos con $C e importalos desde la interfaz."
+        )
     if getattr(args, "requerir_openai_api", False) or getattr(args, "corregir_prompts_openai", False):
         try:
             estado_openai = comprobar_openai_api_configurada()
@@ -4492,17 +4305,11 @@ async def ejecutar_flujo(args) -> None:
             return
         logger.info("OpenAI API preparada. Modelo: %s", estado_openai["model"])
     if getattr(args, "corregir_con_codex", False):
-        try:
-            estado_codex = comprobar_codex_cli_listo()
-        except Exception as exc:
-            logger.error("Codex CLI no esta listo: %s", exc)
-            return
-        logger.info("Codex CLI preparado: %s", estado_codex["path"])
-        logger.info("Version Codex CLI: %s", estado_codex.get("version") or "desconocida")
-        if not estado_codex["logged_in"]:
-            logger.error("Sesion Codex CLI no iniciada: %s", estado_codex.get("login_status") or "sin detalle")
-            logger.error('Inicia sesion con: & "%s" login', estado_codex["path"])
-            return
+        logger.error(
+            "--corregir-con-codex esta desactivado para evitar bloqueos con Codex CLI. "
+            "Usa $C sobre los prompts generados e importa los JSON."
+        )
+        return
     preparar_carm_codex = getattr(args, "preparar_carm_codex", False)
     unidades_filtro = {
         ExtractorCarm._normalizar_codigo_unidad(valor)
@@ -4841,7 +4648,6 @@ async def ejecutar_flujo(args) -> None:
             logger.info(f"- {ruta}")
         archivar_tras_codex = (
             not getattr(args, "conservar_pendientes", False)
-            and not getattr(args, "corregir_con_codex", False)
             and not getattr(args, "corregir_prompts_openai", False)
         )
         if archivar_tras_codex:
@@ -4849,27 +4655,6 @@ async def ejecutar_flujo(args) -> None:
             archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
             if archivados:
                 logger.info("Entregas pendientes archivadas tras generar prompt: %s", archivados)
-        if getattr(args, "corregir_con_codex", False):
-            try:
-                rutas_correcciones, revision_path = salida.corregir_prompts_con_codex(
-                    rutas_prompts,
-                    output_dir=Path(args.codex_output_dir) if getattr(args, "codex_output_dir", "") else None,
-                    importar=getattr(args, "importar_tras_codex", False),
-                    timeout_segundos=getattr(args, "codex_timeout", 0),
-                )
-            except Exception as e:
-                logger.error(f"No se pudo corregir con Codex CLI: {e}")
-                return
-            logger.info("Correcciones generadas por Codex CLI:")
-            for ruta in rutas_correcciones:
-                logger.info(f"- {ruta}")
-            if revision_path:
-                logger.info(f"Correcciones importadas. Hoja de revision: {revision_path}")
-            if not getattr(args, "conservar_pendientes", False):
-                manifiesto_path = prompts_pendientes_dir(pendientes_dir) / "manifiesto_entregas.json"
-                archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
-                if archivados:
-                    logger.info("Entregas pendientes archivadas tras correccion Codex correcta: %s", archivados)
         if getattr(args, "corregir_prompts_openai", False):
             try:
                 rutas_correcciones, revision_path = salida.corregir_prompts_con_openai(
@@ -5127,22 +4912,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--flujo-correccion-carm",
         action="store_true",
-        help="Atajo recomendado: prepara CARM, genera prompts, corrige con Codex CLI e importa salidas sin publicar en CARM.",
+        help="Legado: prepara CARM y genera prompts. Ya no llama a Codex CLI; usa $C e importa JSON.",
     )
     parser.add_argument(
         "--corregir-con-codex",
         action="store_true",
-        help="Tras generar prompts, los envia a Codex CLI con codex exec y guarda las correcciones JSON.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--comprobar-codex-cli",
         action="store_true",
-        help="Comprueba que Codex CLI existe y tiene una sesion iniciada.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--importar-tras-codex",
         action="store_true",
-        help="Con --corregir-con-codex, importa automaticamente el JSON combinado a temporal.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--corregir-prompts-openai",
@@ -5175,13 +4960,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--codex-output-dir",
         default="",
-        help="Carpeta donde guardar las respuestas JSON de Codex CLI. Por defecto pendientes/prompts_codex.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--codex-timeout",
         type=int,
         default=0,
-        help="Tiempo maximo por prompt al llamar a Codex CLI, en segundos. 0 sin limite.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--importar-correcciones-codex",

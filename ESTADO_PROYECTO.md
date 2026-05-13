@@ -7,6 +7,9 @@ Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-cur
 - Actualizacion 2026-05-13: verificacion local correcta, Git limpio antes de release y etiqueta `v0.3.0-local` creada tras generar manifiesto de release.
 - Fase actual: puerta pre-Fase 5. Fase 3 cerrada, Fase 4 implementada en primera version y creado `CIERRE_APP_LOCAL.md` para terminar la app local antes de plantear cloud/servidor/multiusuario.
 - Ajuste subida asistida: la interfaz ya no mantiene Chromium abierto al terminar; al finalizar el ultimo alumno debe volver el resultado al proceso y actualizar `revision_pendiente.csv`. Si CARM guardo pero Moodle no lo expone de forma detectable, el panel permite confirmacion manual explicita en vez de obligar a `Omitir`.
+- Ajuste de esperas: al promptear o subir, las actividades sin filas en `Requiere calificacion` se omiten rapido para evitar que Playwright quede esperando datos donde no hay casos practicos pendientes.
+- Revision de rendimiento local: se redujeron esperas basadas en `networkidle` en paginas de enunciado/formulario, se cachea la revision Git del panel y se evita solapar refrescos del navegador.
+- Limpieza operativa: Codex CLI integrado queda desactivado como ruta principal para evitar bloqueos/rutas obsoletas. El flujo sin API actual es `$C` externo o Codex/ChatGPT manual + `Importar JSON a revision`.
 - Ajuste inicio Windows: `iniciar_app_windows.ps1` no lanza otra instancia si el panel ya responde en el puerto configurado. El acceso de inicio instalado se reescribio sin `--auto-correct` y minimizado para evitar ventanas de comando repetidas.
 - Rutas activas: con `Separar carpetas por curso` activado, el curso `1592` usa `C:\temp\vscodec\cursos\1592\pendientes` y `C:\temp\vscodec\cursos\1592\temporal`. Las rutas globales antiguas quedan solo como base/compatibilidad cuando esa opcion esta desactivada.
 - Estado real: backend operativo, interfaz local en maduracion, autoprompteo multi-curso en primera version y subida asistida como flujo recomendado.
@@ -19,7 +22,7 @@ Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-cur
 - Se crea `RELEASE_CHECKLIST.md` como checklist de release local antes de distribuir o hacer una sesion real.
 - Se anade versionado local con `VERSION`; la interfaz y el verificador muestran version, commit y si hay cambios locales.
 - Se anade preparacion de release local con `preparar_release.py`, `preparar_release_windows.cmd` y `preparar_release_windows.ps1`; genera manifiesto y solo etiqueta con `--crear-tag`.
-- `.env.example` queda actualizado, sin secretos, y cubre variables CARM, OpenAI, Codex, retencion y limites de tokens.
+- `.env.example` queda actualizado, sin secretos, y cubre variables CARM, OpenAI, retencion y limites de tokens.
 - Inicio Fase 4: `instalar_windows.ps1` valida Python 3.12+, comprueba codigos de salida, evita reinstalar Chromium si ya existe, ejecuta verificacion de instalacion y permite crear acceso directo con `-CrearAccesoDirecto`.
 - `reparar_dependencias_windows.cmd` deja de llamar al instalador completo y usa `reparar_dependencias_windows.ps1`, con opciones para reinstalar dependencias, reinstalar Chromium y limpiar `ms-playwright\__dirlock`.
 - `iniciar_app_windows.cmd` pasa a usar `iniciar_app_windows.ps1`, con comprobacion rapida y opciones de inicio `-AbrirNavegador`, `-AutoPreparar`, `-SinEscaneoInicial`.
@@ -38,7 +41,7 @@ Esta seccion prevalece sobre notas historicas anteriores cuando haya contradicci
 - Los prompts/correcciones/resumenes usados se archivan para evitar duplicidades y gasto de API. En el flujo manual `$C`, la app no borra nada durante la correccion externa: archiva el prompt exacto y su JSON cuando el usuario importa el `*_correccion.json` a `revision_pendiente.csv`.
 - `.env`, logs, cache, salidas y correcciones generadas quedan fuera de git.
 - Se crea `ARQUITECTURA_PROYECTO.md` como guia de orden profesional y refactor por fases.
-- `sincronizador_moodle.py` queda marcado como legado/referencia, no ruta principal.
+- Se eliminan pruebas y referencias antiguas (`prueba_correcciones.py`, `sincronizador_moodle.py`, `tmp_prueba`) para evitar rutas duplicadas u obsoletas.
 
 ### Multi-curso iniciado el 2026-05-09
 
@@ -101,33 +104,33 @@ El ultimo comando debe mostrar error controlado si no hay `CARM_COURSE_URL` de c
 - El refresco automÃ¡tico del panel ya no reconstruye selects/listas/campos si no cambian y no pisa inputs enfocados. El botÃ³n "Pausar autoescaneo" queda disponible durante un escaneo inicial y detiene la detecciÃ³n en curso.
 - Los modos de revisiÃ³n/previsualizaciÃ³n ya no piden pulsar Enter para cerrar. El navegador queda abierto hasta cerrar la pestaÃ±a o detener la tarea; la interfaz lanza los subprocesos sin ventana de consola adicional en Windows.
 - PrevisualizaciÃ³n y subida asistida detectan si Moodle/CARM se queda en tabla o resumen y pulsan automÃ¡ticamente "Calificar" para llegar al formulario antes de rellenar nota y feedback.
-- Codex CLI se resuelve de forma robusta: primero `CODEX_CLI_PATH`, luego `PATH`, y por Ãºltimo la extensiÃ³n de VS Code `openai.chatgpt-*`. Esto evita fallos en la app de bandeja cuando Windows no hereda el PATH del terminal.
+- Nota historica: se llego a probar Codex CLI, pero ya no es ruta operativa recomendada.
 - Los prompts para Codex limpian el contexto procedente de cache antes de incluirlo. Si la cache contiene una pÃ¡gina Ã­ndice/mapa de Moodle en vez de contenido didÃ¡ctico real, se descarta para ahorrar tokens y evitar ruido.
 
 Ãšltima actualizaciÃ³n: 8 de mayo de 2026
 
 ## RevisiÃ³n completa 2026-05-08
 
-**Estado tÃ©cnico actual**: backend e interfaz siguen operativos, con cambios recientes centrados en estabilidad de UI, subida asistida, resoluciÃ³n de Codex CLI y reducciÃ³n de ruido en prompts.
+**Estado tÃ©cnico actual**: backend e interfaz siguen operativos, con cambios recientes centrados en estabilidad de UI, subida asistida y reducciÃ³n de ruido en prompts.
 
 **ValidaciÃ³n ejecutada en esta revisiÃ³n**:
 
 ```powershell
-.\.venv\Scripts\python.exe -m py_compile corrector_agente.py interfaz_app.py prueba_correcciones.py sincronizador_moodle.py
+.\.venv\Scripts\python.exe -m py_compile corrector_agente.py interfaz_app.py verificar_app.py preparar_release.py
 ```
 
 Resultado: OK.
 
 **Archivos modificados actualmente en git**:
 
-- `.env.example`: aÃ±ade `CODEX_CLI_PATH` opcional.
-- `corrector_agente.py`: cambios de subida/previsualizaciÃ³n, resoluciÃ³n de Codex CLI y limpieza de prompts.
+- `.env.example`: variables CARM/OpenAI/retencion sin ruta de Codex CLI.
+- `corrector_agente.py`: cambios de subida/previsualizaciÃ³n, limpieza de prompts y desactivacion del flujo CLI integrado.
 - `ESTADO_PROYECTO.md`: actualizaciÃ³n de estado.
 - `logs_correcciones/agente.log`: log de ejecuciÃ³n local, ignorado por `.gitignore`.
 
 **Hallazgos importantes**:
 
-- Codex CLI ya se localiza aunque la app se lance desde bandeja y Windows no herede el `PATH` del terminal.
+- Codex CLI queda como prueba historica; el flujo actual usa prompts externos e importacion de JSON.
 - Los prompts actuales se han limpiado para no incluir navegaciÃ³n/JS/mapa de Moodle. Si la cache trae una pÃ¡gina Ã­ndice en vez de contenido didÃ¡ctico real, el generador la descarta.
 - La cache didÃ¡ctica aÃºn no descarga/lee el PDF real de "Contenido imprimible"; ahora detecta el Ã­ndice como ruido. PrÃ³ximo paso claro: resolver enlaces a PDF de contenido imprimible y cachear texto didÃ¡ctico real.
 - El flujo de previsualizaciÃ³n/subida asistida ya no debe pedir `Enter`, debe intentar entrar automÃ¡ticamente al formulario `Calificar`, y debe limpiar nota/feedback previos antes de rellenar.
@@ -138,7 +141,7 @@ Resultado: OK.
 - Falta una prueba real final de subida asistida completa en lote con varios alumnos de la misma actividad.
 - La subida asistida usa `Guardar cambios` y confirmacion humana; no depende de `Guardar cambios y mostrar siguiente`.
 - La cache didÃ¡ctica debe mejorar para extraer PDFs/recursos enlazados, no solo `innerText` de pÃ¡ginas Moodle.
-- `sincronizador_moodle.py` sigue como referencia antigua; no es ruta principal y podrÃ­a archivarse cuando la interfaz estÃ© mÃ¡s madura.
+- Las pruebas offline antiguas se han retirado; la verificacion actual usa compilacion, salud local y endpoints con token.
 
 ## Resumen ejecutivo
 
@@ -151,7 +154,7 @@ El sistema funciona en ciclos completos desde descarga hasta publicaciÃ³n:
 - Filtra por unidad, actividad o "Requiere calificaciÃ³n"
 - Descarga solo archivos necesarios, registra incidencias
 - Genera prompts optimizados para Codex
-- Corrige mediante Codex CLI (sin usar API de OpenAI)
+- Corrige mediante API de OpenAI o mediante JSON resuelto fuera con `$C`/Codex/ChatGPT
 - Importa correcciones JSON a archivos `.txt` por alumno
 - Genera CSV de revisiÃ³n (`revision_pendiente.csv`)
 - Previsualiza en local antes de publicar
@@ -171,7 +174,7 @@ El flujo objetivo actual es:
 3. Descargar entregas.
 4. Recoger enunciado y contexto de unidad.
 5. Generar prompts por actividad.
-6. Corregir con Codex CLI.
+6. Corregir con API o resolver prompts fuera de la app e importar JSON.
 7. Crear salidas locales revisables.
 8. Publicar en CARM solo tras revisiÃ³n manual.
 
@@ -215,7 +218,7 @@ Lectura recomendada en este orden:
 
 - **`corrector_agente.py`**: nÃºcleo principal con toda la lÃ³gica
   - ExtracciÃ³n desde CARM
-  - CorrecciÃ³n con Codex CLI
+  - Preparacion de prompts e importacion de JSON externos
   - ImportaciÃ³n de salidas
   - Subida asistida a CARM
   - Soporta flags: `--preparar-carm-codex`, `--corregir-prompts-openai`, `--subir-correcciones-carm`, `--subida-asistida-carm`
@@ -225,13 +228,6 @@ Lectura recomendada en este orden:
   - GestiÃ³n de sesiÃ³n con token
   - Navega correcciones y publica desde navegador
   - Controles CSRF activados
-
-- **`prueba_correcciones.py`**: pruebas offline sin CARM
-  - Carga entregas de `tmp_prueba/`
-  - Ãštil para testing sin conectarse a producciÃ³n
-
-- **`sincronizador_moodle.py`**: borrador antiguo (no es la ruta principal)
-  - Considerar como referencia, no es prioritario
 
 ### Archivos de configuraciÃ³n
 
@@ -256,7 +252,6 @@ Lectura recomendada en este orden:
 | `correcciones_validadas/` | âœ… Historial de correcciones JSON validadas |
 | `logs_correcciones/` | ðŸ“ Logs de ejecuciÃ³n del agente |
 | `respuestas_extraidas/` | ðŸ“Š AuditorÃ­a de descargas y subidas |
-| `tmp_prueba/` | ðŸ§ª Datos de prueba local offline |
 
 ### Carpetas de trabajo (externas, en `C:\temp\vscodec\`)
 
@@ -307,19 +302,17 @@ En modo API desde la interfaz, el flujo queda en dos fases: preparar prompts acu
 2. Descarga entregas de la unidad `ud01`
 3. Agrupa por actividad (ud01cp01, ud01cp02, etc.)
 4. Genera prompts optimizados para Codex
-5. Llama a Codex CLI para corregir
-6. Importa salidas JSON a carpeta temporal
-7. **NO publica** en CARM (genera solo revisor local)
+5. **NO publica** en CARM ni corrige con CLI integrado
+6. Espera que se resuelvan los prompts fuera de la app y se importen los JSON
 
-**Salida final**:
+**Salida de preparacion**:
 ```
-C:\temp\vscodec\cursos\<course_id>\temporal\revision_pendiente.csv
-C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\prompt_udXXcpYY_correccion.json
+C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\prompt_udXXcpYY.md
 ```
 
 **Flags opcionales**:
 - `--unidad ud01`: filtra por unidad (ud01, ud02, ..., ud15)
-- `--max-entregas-por-prompt 6`: agrupa entregas en lotes (reduce llamadas a Codex)
+- `--max-entregas-por-prompt 6`: agrupa entregas en lotes
 - Omitir `--unidad` para procesar todo sin filtrar
 
 ### Comando secundario: Subida asistida tras revisar
@@ -341,12 +334,12 @@ C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\prompt_udXXcpYY_corr
 ### Comando de prueba local (sin CARM)
 
 ```powershell
-.\.venv\Scripts\python.exe prueba_correcciones.py
+.\.venv\Scripts\python.exe verificar_app.py --sin-endpoints
 ```
 
 **Ãšsalo para**:
 - Testing sin conectarse a CARM
-- Entregas en `tmp_prueba/`
+- Verificacion local sin datos sinteticos antiguos
 - ValidaciÃ³n de prompts sin gasto de tokens
 
 ## Interfaz local
@@ -414,13 +407,10 @@ Implementado:
 
 - `--preparar-prompts-codex`
 - `--preparar-carm-codex`
-- `--corregir-con-codex`
-- `--importar-tras-codex`
 - `--corregir-prompts-openai`
 
 El modo recomendado es preparar prompts primero y resolverlos despues con API bajo confirmacion o con Codex/IA externa.
-
-Codex CLI se invoca con `codex exec`, usando sandbox `read-only` y guardando el ultimo mensaje en JSON. Este flujo usa la sesion local de Codex, no `OPENAI_API_KEY`.
+Los flags antiguos de Codex CLI quedan desactivados para evitar bloqueos por PATH, sesion o limites externos.
 
 ### Importacion JSON
 
@@ -465,7 +455,7 @@ Incidencia:
 Correcciones de prueba:
 
 - `ud01cp01` de Elisabet se corrigio e importo.
-- `ud01cp02` se corrigio con Codex CLI para Elisabet y Carolina.
+- `ud01cp02` se corrigio e importo para Elisabet y Carolina.
 - La subida a CARM se probo en previsualizacion: nota y comentario ya se rellenan.
 - Se ajusto para subir solo la retroalimentacion final, no todo el bloque de criterios.
 
@@ -525,7 +515,7 @@ Decision de subida humana asistida: se prioriza el modo asistido frente a la pub
   - No existe o estÃ¡ vacÃ­o
   - Contiene estados: `revision_manual_necesaria`, `error`, `error_descarga`, `sin_archivo_detectado`, `sin_entrega`
 - ValidaciÃ³n en: `corrector_agente.py` funciÃ³n de publicaciÃ³n
-- Probado con `tmp_prueba`: bloqueÃ³ correctamente 3 filas
+- Probado previamente con datos sinteticos; esas pruebas antiguas ya fueron retiradas del repo.
 
 âœ… **3. Endurecimiento de lectura de archivos de alumnos**
 - LÃ­mite general de tamaÃ±o por archivo
@@ -588,25 +578,19 @@ Decision de subida humana asistida: se prioriza el modo asistido frente a la pub
 Probado entre el 2026-05-07 y el 2026-05-08:
 
 - `py_compile`: OK
-- `prueba_correcciones.py`: OK (datos sintÃ©ticos)
+- Verificador local: OK
 - `pip check`: OK
 - Interfaz web: responde en `http://127.0.0.1:8765`
 - `/api/auth`: `configured: true`
 - Anti-CSRF: funcional
-- Codex CLI localizado desde extensiÃ³n VS Code y probado con prompts reales.
+- Flujo sin API validado mediante prompts externos e importacion de JSON.
 - Prompts actuales limpiados para descartar mapa/navegaciÃ³n de Moodle.
 
-## Codex CLI: estado actual
+## Codex externo / modo sin API
 
-**SituaciÃ³n 2026-05-08**: Codex CLI vuelve a estar operativo en este equipo. La app ya no depende solo del `PATH`; busca:
+**Situacion actual**: la app no depende de Codex CLI integrado. Genera prompts, el usuario los resuelve fuera con `$C`/Codex/ChatGPT y despues importa uno o todos los `*_correccion.json` a `revision_pendiente.csv`.
 
-1. `CODEX_CLI_PATH` en `.env`.
-2. `codex` / `codex.exe` en `PATH`.
-3. La extensiÃ³n de VS Code `openai.chatgpt-*`.
-
-Prueba reciente correcta: `prompt_ud01cp01`, `prompt_ud01cp04`, `prompt_ud02cp01` y `prompt_ud02cp04` se corrigieron con Codex CLI y se importaron a `revision_pendiente.csv`.
-
-Nota: el lÃ­mite mensual detectado el 2026-05-05 queda como incidencia histÃ³rica, no como bloqueo actual.
+Los flags antiguos de Codex CLI quedan como legado desactivado para evitar bloqueos por PATH, sesion o limites externos.
 
 ## Prompts
 
@@ -654,9 +638,9 @@ Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por err
    - Validar cache con `--refrescar-cache`
    - Probar filtros por actividad especÃ­fica
 
-7. **Decidir destino de `sincronizador_moodle.py`**
-   - Mantener como referencia histÃ³rica o archivar/eliminar.
-   - Evitar que parezca una ruta activa duplicada.
+7. **Mantener limpieza de rutas obsoletas**
+   - Evitar reintroducir scripts de prueba antiguos como rutas activas.
+   - Documentar solo flujos usados por la interfaz actual.
 
 ### Largo plazo (mes siguiente)
 
@@ -665,8 +649,8 @@ Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por err
    - Troubleshooting de errores comunes
    - Video tutorial si es viable
 
-9. **Considerar migraciÃ³n a OpenAI API o modelo local**
-   - Si Codex CLI vuelve a fallar o hay lÃ­mites de uso
+9. **Mantener alternativa API o modelo local**
+   - Si el flujo manual externo tiene limites de uso
    - Evaluar costo-beneficio
    - Adaptar prompts si cambia el modelo
 
@@ -674,7 +658,7 @@ Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por err
 
 Este proyecto automatiza correcciÃ³n de casos prÃ¡cticos en CARM FormaciÃ³n:
 
-- **Â¿QuÃ©?**: Descarga entregas de CARM, las corrige con IA (Codex CLI), genera revisiones locales, publica notas y feedback
+- **Â¿QuÃ©?**: Descarga entregas de CARM, genera prompts/correcciones revisables, y ayuda a subir notas y feedback
 - **Â¿DÃ³nde?**: `corrector_agente.py` es el motor principal; `interfaz_app.py` es la UI web
 - **Â¿CuÃ¡ndo?**: Operacional, Ãºltima revisiÃ³n de proyecto el 2026-05-08
 - **Â¿Seguridad?**: Token anti-CSRF, bloqueo de publicaciÃ³n sin revisiÃ³n, subida asistida con revisiÃ³n humana, endurecimiento de ZIP, documentaciÃ³n ASVS/CVSS/RGPD
@@ -695,7 +679,7 @@ Lee `QUICKSTART.md` para comandos. Lee `SEGURIDAD_ASVS.md` y `SEGURIDAD_CVSS.md`
 Comandos usados durante el desarrollo:
 
 ```powershell
-.\.venv\Scripts\python.exe -m py_compile corrector_agente.py interfaz_app.py prueba_correcciones.py sincronizador_moodle.py
+.\.venv\Scripts\python.exe -m py_compile corrector_agente.py interfaz_app.py verificar_app.py preparar_release.py
 .\.venv\Scripts\python.exe corrector_agente.py --help
 .\.venv\Scripts\python.exe interfaz_app.py --help
 ```
@@ -704,7 +688,7 @@ Tambien se probo:
 
 - Extraccion CARM real.
 - Generacion de prompts.
-- Codex CLI con `prompt_ud01cp02.md`.
+- Resolucion externa/importacion JSON con `prompt_ud01cp02.md`.
 - Importacion de JSON de Codex.
 - Previsualizacion de subida a CARM.
 - Servidor local de interfaz en `/api/status`.
@@ -729,7 +713,7 @@ Prioridad baja:
 
 - Evaluar OCR con Tesseract.
 - Evaluar soporte `.doc` antiguo con LibreOffice o Word.
-- Decidir si `sincronizador_moodle.py` se elimina o se mantiene como referencia historica.
+- Mantener fuera del repo datos de prueba locales y scripts obsoletos.
 
 ## Nota de continuidad
 
@@ -740,7 +724,7 @@ Para retomar el proyecto:
 3. Ejecutar:
 
 ```powershell
-.\.venv\Scripts\python.exe -m py_compile corrector_agente.py interfaz_app.py prueba_correcciones.py sincronizador_moodle.py
+.\.venv\Scripts\python.exe -m py_compile corrector_agente.py interfaz_app.py verificar_app.py preparar_release.py
 ```
 
 4. Abrir la interfaz:

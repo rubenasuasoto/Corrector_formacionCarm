@@ -53,9 +53,6 @@ CARM_STORAGE_STATE = ROOT / "cache_carm" / "carm_storage_state.json"
 ALLOWED_UNITS = {f"ud{i:02d}" for i in range(1, 16)}
 ALLOWED_MAX_ENTREGAS = {"0", *{str(i) for i in range(1, 21)}}
 ALLOWED_ACTIVITIES = {f"ud{unit:02d}cp{case:02d}" for unit in range(1, 16) for case in range(1, 16)}
-ALLOWED_CONTEXT_PATHS = {
-    str(ROOT / "tmp_prueba" / "manual_ud01.txt"),
-}
 UNIT_RE = re.compile(r"^ud\d{2}$")
 ACTIVITY_RE = re.compile(r"^ud\d{2}cp\d{2}$")
 COURSE_URL_RE = re.compile(r"^https://formacion\.carm\.es/course/view\.php\?id=\d+$")
@@ -73,6 +70,9 @@ API_TOKEN = secrets.token_urlsafe(32)
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 PORT_FALLBACK_ATTEMPTS = 30
+RELEASE_CACHE_TTL_SECONDS = 30
+_RELEASE_CACHE: dict | None = None
+_RELEASE_CACHE_AT = 0.0
 
 
 def hidden_subprocess_kwargs() -> dict:
@@ -119,12 +119,19 @@ def git_revision() -> dict:
 
 
 def release_info() -> dict:
+    global _RELEASE_CACHE, _RELEASE_CACHE_AT
+    now = time.time()
+    if _RELEASE_CACHE is not None and now - _RELEASE_CACHE_AT < RELEASE_CACHE_TTL_SECONDS:
+        return dict(_RELEASE_CACHE)
     git = git_revision()
-    return {
+    info = {
         "version": app_version(),
         "commit": git["commit"],
         "dirty": git["dirty"],
     }
+    _RELEASE_CACHE = dict(info)
+    _RELEASE_CACHE_AT = now
+    return info
 
 
 def load_app_config() -> dict:
@@ -369,7 +376,7 @@ def notify(title: str, message: str, target: str = "") -> None:
             f"$n.ShowBalloonTip(9000, {json.dumps(title)}, {json.dumps(text)}, 'Info'); "
             "Start-Sleep -Seconds 10; $n.Dispose()"
         )
-        subprocess.run(
+        subprocess.Popen(
             [
                 "powershell",
                 "-NoProfile",
@@ -381,7 +388,6 @@ def notify(title: str, message: str, target: str = "") -> None:
             cwd=str(ROOT),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=13,
             **hidden_subprocess_kwargs(),
         )
         return
@@ -2272,12 +2278,10 @@ HTML = r"""<!doctype html>
             <option value="list_carm">Listar entregas pendientes</option>
             <option value="cache_course">Cachear curso</option>
             <option value="check_openai">Comprobar OpenAI API</option>
-            <option value="check_codex">Comprobar Codex CLI</option>
             <option value="solve_prompts_api">Corregir prompts preparados con API</option>
             <option value="prepare_carm_api">Corregir desde CARM con API directo</option>
             <option value="prepare_carm_codex">Preparar prompts desde CARM</option>
             <option value="prepare_carm_codex_activity">Preparar prompts de un caso desde CARM</option>
-            <option value="prepare_local_prompts">Preparar prompts desde archivos locales</option>
             <option value="import_codex">Importar JSON de Codex</option>
             <option value="delete_cache">Borrar cache del curso</option>
           </select>
@@ -2313,21 +2317,6 @@ HTML = r"""<!doctype html>
           </div>
         </div>
 
-        <div id="fieldsLocal" class="advanced-fields">
-          <div>
-            <label for="contextPath">Archivo de contexto de unidad</label>
-            <select id="contextPath">
-              <option value="C:\Users\ruben\Desktop\agente\tmp_prueba\manual_ud01.txt">tmp_prueba\manual_ud01.txt</option>
-            </select>
-          </div>
-          <div>
-            <label for="localActivity">Actividad</label>
-            <select id="localActivity">
-              <option value="ud01cp01">ud01cp01</option>
-            </select>
-          </div>
-        </div>
-
         <div id="fieldsImport" class="advanced-fields">
           <div>
             <label for="importJsonPath">JSON/CSV de correcciones</label>
@@ -2349,6 +2338,7 @@ HTML = r"""<!doctype html>
   <script>
     const $ = (id) => document.getElementById(id);
     const API_TOKEN = "__LOCAL_API_TOKEN__";
+    let refreshInProgress = false;
     const advancedHints = {
       diagnose: 'Entra en CARM, genera diagnostico limpio y no descarga entregas.',
       check_playwright: 'Comprueba que Windows permite abrir Playwright/Chromium e iniciar sesion en CARM.',
@@ -2358,12 +2348,10 @@ HTML = r"""<!doctype html>
       list_carm: 'Lista entregas que requieren calificacion sin descargar archivos.',
       cache_course: 'Actualiza la cache local de recursos estables del curso.',
       check_openai: 'Comprueba que OPENAI_API_KEY y OPENAI_MODEL estan configurados.',
-      check_codex: 'Comprueba que Codex CLI existe y que hay una sesion iniciada.',
       solve_prompts_api: 'Envia a OpenAI API los prompts ya preparados y genera el CSV revisable.',
       prepare_carm_api: 'Descarga entregas desde CARM y corrige con OpenAI API en un solo paso.',
       prepare_carm_codex: 'Descarga desde CARM y genera prompts para Codex sin llamar a la API.',
       prepare_carm_codex_activity: 'Descarga y prepara prompts solo para el caso practico elegido.',
-      prepare_local_prompts: 'Lee entregas ya descargadas y genera prompts usando un archivo de contexto local.',
       import_codex: 'Importa un JSON/CSV de correcciones y crea salidas revisables por alumno.',
       delete_cache: 'Borra la cache SQLite local del curso.'
     };
@@ -2376,12 +2364,10 @@ HTML = r"""<!doctype html>
       list_carm: '--solo-listar-carm --unidad <unidad>',
       cache_course: '--cachear-curso --unidad <unidad>',
       check_openai: '--comprobar-openai-api',
-      check_codex: '--comprobar-codex-cli',
       solve_prompts_api: '--corregir-prompts-openai',
       prepare_carm_api: '--extraer-carm --requerir-openai-api --unidad <unidad>',
       prepare_carm_codex: '--preparar-carm-codex --unidad <unidad> --max-entregas-por-prompt <n>',
       prepare_carm_codex_activity: '--preparar-carm-codex --actividad <caso> --max-entregas-por-prompt <n>',
-      prepare_local_prompts: '--contexto-unidad <archivo> --preparar-prompts-codex --actividad-codigo <actividad>',
       import_codex: '--importar-correcciones-codex <json>',
       delete_cache: '--borrar-cache-curso'
     };
@@ -2607,13 +2593,6 @@ HTML = r"""<!doctype html>
           : '<option value="">Sin casos detectados</option>',
         $('advancedActividad').value || $('actividad').value
       );
-      fillSelect(
-        $('localActivity'),
-        courseOptions.activities.length
-          ? courseOptions.activities.map((act) => optionHtml(act.codigo, act.codigo)).join('')
-          : '<option value="">Sin casos detectados</option>',
-        $('localActivity').value || $('actividad').value
-      );
     }
 
     function setBusy(running) {
@@ -2698,7 +2677,6 @@ HTML = r"""<!doctype html>
       $('advancedHint').textContent = advancedHints[action] || '';
       $('fieldsUnidad').classList.toggle('active', ['list_carm', 'cache_course', 'prepare_carm_api', 'prepare_carm_codex'].includes(action));
       $('fieldsActivity').classList.toggle('active', action === 'prepare_carm_codex_activity');
-      $('fieldsLocal').classList.toggle('active', action === 'prepare_local_prompts');
       $('fieldsImport').classList.toggle('active', action === 'import_codex');
       $('advancedCommandPreview').textContent = `corrector_agente.py ${advancedLabels[action] || ''}`;
     }
@@ -2933,10 +2911,14 @@ HTML = r"""<!doctype html>
     }
 
     async function safeRefresh() {
+      if (refreshInProgress) return;
+      refreshInProgress = true;
       try {
         await refresh();
       } catch (err) {
         console.warn('No se pudo refrescar el panel local', err);
+      } finally {
+        refreshInProgress = false;
       }
     }
 
@@ -3054,8 +3036,6 @@ HTML = r"""<!doctype html>
         unidad: $('advancedUnidad').value,
         actividad: $('advancedActividad').value,
         max_entregas: $('advancedMaxEntregas').value,
-        contexto_unidad: $('contextPath').value,
-        actividad_codigo: $('localActivity').value,
         json_path: $('importJsonPath').value
       });
     };
@@ -3066,7 +3046,7 @@ HTML = r"""<!doctype html>
     $('advancedUnidad').onchange = updateAdvancedActivityOptions;
     updateAdvancedForm();
     window.addEventListener('hashchange', handleHashTarget);
-    setInterval(safeRefresh, 3000);
+    setInterval(safeRefresh, 5000);
     safeRefresh();
     setTimeout(handleHashTarget, 300);
   </script>
@@ -3417,9 +3397,6 @@ def build_args(action: str, body: dict) -> list[str]:
     if action == "check_openai":
         return ["--comprobar-openai-api"]
 
-    if action == "check_codex":
-        return ["--comprobar-codex-cli"]
-
     if action == "solve_prompts_api":
         return [
             "--pendientes",
@@ -3445,24 +3422,6 @@ def build_args(action: str, body: dict) -> list[str]:
             "--max-entregas-por-prompt",
             max_entregas,
         ]
-
-    if action == "prepare_local_prompts":
-        contexto = str(body.get("contexto_unidad") or "").strip()
-        actividad = str(body.get("actividad_codigo") or "").strip()
-        require_allowed(contexto, ALLOWED_CONTEXT_PATHS, "Archivo de contexto")
-        args = [
-            "--pendientes",
-            str(PENDIENTES_DIR),
-            "--temporal",
-            str(TEMPORAL_DIR),
-            "--contexto-unidad",
-            contexto,
-            "--preparar-prompts-codex",
-        ]
-        if actividad:
-            require_allowed(actividad, allowed_activities(), "Actividad")
-            args.extend(["--actividad-codigo", actividad])
-        return args
 
     if action == "import_codex":
         json_path = str(body.get("json_path") or "").strip()
