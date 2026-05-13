@@ -133,7 +133,7 @@ Si no tienes API key, usa el modo solo prompts:
 CORRECTION_MODE=prompt
 ```
 
-En ese modo la app descarga entregas y genera archivos `.md` pendientes de resolver en `C:\temp\vscodec\pendientes\prompts_codex`. Luego pegas el prompt en Codex/ChatGPT, guardas el JSON devuelto en esa misma carpeta y lo importas desde la interfaz.
+En ese modo la app descarga entregas y genera archivos `.md` pendientes de resolver en la carpeta activa del curso. Con `Separar carpetas por curso` activado, para el curso `1592` sera `C:\temp\vscodec\cursos\1592\pendientes\prompts_codex`. Luego pegas el prompt en Codex/ChatGPT, guardas el JSON devuelto en esa misma carpeta y lo importas desde la interfaz.
 
 ## 2.1. Varios cursos CARM
 
@@ -188,9 +188,11 @@ python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --preparar-
 
 Salidas:
 
-- `C:\temp\vscodec\pendientes\prompts_codex\prompt_ud01cp01.md`
-- `C:\temp\vscodec\pendientes\prompts_codex\prompt_ud02cp03.md`
-- `C:\temp\vscodec\pendientes\prompts_codex\manifiesto_entregas.json`
+- `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\prompt_ud01cp01.md`
+- `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\prompt_ud02cp03.md`
+- `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\manifiesto_entregas.json`
+
+Si `Separar carpetas por curso` esta desactivado, se usan las rutas globales antiguas `C:\temp\vscodec\pendientes` y `C:\temp\vscodec\temporal`.
 
 El archivo `.md` se copia entero en Codex/ChatGPT. Codex debe devolver un JSON con las correcciones.
 
@@ -218,7 +220,7 @@ Despues reinicia la app en bandeja.
 
 ## 5. Corregir archivos reales ya descargados
 
-Coloca las entregas en `C:\temp\vscodec\pendientes` con el nombre del alumno como nombre de archivo.
+Coloca las entregas en la carpeta `pendientes` activa. Con carpetas por curso activadas: `C:\temp\vscodec\cursos\<course_id>\pendientes`.
 
 ```powershell
 python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt
@@ -232,11 +234,11 @@ python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --prompts C
 
 Salidas:
 
-- `C:\temp\vscodec\temporal\<alumno>\ud01cp01.ext`: copia de la entrega.
-- `C:\temp\vscodec\temporal\<alumno>\ud01cp01.txt`: correcciÃ³n generada.
-- `C:\temp\vscodec\temporal\resumen.txt`: resumen global.
-- `C:\temp\vscodec\temporal\resumen_ud01cp01.txt`: resumen especÃ­fico de esa unidad y caso prÃ¡ctico.
-- `C:\temp\vscodec\temporal\revision_pendiente.csv`: hoja para revisar notas y feedback antes de subir.
+- `C:\temp\vscodec\cursos\<course_id>\temporal\<alumno>\ud01cp01.ext`: copia de la entrega.
+- `C:\temp\vscodec\cursos\<course_id>\temporal\<alumno>\ud01cp01.txt`: correccion generada.
+- `C:\temp\vscodec\cursos\<course_id>\temporal\resumen.txt`: resumen global.
+- `C:\temp\vscodec\cursos\<course_id>\temporal\resumen_ud01cp01.txt`: resumen especifico de esa unidad y caso practico.
+- `C:\temp\vscodec\cursos\<course_id>\temporal\revision_pendiente.csv`: hoja para revisar notas y feedback antes de subir.
 
 El cÃ³digo `ud01cp01` cambia segÃºn la actividad. Si se extrae desde CARM, el agente intenta detectarlo desde el nombre de la unidad y del caso prÃ¡ctico. Si corriges archivos descargados a mano, puedes indicarlo con `--actividad-codigo ud02cp03` o meter los archivos en una subcarpeta con ese nombre.
 
@@ -334,7 +336,7 @@ python corrector_agente.py --extraer-carm --preparar-prompts-codex --unidad ud01
 python corrector_agente.py --extraer-carm
 ```
 
-En este modo descarga los archivos entregados desde CARM a `C:\temp\vscodec\pendientes\<actividad>\` con el nombre del alumno, y corrige cada actividad en lote para hacer una peticiÃ³n de IA por unidad/caso prÃ¡ctico.
+En este modo descarga los archivos entregados desde CARM a la carpeta activa de pendientes. Con carpetas por curso activadas sera `C:\temp\vscodec\cursos\<course_id>\pendientes\<actividad>\`.
 
 Para extraer desde CARM y generar solo prompts para Codex, sin API:
 
@@ -358,14 +360,14 @@ Primero prepara prompts sin publicar en CARM ni gastar API:
 python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 0
 ```
 
-Esto entra en CARM, descarga entregas, genera prompts pendientes y archiva los archivos ya convertidos en prompt. No llama a la API y no publica en CARM. Los prompts quedan en `C:	emp\vscodec\pendientes\prompts_codex`.
+Esto entra en CARM, descarga entregas, genera prompts pendientes y archiva los archivos ya convertidos en prompt. No llama a la API y no publica en CARM. Con carpetas por curso activadas, los prompts quedan en `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex`.
 
-Despues resuelve los prompts con API desde la interfaz o con Codex/IA externa. La app importara las correcciones a `revision_pendiente.csv`.
+Despues resuelve los prompts con API desde la interfaz o con Codex/IA externa. Si usas `$C`, vuelve al panel principal, selecciona un `*_correccion.json` o `Todos los JSON pendientes` en "Archivo de correcciones" y pulsa `Importar JSON a revision`; la app lo pasara a `revision_pendiente.csv`.
 
 Cuando hayas revisado, sube a CARM con subida asistida:
 
 ```powershell
-python corrector_agente.py --subir-correcciones-carm C:	emp\vscodec\temporal\revision_pendiente.csv --subida-asistida-carm
+python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\cursos\<course_id>\temporal\revision_pendiente.csv --subida-asistida-carm
 ```
 
 La app rellena nota y feedback; el docente pulsa `Guardar cambios` en CARM. Las filas confirmadas o ya gestionadas se eliminan del CSV.
@@ -408,7 +410,7 @@ python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json
 TambiÃ©n puedes previsualizar directamente el CSV revisable generado por la API:
 
 ```powershell
-python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\revision_pendiente.csv
+python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\cursos\<course_id>\temporal\revision_pendiente.csv
 ```
 
 El navegador queda abierto para revisar el formulario. Para terminar la previsualizaciÃ³n, cierra la pestaÃ±a de Chromium o detÃ©n la tarea desde la interfaz.
@@ -423,7 +425,7 @@ Con varias correcciones de la misma actividad, se intenta usar `Guardar cambios 
 
 Cada intento deja registro en `respuestas_extraidas\subida_carm_previsualizacion.json` o `respuestas_extraidas\subida_carm_publicada.json`.
 
-Tras una publicacion real o una subida asistida completada, los prompts y JSON usados se mueven a `pendientes\prompts_codex\archivados\...` para no reutilizarlos por error. Una previsualizacion no archiva nada.
+Tras importar un JSON de Codex al CSV, el prompt exacto y su `*_correccion.json` se mueven a `pendientes\prompts_codex\archivados\...` para que no vuelvan a aparecer como pendientes. Tras una publicacion real o una subida asistida completada, tambien se archivan los resumenes usados. Una previsualizacion no archiva nada.
 
 Tras generar prompts, las entregas usadas se mueven a `pendientes\archivados_prompt\...`. Si necesitas repetir exactamente el mismo lote para una prueba, usa `--conservar-pendientes`.
 

@@ -94,6 +94,24 @@ Para lectura avanzada de PDF, PPTX, XLSX u OCR:
 .\iniciar_app_windows.cmd -AbrirNavegador
 ```
 
+## Se abren y cierran ventanas de comando
+
+Suele ocurrir si hay varias instancias intentando arrancar o si el acceso de inicio de Windows quedo antiguo.
+
+1. Reinstala el arranque desde la interfaz o ejecuta:
+
+```powershell
+.\.venv\Scripts\python.exe interfaz_app.py --install-startup
+```
+
+2. Inicia manualmente solo una vez:
+
+```powershell
+.\iniciar_app_windows.cmd -AbrirNavegador
+```
+
+El script de inicio comprueba si el panel ya responde en `127.0.0.1:8765` y no lanza otra instancia.
+
 ## El panel local no conecta
 
 Puede pasar si cerraste la app, cambio el puerto o quedo una instancia antigua.

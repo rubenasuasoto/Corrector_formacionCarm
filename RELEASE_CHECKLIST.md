@@ -69,3 +69,9 @@ Para crear etiqueta Git despues de hacer commit y tener el arbol limpio:
 - [ ] Purgar datos personales locales cuando ya no sean necesarios.
 - [ ] Borrar cache didactica al finalizar el curso si procede.
 - [ ] Revisar auditoria local si hubo incidencias.
+
+## 6. Puerta pre-Fase 5
+
+- [ ] Revisar `CIERRE_APP_LOCAL.md`.
+- [ ] Confirmar que la app local ya cubre el flujo real necesario.
+- [ ] Aceptar explicitamente cualquier punto pendiente antes de abrir Fase 5.

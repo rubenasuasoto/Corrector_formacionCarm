@@ -5,6 +5,10 @@
 Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-curso.
 
 - Actualizacion 2026-05-13: verificacion local correcta, Git limpio antes de release y etiqueta `v0.3.0-local` creada tras generar manifiesto de release.
+- Fase actual: puerta pre-Fase 5. Fase 3 cerrada, Fase 4 implementada en primera version y creado `CIERRE_APP_LOCAL.md` para terminar la app local antes de plantear cloud/servidor/multiusuario.
+- Ajuste subida asistida: la interfaz ya no mantiene Chromium abierto al terminar; al finalizar el ultimo alumno debe volver el resultado al proceso y actualizar `revision_pendiente.csv`. Si CARM guardo pero Moodle no lo expone de forma detectable, el panel permite confirmacion manual explicita en vez de obligar a `Omitir`.
+- Ajuste inicio Windows: `iniciar_app_windows.ps1` no lanza otra instancia si el panel ya responde en el puerto configurado. El acceso de inicio instalado se reescribio sin `--auto-correct` y minimizado para evitar ventanas de comando repetidas.
+- Rutas activas: con `Separar carpetas por curso` activado, el curso `1592` usa `C:\temp\vscodec\cursos\1592\pendientes` y `C:\temp\vscodec\cursos\1592\temporal`. Las rutas globales antiguas quedan solo como base/compatibilidad cuando esa opcion esta desactivada.
 - Estado real: backend operativo, interfaz local en maduracion, autoprompteo multi-curso en primera version y subida asistida como flujo recomendado.
 - El proyecto esta en fase de endurecimiento local antes de distribuir: higiene de git, rutas multi-curso, arranque de Windows, seguridad y documentacion coherente.
 - Se corrigio la configuracion de curso para recalcular rutas de trabajo despues de cambiar curso o activar/desactivar carpetas por curso.
@@ -28,10 +32,10 @@ Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-cur
 
 Esta seccion prevalece sobre notas historicas anteriores cuando haya contradiccion.
 
-- Flujo actual: autoprompteo al iniciar Windows, resolucion de prompts bajo accion del usuario y subida asistida desde `revision_pendiente.csv`.
+- Flujo actual: arranque en bandeja sin autoprompteo salvo activacion explicita, resolucion de prompts bajo accion del usuario y subida asistida desde `revision_pendiente.csv`.
 - No se recomienda publicacion automatica como flujo normal.
 - El CSV es la fuente fiable para rellenar CARM; los resumenes son lectura humana.
-- Los prompts/correcciones/resumenes usados se archivan para evitar duplicidades y gasto de API.
+- Los prompts/correcciones/resumenes usados se archivan para evitar duplicidades y gasto de API. En el flujo manual `$C`, la app no borra nada durante la correccion externa: archiva el prompt exacto y su JSON cuando el usuario importa el `*_correccion.json` a `revision_pendiente.csv`.
 - `.env`, logs, cache, salidas y correcciones generadas quedan fuera de git.
 - Se crea `ARQUITECTURA_PROYECTO.md` como guia de orden profesional y refactor por fases.
 - `sincronizador_moodle.py` queda marcado como legado/referencia, no ruta principal.
@@ -63,7 +67,7 @@ Implementado:
 - La deteccion de cursos filtra entradas auxiliares como `FAQS` y `CARM - Curso CARM`; se mantiene compatibilidad con datos antiguos, pero la interfaz ya no los muestra como cursos seleccionables.
 - La configuracion de cursos ya no pisa cada pocos segundos el desplegable ni los checkboxes de autoprompteo mientras el modal de ajustes esta abierto.
 - El estado local expone si el arranque de Windows esta instalado y si ese arranque incluye `--auto-correct`.
-- Se detecto un arranque antiguo sin `--auto-correct`; se actualizo el `.cmd` instalado para que vuelva a autopromptear al iniciar Windows.
+- Se detecto un arranque antiguo con `--auto-correct`; se actualizo el `.cmd` instalado para que no autopromptee al iniciar Windows salvo que el usuario lo active expresamente.
 
 Pendiente antes de darlo por cerrado:
 
@@ -309,8 +313,8 @@ En modo API desde la interfaz, el flujo queda en dos fases: preparar prompts acu
 
 **Salida final**:
 ```
-C:\temp\vscodec\temporal\revision_pendiente.csv
-C:\temp\vscodec\pendientes\prompts_codex\prompt_udXXcpYY_correccion.json
+C:\temp\vscodec\cursos\<course_id>\temporal\revision_pendiente.csv
+C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\prompt_udXXcpYY_correccion.json
 ```
 
 **Flags opcionales**:
@@ -321,7 +325,7 @@ C:\temp\vscodec\pendientes\prompts_codex\prompt_udXXcpYY_correccion.json
 ### Comando secundario: Subida asistida tras revisar
 
 ```powershell
-.\.venv\Scripts\python.exe corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\revision_pendiente.csv --subida-asistida-carm --mantener-navegador
+.\.venv\Scripts\python.exe corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\cursos\<course_id>\temporal\revision_pendiente.csv --subida-asistida-carm
 ```
 
 **QuÃ© hace**:
@@ -473,11 +477,11 @@ Correcciones de prueba:
 
 Flujo acordado:
 
-- Al iniciar Windows, la app se abre en bandeja y, si el acceso directo fue instalado con la version actual, usa `--auto-correct` como autoprompteo: revisa CARM y prepara prompts, pero no corrige con API ni publica automaticamente.
-- Los prompts pendientes viven en `C:\temp\vscodec\pendientes\prompts_codex`.
+- Al iniciar Windows, la app se abre en bandeja sin autoprompteo por defecto. `--auto-correct` solo se usa si el usuario activa autopreparacion al inicio.
+- Con carpetas por curso activadas, los prompts pendientes viven en `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex`.
 - El modo con API solo se ejecuta cuando el usuario pulsa `Corregir prompts con API`; antes de gastar API archiva prompts que ya tienen `*_correccion.json` para no duplicar coste.
-- El modo sin API usa `INSTRUCCIONES_CODEX_PERSONALIZADAS.md` y genera JSON individuales `prompt_<actividad>_correccion.json`.
-- La fuente fiable para subir a CARM es `C:\temp\vscodec\temporal\revision_pendiente.csv`, no los resumenes.
+- El modo sin API usa `INSTRUCCIONES_CODEX_PERSONALIZADAS.md` y genera JSON individuales `prompt_<actividad>_correccion.json`; la interfaz principal tiene boton `Importar JSON a revision` para pasar un JSON concreto o todos los JSON pendientes a `revision_pendiente.csv`.
+- La fuente fiable para subir a CARM es `revision_pendiente.csv` dentro de la carpeta temporal activa del curso, no los resumenes.
 - La interfaz de subida muestra un unico boton de subida asistida con el numero exacto de filas pendientes por actividad.
 - La subida asistida rellena nota y feedback, exige que el usuario pulse `Guardar cambios` en CARM, detecta guardado real antes de avanzar y elimina del CSV solo filas confirmadas, publicadas o que ya no requieren calificacion.
 - Cuando una actividad queda gestionada, se archivan prompts, correcciones y resumenes usados.

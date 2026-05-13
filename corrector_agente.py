@@ -552,6 +552,62 @@ def archivar_archivos_auxiliares_prompts(prompts_dir: Path, modo: str = "auxilia
     return None
 
 
+def archivar_correccion_importada_codex(
+    correcciones_path: Path,
+    pendientes_dir: Path,
+    temporal_dir: Path,
+) -> Path | None:
+    if correcciones_path.suffix.lower() != ".json":
+        return None
+
+    prompts_dir = prompts_pendientes_dir(pendientes_dir)
+    try:
+        path_resuelto = correcciones_path.resolve()
+        prompts_resuelto = prompts_dir.resolve()
+    except Exception:
+        return None
+    if prompts_resuelto not in path_resuelto.parents:
+        return None
+
+    archivo_dir = prompts_dir / "archivados" / datetime.now().strftime("%Y%m%d_%H%M%S_importado_csv")
+    candidatos = [correcciones_path]
+    if correcciones_path.name.endswith("_correccion.json"):
+        prompt_stem = correcciones_path.name[: -len("_correccion.json")]
+        candidatos.append(correcciones_path.with_name(f"{prompt_stem}.md"))
+    elif correcciones_path.name == "correcciones_codex_combinadas.json":
+        candidatos.extend(sorted(prompts_dir.glob("prompt_*.md")))
+        candidatos.extend(sorted(prompts_dir.glob("prompt_*_correccion.json")))
+
+    movidos = 0
+    for path in candidatos:
+        if path.exists() and path.is_file() and archivo_dir not in path.parents:
+            moved = _mover_si_existe(path, archivo_dir)
+            if moved:
+                movidos += 1
+
+    quedan_trabajo = any(prompts_dir.glob("prompt_*.md")) or any(prompts_dir.glob("prompt_*_correccion.json"))
+    if not quedan_trabajo:
+        for auxiliar in (
+            prompts_dir / "manifiesto_entregas.json",
+            prompts_dir / "correcciones_codex_combinadas.json",
+        ):
+            moved = _mover_si_existe(auxiliar, archivo_dir)
+            if moved:
+                movidos += 1
+
+    if not movidos:
+        return None
+
+    registrar_auditoria(
+        "archivar_correccion_importada_codex",
+        origen=correcciones_path,
+        destino=archivo_dir,
+        archivos=movidos,
+    )
+    logger.info("Prompt/correccion importados al CSV archivados en: %s", archivo_dir)
+    return archivo_dir
+
+
 def archivar_resumenes_usados(resultados: list[dict], temporal_dir: Path, modo: str) -> Path | None:
     codigos = {
         str(resultado.get("actividad") or "").strip().lower()
@@ -2550,6 +2606,7 @@ class ExtractorCarm:
         usar_siguiente: bool,
         guardado_detectado: bool = False,
         confirmacion_invalida: bool = False,
+        permitir_confirmacion_manual: bool = False,
     ) -> None:
         boton = "Guardar cambios"
         mensaje = (
@@ -2558,8 +2615,8 @@ class ExtractorCarm:
         )
         if confirmacion_invalida:
             detalle = (
-                "Aun no detecto que CARM haya guardado. Pulsa 'Guardar cambios' en CARM y espera a que vuelva a la tabla "
-                "o muestre confirmacion antes de continuar."
+                "No he podido detectar automaticamente el guardado. Si ya pulsaste 'Guardar cambios' en CARM "
+                "y la pagina termino de responder, confirma manualmente para avanzar."
             )
         elif guardado_detectado:
             detalle = "CARM parece haber guardado. Puedes confirmar aqui para pasar al siguiente alumno."
@@ -2569,8 +2626,8 @@ class ExtractorCarm:
                 "pulsa el boton de confirmacion de este panel."
             )
         await page.evaluate(
-            """({message, detail, invalid}) => {
-                const signature = `${message}\\n${detail}\\n${invalid ? 'invalid' : ''}`;
+            """({message, detail, invalid, allowManual}) => {
+                const signature = `${message}\\n${detail}\\n${invalid ? 'invalid' : ''}\\n${allowManual ? 'manual' : ''}`;
                 const previous = document.getElementById('corrector-carm-assisted-banner');
                 if (previous && previous.dataset.signature === signature) return;
                 if (previous) previous.remove();
@@ -2609,14 +2666,14 @@ class ExtractorCarm:
                 actions.style.justifyContent = 'flex-end';
                 const next = document.createElement('button');
                 next.type = 'button';
-                next.textContent = 'Ya he guardado en CARM';
+                next.textContent = allowManual ? 'Confirmar guardado manual' : 'Ya he guardado en CARM';
                 next.style.padding = '7px 12px';
                 next.style.border = '1px solid #6f520f';
                 next.style.borderRadius = '6px';
                 next.style.background = '#6f520f';
                 next.style.color = '#fff';
                 next.style.cursor = 'pointer';
-                next.onclick = () => { window.__correctorCarmDecision = 'continuar'; };
+                next.onclick = () => { window.__correctorCarmDecision = allowManual ? 'confirmar_manual' : 'continuar'; };
                 const skip = document.createElement('button');
                 skip.type = 'button';
                 skip.textContent = 'Omitir';
@@ -2635,7 +2692,12 @@ class ExtractorCarm:
                 banner.appendChild(actions);
                 document.body.appendChild(banner);
             }""",
-            {"message": mensaje, "detail": detalle, "invalid": confirmacion_invalida},
+            {
+                "message": mensaje,
+                "detail": detalle,
+                "invalid": confirmacion_invalida,
+                "allowManual": permitir_confirmacion_manual,
+            },
         )
 
     async def _guardado_carm_detectado(self, page, url_formulario: str) -> bool:
@@ -2676,7 +2738,16 @@ class ExtractorCarm:
                 if page.is_closed():
                     return "cerrado_por_usuario"
                 decision = await page.evaluate("window.__correctorCarmDecision || ''")
-                if decision in {"continuar", "omitir"}:
+                if decision in {"continuar", "confirmar_manual", "omitir"}:
+                    if decision == "confirmar_manual":
+                        logger.info(
+                            "Guardado confirmado manualmente sin deteccion automatica: %s %s",
+                            actividad_codigo,
+                            pseudonimo(alumno),
+                        )
+                        return decision
+                    if decision == "continuar" and not await self._guardado_carm_detectado(page, url_formulario):
+                        await page.wait_for_timeout(1500)
                     if decision == "continuar" and not await self._guardado_carm_detectado(page, url_formulario):
                         await page.evaluate("window.__correctorCarmDecision = ''")
                         await self._mostrar_guia_subida_asistida(
@@ -2687,6 +2758,7 @@ class ExtractorCarm:
                             alumno=alumno,
                             usar_siguiente=usar_siguiente,
                             confirmacion_invalida=True,
+                            permitir_confirmacion_manual=True,
                         )
                         await page.wait_for_timeout(1200)
                         continue
@@ -2813,8 +2885,10 @@ class ExtractorCarm:
                 usar_siguiente=mostrar_siguiente,
             )
             resultado["confirmacion_asistida"] = decision
-            if decision == "continuar":
+            if decision in {"continuar", "confirmar_manual"}:
                 resultado["estado"] = "guardado_manual_confirmado_por_usuario"
+                if decision == "confirmar_manual":
+                    resultado["confirmacion_manual_sin_deteccion"] = True
             elif decision == "omitir":
                 resultado["estado"] = "omitido_por_usuario"
             else:
@@ -2896,7 +2970,7 @@ class ExtractorCarm:
 
                 return resultados
             finally:
-                if self.mantener_navegador:
+                if self.mantener_navegador and not asistida:
                     await self._esperar_revision_o_cierre(page, "Navegador abierto para revision.")
                 await self._cerrar_contexto(context, page)
                 await context.close()
@@ -4503,19 +4577,38 @@ async def ejecutar_flujo(args) -> None:
     if getattr(args, "importar_correcciones_codex", ""):
         salida = GeneradorSalidas(pendientes_dir, temporal_dir, actividad_codigo=args.actividad_codigo)
         correcciones_path = Path(args.importar_correcciones_codex)
+        correcciones_a_importar = (
+            sorted(correcciones_path.glob("*_correccion.json"))
+            if correcciones_path.exists() and correcciones_path.is_dir()
+            else [correcciones_path]
+        )
+        if not correcciones_a_importar:
+            logger.error(f"No hay JSON de correccion pendientes en: {correcciones_path}")
+            return
+        resultados_totales: list[dict] = []
+        revision_path: Path | None = None
+        rutas_extra_totales: list[Path] = []
         try:
-            resultados, revision_path, rutas_extra = salida.importar_correcciones_codex(correcciones_path)
+            for ruta_importar in correcciones_a_importar:
+                resultados, revision_path, rutas_extra = salida.importar_correcciones_codex(ruta_importar)
+                resultados_totales.extend(resultados)
+                rutas_extra_totales.extend(rutas_extra)
+                archivo_dir = archivar_correccion_importada_codex(ruta_importar, pendientes_dir, temporal_dir)
+                if archivo_dir:
+                    logger.info(f"JSON/prompt importado archivado en: {archivo_dir}")
         except Exception as e:
             logger.error(f"No se pudieron importar correcciones Codex: {e}")
             return
 
-        logger.info(f"Correcciones importadas: {len(resultados)}")
-        for ruta in rutas_extra:
+        logger.info(f"Archivos JSON importados: {len(correcciones_a_importar)}")
+        logger.info(f"Correcciones importadas: {len(resultados_totales)}")
+        for ruta in rutas_extra_totales:
             logger.info(f"- {ruta}")
         logger.info(f"Hoja de revisión manual generada en: {revision_path}")
         registrar_auditoria(
             "importar_correcciones_codex",
-            correcciones=len(resultados),
+            archivos=len(correcciones_a_importar),
+            correcciones=len(resultados_totales),
             origen=correcciones_path,
             revision=revision_path,
         )

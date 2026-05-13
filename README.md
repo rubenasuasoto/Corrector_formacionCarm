@@ -6,10 +6,10 @@ Agente local para corregir casos prÃ¡cticos descargados desde CARM FormaciÃ³
 
 El flujo principal ya estÃ¡ implementado en `corrector_agente.py`:
 
-- Corrige entregas locales colocadas en `C:\temp\vscodec\pendientes`.
+- Corrige entregas locales colocadas en la carpeta activa de pendientes. Con carpetas por curso activadas: `C:\temp\vscodec\cursos\<course_id>\pendientes`.
 - Agrupa las entregas por actividad, por ejemplo `ud01cp01` o `ud02cp03`.
 - Prepara prompts por lote para reducir llamadas a la IA.
-- Crea una carpeta por alumno en `C:\temp\vscodec\temporal`.
+- Crea una carpeta por alumno en la carpeta temporal activa. Con carpetas por curso activadas: `C:\temp\vscodec\cursos\<course_id>\temporal`.
 - Copia la entrega original, genera la correcciÃ³n y escribe resÃºmenes.
 - Genera `revision_pendiente.csv` para revisar notas y feedback antes de subir nada.
 - Marca como `revision_manual_necesaria` los archivos que no pueda leer con fiabilidad.
@@ -26,9 +26,10 @@ Lee estos archivos en este orden:
 4. `SEGURIDAD_CVSS.md`: criterio de priorizaciÃ³n de riesgos basado en CVSS v4.0.
 5. `ARQUITECTURA_PROYECTO.md`: estructura profesional objetivo y estado de archivos.
 6. `RELEASE_CHECKLIST.md`: comprobaciones antes de distribuir o usar una version en real.
-7. `SOLUCION_PROBLEMAS_WINDOWS.md`: ayuda para Playwright, dependencias, bandeja y puerto local.
-8. `prompts_correccion.json`: prompts editables por actividad.
-9. `corrector_agente.py`: flujo principal.
+7. `CIERRE_APP_LOCAL.md`: puerta antes de abrir Fase 5.
+8. `SOLUCION_PROBLEMAS_WINDOWS.md`: ayuda para Playwright, dependencias, bandeja y puerto local.
+9. `prompts_correccion.json`: prompts editables por actividad.
+10. `corrector_agente.py`: flujo principal.
 
 El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_PROYECTO.md`, manda `ESTADO_PROYECTO.md`.
 
@@ -115,7 +116,7 @@ Para aprovechar Codex/ChatGPT manualmente sin pagar llamadas de API:
 python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --preparar-prompts-codex
 ```
 
-El agente lee las entregas, las agrupa por actividad y genera archivos en `C:\temp\vscodec\pendientes\prompts_codex`. Copia el `.md` de la actividad en Codex/ChatGPT y pide que devuelva el JSON de correcciones junto al prompt.
+El agente lee las entregas, las agrupa por actividad y genera archivos en la carpeta activa de prompts. Con `Separar carpetas por curso`: `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex`. Copia el `.md` de la actividad en Codex/ChatGPT y pide que devuelva el JSON de correcciones junto al prompt.
 
 Para el flujo automatico sin API hace falta Codex CLI instalado y autenticado:
 
@@ -131,7 +132,7 @@ Opciones soportadas:
 
 ## Uso con entregas locales
 
-Coloca las entregas en `C:\temp\vscodec\pendientes` y ejecuta:
+Coloca las entregas en la carpeta activa de pendientes y ejecuta:
 
 ```powershell
 python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt
@@ -190,7 +191,7 @@ Se usa automÃ¡ticamente cuando existe. Si `CARM_COURSE_END_DATE` ya pasÃ³, s
 python corrector_agente.py --extraer-carm
 ```
 
-Este modo descarga entregas desde CARM a `C:\temp\vscodec\pendientes\<actividad>\` y despuÃ©s corrige por lotes. Para uso real, conviene limitar por `--unidad` o `--actividad` y revisar las salidas antes de publicar.
+Este modo descarga entregas desde CARM a la carpeta activa de pendientes y despues corrige por lotes. Con carpetas por curso activadas: `C:\temp\vscodec\cursos\<course_id>\pendientes\<actividad>\`. Para uso real, conviene limitar por `--unidad` o `--actividad` y revisar las salidas antes de publicar.
 
 Para descargar desde CARM y generar solo prompts para Codex, sin API:
 
@@ -214,24 +215,24 @@ Este comando actualiza cache, registra filas de CARM, descarga entregas y genera
 python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 0
 ```
 
-Este comando entra en CARM, descarga entregas pendientes, genera prompts en `C:\temp\vscodec\pendientes\prompts_codex` y archiva las entregas ya convertidas en prompt para no duplicarlas.
+Este comando entra en CARM, descarga entregas pendientes, genera prompts en la carpeta activa de prompts y archiva las entregas ya convertidas en prompt para no duplicarlas.
 
 2. Resolver prompts:
 
 Con API configurada, desde la interfaz pulsa `Corregir prompts con API` o ejecuta:
 
 ```powershell
-python corrector_agente.py --pendientes C:\temp\vscodec\pendientes --temporal C:\temp\vscodec\temporal --corregir-prompts-openai
+python corrector_agente.py --pendientes C:\temp\vscodec\cursos\<course_id>\pendientes --temporal C:\temp\vscodec\cursos\<course_id>\temporal --corregir-prompts-openai
 ```
 
 Sin API, usa Codex u otra IA con `INSTRUCCIONES_CODEX_PERSONALIZADAS.md`. Debe crear un JSON por prompt con el patron `prompt_udXXcpYY_correccion.json` en la misma carpeta de prompts.
 
 3. Subir a CARM con revision humana:
 
-La app importa las correcciones a `C:\temp\vscodec\temporal\revision_pendiente.csv`. Ese CSV es la fuente fiable para rellenar CARM. Usa la subida asistida desde la interfaz o:
+La app importa las correcciones a `revision_pendiente.csv` dentro de la carpeta temporal activa. Ese CSV es la fuente fiable para rellenar CARM. Usa la subida asistida desde la interfaz o:
 
 ```powershell
-python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\temporal\revision_pendiente.csv --subida-asistida-carm --mantener-navegador
+python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\cursos\<course_id>\temporal\revision_pendiente.csv --subida-asistida-carm
 ```
 
 La subida asistida rellena nota y feedback, pero el guardado en CARM lo hace el docente. Las filas confirmadas o ya gestionadas se eliminan del CSV. Los prompts, correcciones y resumenes usados se archivan para evitar gasto o subida duplicada.
@@ -258,7 +259,11 @@ La subida recomendada es `--subida-asistida-carm`: la app rellena los campos y n
 
 ## Salidas
 
-En `C:\temp\vscodec\temporal`:
+En la carpeta temporal activa. Con carpetas por curso activadas:
+
+```text
+C:\temp\vscodec\cursos\<course_id>\temporal
+```
 
 - `<alumno>\<actividad>.ext`: copia de la entrega.
 - `<alumno>\<actividad>.txt`: correcciÃ³n generada.

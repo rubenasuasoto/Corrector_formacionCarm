@@ -66,9 +66,10 @@ Motivo: contienen credenciales, estado local, datos de alumnos, notas, logs, cac
    - La app revisa CARM.
    - Fuerza filtro `Requiere calificacion`.
    - Descarga entregas pendientes.
-   - Genera prompts en `C:\temp\vscodec\pendientes\prompts_codex`.
+   - Genera prompts en la carpeta activa de prompts.
    - Archiva entregas ya convertidas en prompt.
    - Si se activa "Separar carpetas por curso", usa `C:\temp\vscodec\cursos\<course_id>\pendientes` y `C:\temp\vscodec\cursos\<course_id>\temporal` para no mezclar cursos.
+   - Si no se activa, conserva las rutas globales antiguas `C:\temp\vscodec\pendientes` y `C:\temp\vscodec\temporal`.
 
 3. Correccion:
    - Con API: el usuario pulsa `Corregir prompts con API`.
@@ -76,7 +77,7 @@ Motivo: contienen credenciales, estado local, datos de alumnos, notas, logs, cac
    - Los prompts ya resueltos se archivan para evitar gasto duplicado.
 
 4. Revision y subida:
-   - La fuente fiable es `C:\temp\vscodec\temporal\revision_pendiente.csv`.
+   - La fuente fiable es `revision_pendiente.csv` dentro de la carpeta temporal activa del curso.
    - La interfaz muestra un unico boton de subida asistida con pendientes por actividad.
    - La app rellena CARM, pero el docente pulsa `Guardar cambios`.
    - La app no avanza hasta detectar guardado real y confirmacion humana.
