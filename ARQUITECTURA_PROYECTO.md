@@ -11,7 +11,6 @@ Archivos activos:
 - `corrector_agente.py`: motor principal. Gestiona CARM, prompts, API, importacion, CSV y subida asistida.
 - `interfaz_app.py`: interfaz web local, bandeja de Windows, configuracion y orquestacion de comandos permitidos.
 - `prompts_correccion.json`: rubricas y prompts editables por actividad.
-- `prueba_correcciones.py`: prueba offline con entregas ficticias.
 
 Instalacion y soporte Windows:
 
@@ -36,7 +35,7 @@ Documentacion viva:
 
 Legado o referencia:
 
-- `sincronizador_moodle.py`: referencia antigua. No es ruta principal. Mantener solo mientras aporte contexto; candidato a mover a `legacy/` o eliminar tras una ultima revision.
+- Sin scripts legado activos en raiz. `prueba_correcciones.py`, `sincronizador_moodle.py` y `tmp_prueba/` fueron retirados para evitar rutas duplicadas.
 
 ## Artefactos locales no versionables
 
@@ -48,7 +47,6 @@ No deben entrar en git:
 - `respuestas_extraidas/`
 - `correcciones_validadas/`
 - `cache_carm/`
-- `tmp_prueba/`
 - `.venv/`
 - `venv/`
 - `__pycache__/`
@@ -91,7 +89,7 @@ Fase 1, sin romper imports:
 - Mantener los dos ejecutables principales en raiz.
 - Sacar del indice de git todos los artefactos locales.
 - Mantener documentacion actualizada y coherente.
-- Marcar `sincronizador_moodle.py` como legado.
+- Mantener fuera del flujo activo scripts de prueba antiguos.
 
 Estado 2026-05-12: fase en cierre. La documentacion ya existe, la app funciona con rutas multi-curso y `.env`, logs, caches, salidas y correcciones generadas ya no aparecen en `git ls-files`.
 
@@ -112,7 +110,7 @@ corrector_carm/
   config.py
   paths.py
 tests/
-  test_correcciones.py
+  test_importacion_json.py
 scripts/
   instalar_windows.ps1
   instalar_windows.cmd
@@ -121,7 +119,7 @@ docs/
   seguridad/
   operacion/
 legacy/
-  sincronizador_moodle.py
+  # Solo si alguna referencia historica vuelve a ser necesaria.
 ```
 
 Fase 3:

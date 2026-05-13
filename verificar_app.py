@@ -124,7 +124,7 @@ def main() -> int:
     parser.add_argument(
         "--sin-prueba-offline",
         action="store_true",
-        help="Omite prueba_correcciones.py.",
+        help="Compatibilidad: la prueba offline antigua fue retirada.",
     )
     parser.add_argument(
         "--sin-endpoints",
@@ -142,15 +142,11 @@ def main() -> int:
             "py_compile",
             "interfaz_app.py",
             "corrector_agente.py",
-            "prueba_correcciones.py",
-            "sincronizador_moodle.py",
         ],
     )
     ok &= print_health(operacion=not args.instalacion)
     if not args.sin_endpoints:
         ok &= check_local_endpoints()
-    if not args.sin_prueba_offline:
-        ok &= run_step("Prueba offline", [sys.executable, "prueba_correcciones.py"], timeout=180)
 
     if ok:
         safe_print("\nVerificacion completada correctamente.")

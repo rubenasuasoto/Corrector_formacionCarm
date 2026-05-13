@@ -1,6 +1,6 @@
 ﻿# Agente corrector CARM
 
-Agente local para corregir casos prÃ¡cticos descargados desde CARM FormaciÃ³n/Moodle, usando Codex CLI o la API de OpenAI, y dejando siempre una revisiÃ³n manual antes de publicar notas o retroalimentaciÃ³n.
+Agente local para corregir casos prÃ¡cticos descargados desde CARM FormaciÃ³n/Moodle, usando prompts resueltos fuera de la app o la API de OpenAI, y dejando siempre una revisiÃ³n manual antes de publicar notas o retroalimentaciÃ³n.
 
 ## Estado corto
 
@@ -96,58 +96,38 @@ CARM_COURSE_URL=https://formacion.carm.es/course/view.php?id=1592
 
 No subas `.env` al repositorio.
 
-`OPENAI_API_KEY` es opcional si corriges con Codex CLI. No guardes API keys, tokens o contraseÃ±as en archivos `.txt`. Las claves locales deben vivir solo en `.env`.
-
-## Prueba offline
-
-Sin CARM y sin IA real:
-
-```powershell
-python prueba_correcciones.py
-```
-
-Esto crea entregas ficticias en `tmp_prueba\pendientes`, genera correcciones de respaldo y deja resultados en `tmp_prueba\temporal`.
+`OPENAI_API_KEY` es opcional si corriges con el modo solo prompts y luego importas los JSON. No guardes API keys, tokens o contraseÃ±as en archivos `.txt`. Las claves locales deben vivir solo en `.env`.
 
 ## Uso sin API
 
 Para aprovechar Codex/ChatGPT manualmente sin pagar llamadas de API:
 
 ```powershell
-python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --preparar-prompts-codex
+python corrector_agente.py --preparar-carm-codex --unidad ud01
 ```
 
 El agente lee las entregas, las agrupa por actividad y genera archivos en la carpeta activa de prompts. Con `Separar carpetas por curso`: `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex`. Copia el `.md` de la actividad en Codex/ChatGPT y pide que devuelva el JSON de correcciones junto al prompt.
 
-Para el flujo automatico sin API hace falta Codex CLI instalado y autenticado:
-
-```powershell
-python corrector_agente.py --comprobar-codex-cli
-```
-
-Opciones soportadas:
-
-- Iniciar sesion en la extension oficial ChatGPT/Codex de VS Code.
-- Ejecutar `codex login` en PowerShell.
-- Configurar `CODEX_CLI_PATH` en `.env` si la app en bandeja no hereda el `PATH`.
+Cuando Codex/ChatGPT devuelva `*_correccion.json`, vuelve a la interfaz y pulsa `Importar JSON a revision`. La app importara los JSON a `revision_pendiente.csv` y archivara los prompts ya usados.
 
 ## Uso con entregas locales
 
 Coloca las entregas en la carpeta activa de pendientes y ejecuta:
 
 ```powershell
-python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt
+python corrector_agente.py --preparar-prompts-codex
 ```
 
 Forzando una actividad concreta:
 
 ```powershell
-python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --actividad-codigo ud02cp03
+python corrector_agente.py --preparar-prompts-codex --actividad-codigo ud02cp03
 ```
 
 Conservando los archivos en pendientes durante pruebas:
 
 ```powershell
-python corrector_agente.py --contexto-unidad C:\ruta\manual_ud01.txt --conservar-pendientes
+python corrector_agente.py --preparar-prompts-codex --conservar-pendientes
 ```
 
 ## ExtracciÃ³n desde CARM
