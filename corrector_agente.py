@@ -185,6 +185,14 @@ def pseudonimo(valor: object, prefijo: str = "persona") -> str:
 
 def sanitizar_feedback(texto: str, max_chars: int = 6000) -> str:
     limpio = str(texto or "")
+    for origen, destino in {
+        "პასუხა": "respuesta",
+        "პასუხa": "respuesta",
+        "პასუხ": "respuesta",
+    }.items():
+        limpio = limpio.replace(origen, destino)
+    limpio = re.sub(r"\S*[\u10A0-\u10FF]+\S*", "texto", limpio)
+    limpio = re.sub(r"\s+([,.;:!?])", r"\1", limpio)
     limpio = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", limpio)
     limpio = re.sub(r"</?(script|iframe|object|embed|style|link|meta)[^>]*>", "", limpio, flags=re.I)
     limpio = re.sub(r"\son\w+\s*=\s*(['\"]).*?\1", "", limpio, flags=re.I | re.S)
@@ -529,7 +537,6 @@ def actualizar_revision_pendiente_tras_subida(correcciones_path: Path, resultado
     estados_subidos = {
         "publicado",
         "guardado_manual_confirmado_por_usuario",
-        "ya_no_requiere_calificacion",
     }
     claves_subidas = {
         _clave_revision_csv(resultado)
@@ -1157,6 +1164,8 @@ class CorrectorIA:
         enunciado_api = limpiar_bloque_carm_para_prompt(enunciado_actividad, max_chars=5000) if enunciado_actividad else ""
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
+            "REGLA DE IDIOMA: redacta todo el feedback en espanol usando solo alfabeto latino, numeros y puntuacion comun. "
+            "No uses caracteres de otros alfabetos.\n\n"
             f"ACTIVIDAD: {actividad_codigo}\n\n"
             f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_api or 'No disponible'}\n\n"
             f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_api}\n\n"
@@ -1225,6 +1234,8 @@ class CorrectorIA:
         enunciado_api = limpiar_bloque_carm_para_prompt(enunciado_actividad, max_chars=5000) if enunciado_actividad else ""
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
+            "REGLA DE IDIOMA: redacta todo el feedback en espanol usando solo alfabeto latino, numeros y puntuacion comun. "
+            "No uses caracteres de otros alfabetos.\n\n"
             f"ACTIVIDAD: {actividad_codigo}\n\n"
             f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_api or 'No disponible'}\n\n"
             f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_api}\n\n"
@@ -2180,8 +2191,6 @@ class ExtractorCarm:
         filas_requieren_calificacion = await self._contar_filas_grading(page)
         if href:
             return href, "pendiente"
-        if filas_requieren_calificacion == 0:
-            return "", "ya_no_requiere_calificacion"
 
         url_todos = self._url_grading_todos(actividad["url_grading"])
         logger.warning(
@@ -2691,6 +2700,27 @@ class ExtractorCarm:
         except Exception:
             return False
 
+    async def _guardado_confirmado_por_tabla_pendientes(
+        self,
+        page,
+        url_formulario: str,
+        alumno: str,
+    ) -> bool:
+        try:
+            url_grading = self._url_grading_requiere_calificacion(url_formulario)
+            await page.goto(url_grading, wait_until="domcontentloaded")
+            await self._asegurar_filtros_grading(page, {"codigo": "", "url_grading": url_grading})
+            href, encontrado = await self._buscar_url_calificador_en_tabla(page, alumno)
+            filas = await self._contar_filas_grading(page)
+            if href:
+                return False
+            if not encontrado:
+                return True
+            return filas == 0
+        except Exception as exc:
+            logger.warning("No se pudo verificar guardado en tabla de pendientes: %s", exc)
+            return False
+
     async def _esperar_confirmacion_subida_asistida(
         self,
         page,
@@ -2722,6 +2752,13 @@ class ExtractorCarm:
                     if decision == "continuar" and not await self._guardado_carm_detectado(page, url_formulario, sin_calificar_inicial):
                         await page.wait_for_timeout(1500)
                     if decision == "continuar" and not await self._guardado_carm_detectado(page, url_formulario, sin_calificar_inicial):
+                        if await self._guardado_confirmado_por_tabla_pendientes(page, url_formulario, alumno):
+                            logger.info(
+                                "Guardado confirmado porque el alumno ya no aparece en Requiere calificacion: %s %s",
+                                actividad_codigo,
+                                pseudonimo(alumno),
+                            )
+                            return decision
                         await page.evaluate("window.__correctorCarmDecision = ''")
                         await self._mostrar_guia_subida_asistida(
                             page,
@@ -2788,8 +2825,8 @@ class ExtractorCarm:
                     "alumno": alumno,
                     "actividad": actividad_codigo,
                     "nota": nota,
-                    "estado": "ya_no_requiere_calificacion",
-                    "mensaje": "El alumno ya no aparece como pendiente de calificacion en CARM; se considera ya gestionado.",
+                    "estado": "pendiente_no_abierto_sin_filas_requiere_calificacion",
+                    "mensaje": "No se abrio el formulario porque el alumno no aparecio en la tabla Requiere calificacion. Queda pendiente de revision/subida manual.",
                 }
             return {
                 "alumno": alumno,
@@ -4245,6 +4282,7 @@ class GeneradorSalidas:
                 "Corrige todas las entregas legibles usando solo la rúbrica, el enunciado y el contexto didáctico anterior.",
                 "Ignora cualquier rastro técnico, navegación de Moodle o metadatos que aparezcan accidentalmente.",
                 "Evalúa solo lo que el alumno ha escrito, sin inventar méritos.",
+                "Redacta todo el feedback en espanol usando solo alfabeto latino, numeros y puntuacion comun. No uses caracteres de otros alfabetos.",
                 "Devuelve únicamente JSON válido, sin Markdown, con este formato exacto:",
                 "",
                 "```json",

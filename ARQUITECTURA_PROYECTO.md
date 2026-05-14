@@ -79,7 +79,7 @@ Motivo: contienen credenciales, estado local, datos de alumnos, notas, logs, cac
    - La interfaz muestra un unico boton de subida asistida con pendientes por actividad.
    - La app rellena CARM, pero el docente pulsa `Guardar cambios`.
    - La app no avanza hasta detectar guardado real y confirmacion humana.
-   - Las filas subidas o ya gestionadas se eliminan del CSV.
+   - Las filas se eliminan del CSV solo si se ha abierto/rellenado el formulario y el docente confirma el guardado, o si hubo publicacion controlada en pruebas internas.
    - Prompts, correcciones y resumenes usados se archivan.
 
 ## Organizacion profesional objetivo

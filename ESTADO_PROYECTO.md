@@ -14,6 +14,10 @@ Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-cur
 - Diagnostico subida: la interfaz permite activar un trace Playwright de subida asistida, guardado en `respuestas_extraidas\traces\`, desactivado por defecto por contener datos personales.
 - Ajuste de esperas: al promptear o subir, las actividades sin filas en `Requiere calificacion` se omiten rapido para evitar que Playwright quede esperando datos donde no hay casos practicos pendientes.
 - Deteccion CARM: si el enlace de accion de la actividad indica `0 Sin calificar`, la actividad se omite antes de abrir la tabla de grading; si indica pendientes, se sigue validando dentro de la tabla con el filtro `Requiere calificacion`.
+- Ajuste critico subida asistida: una correccion que no llega a abrir formulario de CARM ya no se elimina del CSV aunque no aparezca en la tabla `Requiere calificacion`. Solo se retira del CSV si fue publicada o si el docente confirma el guardado tras abrir/rellenar el formulario.
+- Saneado de feedback: se corrige la deformacion puntual `პასუხ/პასუხa/პასუხა` a `respuesta` y se bloquea cualquier otro token con caracteres georgianos antes de escribir CSV, resumenes o rellenar CARM.
+- Validacion real CARM: el docente confirma que el flujo actual prepara prompts correctamente, corrige con API, importa al CSV y sube a CARM mediante subida asistida con revision humana. La puerta pre-Fase 5 queda muy avanzada; falta completar release/higiene documental y decidir si se prueba multi-curso real.
+- Release local: `verificar_app.py` completo pasa en verde y `preparar_release.py` genera manifiesto `release_manifest_0.3.0-local_20260514_084143.json`. No se crea etiqueta porque hay cambios locales pendientes de revisar/commit.
 - Revision de rendimiento local: se redujeron esperas basadas en `networkidle` en paginas de enunciado/formulario, se cachea la revision Git del panel y se evita solapar refrescos del navegador.
 - Limpieza operativa: Codex CLI integrado queda desactivado como ruta principal para evitar bloqueos/rutas obsoletas. El flujo sin API actual es `$C` externo o Codex/ChatGPT manual + `Importar JSON a revision`.
 - Ajuste inicio Windows: `iniciar_app_windows.ps1` no lanza otra instancia si el panel ya responde en el puerto configurado. El acceso de inicio instalado se reescribio sin `--auto-correct` y minimizado para evitar ventanas de comando repetidas.
@@ -336,7 +340,7 @@ C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\prompt_udXXcpYY.md
 **Seguridad**:
 - El docente pulsa `Guardar cambios` en CARM
 - La app comprueba que CARM haya guardado antes de avanzar
-- Elimina del CSV solo filas confirmadas o ya gestionadas
+- Elimina del CSV solo filas cuyo formulario se ha abierto/rellenado y cuyo guardado ha sido confirmado por el docente.
 
 ### Comando de prueba local (sin CARM)
 
@@ -480,7 +484,7 @@ Flujo acordado:
 - El modo sin API usa `INSTRUCCIONES_CODEX_PERSONALIZADAS.md` y genera JSON individuales `prompt_<actividad>_correccion.json`; la interfaz principal tiene boton `Importar JSON a revision` para pasar un JSON concreto o todos los JSON pendientes a `revision_pendiente.csv`.
 - La fuente fiable para subir a CARM es `revision_pendiente.csv` dentro de la carpeta temporal activa del curso, no los resumenes.
 - La interfaz de subida muestra un unico boton de subida asistida con el numero exacto de filas pendientes por actividad.
-- La subida asistida rellena nota y feedback, exige que el usuario pulse `Guardar cambios` en CARM, detecta guardado real antes de avanzar y elimina del CSV solo filas confirmadas, publicadas o que ya no requieren calificacion.
+- La subida asistida rellena nota y feedback, exige que el usuario pulse `Guardar cambios` en CARM, detecta guardado real antes de avanzar y elimina del CSV solo filas confirmadas tras abrir/rellenar formulario.
 - Cuando una actividad queda gestionada, se archivan prompts, correcciones y resumenes usados.
 
 Se aÃ±ade `CUMPLIMIENTO_NORMATIVO.md` como marco prÃ¡ctico para RGPD, LOPDGDD, ENS, Reglamento europeo de IA, guÃ­as AEPD, ASVS y CVSS.

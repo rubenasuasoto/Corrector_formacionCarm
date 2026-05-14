@@ -35,25 +35,25 @@ La app local debe poder usarse en Windows por un docente con:
 
 ### Flujo CARM real
 
-- [ ] Ejecutar deteccion de cursos en CARM real.
+- [x] Ejecutar deteccion de cursos en CARM real.
 - [x] Probar por codigo que el selector de curso activo recalcula rutas y no reutiliza cursos de otra cuenta.
 - [ ] Probar carpetas por curso con al menos dos cursos reales si el docente los tiene.
-- [ ] Confirmar que unidades/casos visibles son solo los existentes en CARM.
-- [ ] Confirmar obligatorios antes que opcionales.
-- [ ] Preparar prompts de una actividad pequena.
-- [ ] Corregir con API o Codex sin duplicar prompts ni pendientes.
-- [ ] Importar correcciones a `revision_pendiente.csv`.
-- [ ] Previsualizar subida asistida sin guardar nada.
-- [ ] Subir una actividad real solo tras revision humana.
-- [ ] Confirmar en CARM real que "Ya he guardado" detecta el guardado; si Moodle no lo expone, usar "Confirmar guardado manual" y verificar que el CSV se limpia.
+- [x] Confirmar que unidades/casos visibles son solo los existentes en CARM.
+- [x] Confirmar obligatorios antes que opcionales.
+- [x] Preparar prompts de una actividad pequena.
+- [x] Corregir con API o Codex sin duplicar prompts ni pendientes.
+- [x] Importar correcciones a `revision_pendiente.csv`.
+- [x] Previsualizar subida asistida sin guardar nada.
+- [x] Subir una actividad real solo tras revision humana.
+- [x] Confirmar en CARM real que "Ya he guardado" detecta el guardado; si Moodle no lo expone, usar "Confirmar guardado manual" y verificar que el CSV se limpia.
 
 ### Calidad de correcciones
 
-- [ ] Revisar que prompts no incluyen mapas/ruido de Moodle.
+- [x] Revisar que prompts no incluyen mapas/ruido de Moodle.
 - [x] Comprobar que varios prompts de distintas unidades importan bien al CSV mediante verificacion offline.
-- [ ] Comprobar que reenvios de alumnos sustituyen nota/feedback anterior en previsualizacion.
-- [ ] Confirmar que entregas sin archivo quedan como incidencia y no se inventa correccion.
-- [ ] Confirmar que al completar el ultimo alumno la subida asistida termina y actualiza `revision_pendiente.csv` sin tener que cerrar la pestana manualmente.
+- [x] Comprobar que reenvios de alumnos sustituyen nota/feedback anterior en previsualizacion.
+- [x] Confirmar que entregas sin archivo quedan como incidencia y no se inventa correccion.
+- [x] Confirmar que al completar el ultimo alumno la subida asistida termina y actualiza `revision_pendiente.csv` sin tener que cerrar la pestana manualmente.
 
 ### Documentacion y release
 
@@ -62,7 +62,7 @@ La app local debe poder usarse en Windows por un docente con:
 - [x] `preparar_release_windows.cmd` genera manifiesto.
 - [x] Etiqueta local `v0.3.0-local` creada.
 - [ ] Limpiar o archivar notas historicas con codificacion rota si molestan al mantenimiento.
-- [ ] Ejecutar `preparar_release_windows.cmd` completo tras cerrar esta checklist.
+- [x] Ejecutar `preparar_release_windows.cmd` completo tras cerrar esta checklist.
 
 ## Criterio para abrir Fase 5
 

@@ -373,7 +373,7 @@ Cuando hayas revisado, sube a CARM con subida asistida:
 python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\cursos\<course_id>\temporal\revision_pendiente.csv --subida-asistida-carm
 ```
 
-La app rellena nota y feedback; el docente pulsa `Guardar cambios` en CARM. Las filas confirmadas o ya gestionadas se eliminan del CSV.
+La app rellena nota y feedback; el docente pulsa `Guardar cambios` en CARM. Solo se eliminan del CSV las filas cuyo formulario se ha abierto/rellenado y cuyo guardado ha sido confirmado por el docente.
 En configuracion puedes activar el autoprompteo periodico por intervalo o a una hora exacta diaria. Ese modo solo prepara prompts; no llama a la API y no guarda calificaciones en CARM.
 TambiÃ©n puedes abrir la interfaz local:
 
