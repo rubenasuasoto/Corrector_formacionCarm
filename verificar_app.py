@@ -48,6 +48,44 @@ def run_step(name: str, command: list[str], timeout: int = 120) -> bool:
     return True
 
 
+def check_textos_sin_mojibake() -> bool:
+    safe_print("\n==> Codificacion de textos")
+    patrones = (chr(0x00C3), chr(0x00C2), chr(0x00E2), chr(0x10E1) + chr(0x0192))
+    extensiones = {".md", ".py", ".json", ".txt", ".ps1", ".cmd"}
+    revisar = []
+    try:
+        proc = subprocess.run(
+            ["git", "ls-files"],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+        revisar = [ROOT / line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    except Exception:
+        revisar = list(ROOT.glob("*.md")) + list(ROOT.glob("*.py"))
+
+    incidencias: list[str] = []
+    for path in revisar:
+        if path.suffix.lower() not in extensiones and path.name != ".env.example":
+            continue
+        try:
+            texto = path.read_text(encoding="utf-8-sig", errors="replace")
+        except Exception:
+            continue
+        if any(patron in texto for patron in patrones):
+            incidencias.append(str(path.relative_to(ROOT)))
+
+    if incidencias:
+        safe_print("ERROR: posibles textos con mojibake: " + ", ".join(incidencias[:12]))
+        return False
+    safe_print("OK: no se detectan secuencias mojibake en textos versionados.")
+    return True
+
+
 def print_health(operacion: bool) -> bool:
     safe_print("\n==> Estado local")
     import interfaz_app as app
@@ -237,6 +275,10 @@ def check_contexto_cursos_cuenta() -> bool:
         if not app.account_context_matches_current_user() or app.active_course_id() != "1592":
             safe_print("ERROR: una misma cuenta no conserva correctamente su curso seleccionado.")
             return False
+        pendientes_default, temporal_default = app._apply_course_scope(app.DEFAULT_PENDIENTES_DIR, app.DEFAULT_TEMPORAL_DIR)
+        if "1592" not in str(pendientes_default) or "1592" not in str(temporal_default):
+            safe_print("ERROR: las carpetas por curso no estan activadas por defecto.")
+            return False
 
         app.load_app_config = lambda: {
             "carm_account_ref": same_ref,
@@ -250,6 +292,11 @@ def check_contexto_cursos_cuenta() -> bool:
         pendientes, temporal = app._apply_course_scope(app.DEFAULT_PENDIENTES_DIR, app.DEFAULT_TEMPORAL_DIR)
         if "1600" not in str(pendientes) or "1600" not in str(temporal):
             safe_print("ERROR: las carpetas activas no cambian al curso seleccionado.")
+            return False
+
+        app.read_env_values = lambda: {"CARM_USUARIO": "tu_usuario_carm", "CARM_CONTRASENA": "tu_contrasena_carm"}
+        if app.carm_credentials_present():
+            safe_print("ERROR: valores de plantilla en .env cuentan como credenciales reales.")
             return False
 
         safe_print("OK: cambio de cuenta bloquea cursos antiguos y misma cuenta conserva seleccion.")
@@ -331,6 +378,7 @@ def main() -> int:
             "corrector_agente.py",
         ],
     )
+    ok &= check_textos_sin_mojibake()
     ok &= print_health(operacion=not args.instalacion)
     if not args.sin_prueba_offline:
         ok &= check_importacion_json_csv()

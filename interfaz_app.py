@@ -187,7 +187,7 @@ def auto_prepare_interval_minutes() -> int:
 
 def auto_prepare_time_of_day() -> str:
     value = str(load_app_config().get("auto_prepare_time", "") or "").strip()
-    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", value):
+    if not re.fullmatch(r"(:[01]\d|2[0-3]):[0-5]\d", value):
         return ""
     return value
 
@@ -232,7 +232,7 @@ def _normalize_dir(path: str | Path, fallback: Path) -> Path:
 
 
 def course_scoped_dirs_enabled() -> bool:
-    return bool(load_app_config().get("course_scoped_dirs", False))
+    return bool(load_app_config().get("course_scoped_dirs", True))
 
 
 def active_course_id() -> str:
@@ -320,7 +320,7 @@ def save_automation_config(
         updates["auto_prepare_interval_minutes"] = prepare_interval
     if auto_prepare_time is not None:
         prepare_time = str(auto_prepare_time or "").strip()
-        if prepare_time and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", prepare_time):
+        if prepare_time and not re.fullmatch(r"(:[01]\d|2[0-3]):[0-5]\d", prepare_time):
             raise ValueError("La hora exacta debe tener formato HH:MM.")
         updates["auto_prepare_time"] = prepare_time
     save_app_config(updates)
@@ -394,7 +394,7 @@ def redact_text(text: object) -> str:
     value = str(text or "")
     value = re.sub(r"[\w.\-+%]+@[\w.\-]+\.[A-Za-z]{2,}", "[email-redactado]", value)
     value = re.sub(r"(sesskey=)[^&\"'>\s]+", r"\1[redactado]", value, flags=re.I)
-    value = re.sub(r"(password|contrasena|contraseña|api[_-]?key|token|authorization|cookie)(\s*[=:]\s*)[^&\"'>\s]+", r"\1\2[redactado]", value, flags=re.I)
+    value = re.sub(r"(password|contrasena|contraseña|api[_-]key|token|authorization|cookie)(\s*[=:]\s*)[^&\"'>\s]+", r"\1\2[redactado]", value, flags=re.I)
     return value
 
 
@@ -499,6 +499,49 @@ def read_env_values() -> dict[str, str]:
     return valores
 
 
+PLACEHOLDER_ENV_VALUES = {
+    "",
+    "tu_usuario_carm",
+    "tu_contrasena_carm",
+    "usuario",
+    "contrasena",
+    "contraseña",
+    "password",
+    "changeme",
+    "cambiar",
+    "none",
+    "null",
+}
+
+
+def is_real_env_value(value: str | None, *, secret: bool = False) -> bool:
+    clean = str(value or "").strip()
+    if not clean:
+        return False
+    lowered = clean.lower()
+    if lowered in PLACEHOLDER_ENV_VALUES:
+        return False
+    if lowered.startswith("tu_") or lowered.startswith("your_"):
+        return False
+    if secret and lowered in {"***", "*****", "sk-...", "tu_api_key_aqui"}:
+        return False
+    return True
+
+
+def is_useful_didactic_context(value: str | None) -> bool:
+    clean = str(value or "").strip()
+    if len(clean) < 400:
+        return False
+    normalized = re.sub(r"\s+", " ", clean.lower())
+    fallbacks = (
+        "no hay contexto didactico limpio suficiente en cache",
+        "no hay contexto didáctico limpio suficiente en cache",
+        "no hay contexto didactico limpio disponible en cache",
+        "la cache contiene una pagina indice de moodle",
+    )
+    return not any(fallback in normalized for fallback in fallbacks)
+
+
 def write_env_values(updates: dict[str, str | None]) -> None:
     lines = ENV_PATH.read_text(encoding="utf-8", errors="replace").splitlines() if ENV_PATH.exists() else []
     seen: set[str] = set()
@@ -524,12 +567,12 @@ def write_env_values(updates: dict[str, str | None]) -> None:
 
 def carm_credentials_present() -> bool:
     env = read_env_values()
-    return bool(env.get("CARM_USUARIO") and env.get("CARM_CONTRASENA"))
+    return is_real_env_value(env.get("CARM_USUARIO")) and is_real_env_value(env.get("CARM_CONTRASENA"), secret=True)
 
 
 def openai_api_key_present() -> bool:
     api_key = read_env_values().get("OPENAI_API_KEY", "").strip()
-    return bool(api_key and api_key.lower() not in {"tu_api_key_aqui", "sk-...", "none", "null"})
+    return is_real_env_value(api_key, secret=True)
 
 
 def correction_mode() -> str:
@@ -638,6 +681,25 @@ def _check_playwright_lock() -> dict:
 
 def _check_git_sensitive_index() -> dict:
     try:
+        repo_proc = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            **hidden_subprocess_kwargs(),
+        )
+        if repo_proc.returncode != 0:
+            return {
+                "name": "Git sin artefactos sensibles",
+                "ok": True,
+                "required": True,
+                "message": "No hay repositorio Git en esta instalacion; comprobacion omitida.",
+            }
+
         proc = subprocess.run(
             ["git", "ls-files", ".env", "logs_correcciones", "correcciones_validadas", "respuestas_extraidas", "cache_carm"],
             cwd=str(ROOT),
@@ -660,9 +722,9 @@ def _check_git_sensitive_index() -> dict:
     except Exception as exc:
         return {
             "name": "Git sin artefactos sensibles",
-            "ok": False,
+            "ok": True,
             "required": True,
-            "message": f"No se pudo comprobar Git: {exc}",
+            "message": f"No se pudo comprobar Git en esta instalacion; comprobacion omitida: {exc}",
         }
 
 
@@ -1390,6 +1452,30 @@ def start_startup_work() -> None:
     RUNNER.start("detect_course", ["--cachear-curso"])
 
 
+def schedule_course_scan_if_missing(course_id: str, retries: int = 90, delay_seconds: float = 2.0) -> tuple[bool, str]:
+    course_id = str(course_id or "").strip()
+    if not course_id:
+        return False, "No hay curso activo para escanear."
+    if has_cached_course_data():
+        return False, "El curso ya tiene cache didactica."
+
+    ok, message = RUNNER.start("detect_course", ["--cachear-curso"])
+    if ok:
+        notify("Corrector CARM", f"Escaneando curso {course_id} para crear cache didactica.", target="activity")
+        return True, "Escaneo del curso iniciado."
+
+    if "marcha" not in message.lower() or retries <= 0:
+        return False, message
+
+    def retry() -> None:
+        if active_course_id() != course_id or has_cached_course_data():
+            return
+        schedule_course_scan_if_missing(course_id, retries=retries - 1, delay_seconds=delay_seconds)
+
+    threading.Timer(delay_seconds, retry).start()
+    return True, "Escaneo del curso programado cuando termine la tarea actual."
+
+
 def latest_log_lines(path: Path, limit: int = 80) -> list[str]:
     if not path.exists():
         return []
@@ -1506,13 +1592,22 @@ def course_options() -> dict:
         cache_modified = path.stat().st_mtime
         try:
             with sqlite3.connect(path) as con:
-                for codigo, nombre, contenido in con.execute(
-                    "SELECT codigo, COALESCE(nombre, ''), COALESCE(contenido_imprimible, '') FROM unidad ORDER BY codigo"
+                columnas_unidad = {
+                    row[1]
+                    for row in con.execute("PRAGMA table_info(unidad)").fetchall()
+                }
+                unidad_select = (
+                    "codigo, COALESCE(nombre, ''), COALESCE(contenido_imprimible, ''), COALESCE(resumen_didactico, '')"
+                    if "resumen_didactico" in columnas_unidad
+                    else "codigo, COALESCE(nombre, ''), COALESCE(contenido_imprimible, ''), ''"
+                )
+                for codigo, nombre, contenido, resumen in con.execute(
+                    f"SELECT {unidad_select} FROM unidad ORDER BY codigo"
                 ).fetchall():
                     codigo = str(codigo or "").strip().lower()
                     if UNIT_RE.fullmatch(codigo):
                         units[codigo] = str(nombre or codigo.upper())
-                        if str(contenido or "").strip():
+                        if is_useful_didactic_context(resumen) or is_useful_didactic_context(contenido):
                             didactic_units += 1
                 for codigo, unidad, nombre, tipo in con.execute(
                     "SELECT codigo, COALESCE(unidad_codigo, ''), COALESCE(nombre, ''), COALESCE(tipo, '') FROM actividad ORDER BY CASE WHEN tipo = 'obligatorio' THEN 0 ELSE 1 END, codigo"
@@ -1561,7 +1656,14 @@ def course_options() -> dict:
 
 def has_cached_course_data() -> bool:
     options = course_options()
-    return bool(options.get("cache_path") and options.get("units") and options.get("activities"))
+    units = options.get("units") or []
+    didactic_units = int(options.get("didactic_units") or 0)
+    return bool(
+        options.get("cache_path")
+        and units
+        and options.get("activities")
+        and didactic_units >= len(units)
+    )
 
 
 def auto_prepare_args_from_cache() -> list[str]:
@@ -2289,6 +2391,7 @@ HTML = r"""<!doctype html>
               <button id="pickTemporalBtn" type="button">Elegir...</button>
             </div>
             <div class="path" id="foldersMessage">Usando carpetas por defecto.</div>
+            <div class="path" id="activeFoldersMessage">Carpeta activa pendiente de cargar.</div>
             <div class="row">
               <button class="primary" id="saveFoldersBtn" type="button">Guardar carpetas</button>
             </div>
@@ -2328,7 +2431,7 @@ HTML = r"""<!doctype html>
               <input type="checkbox" id="courseScopedDirs">
               Separar carpetas por curso
             </label>
-            <p class="hint">Si se activa, este curso usa sus propias carpetas en C:\temp\vscodec\cursos\&lt;id&gt;\ para no mezclar prompts, CSV ni resumenes.</p>
+            <p class="hint">Activado por defecto. Este curso usa sus propias carpetas en C:\temp\vscodec\cursos\&lt;id&gt;\ para no mezclar prompts, CSV ni resumenes.</p>
             <h3>Autoescaneo</h3>
             <div class="grid2">
               <div>
@@ -2611,12 +2714,12 @@ HTML = r"""<!doctype html>
 
     function fmtFile(file) {
       const name = file.path.split(/[\\/]/).pop();
-      const kb = file.exists ? Math.max(1, Math.round(file.size / 1024)) + ' KB' : 'no existe';
+      const kb = file.exists  Math.max(1, Math.round(file.size / 1024)) + ' KB' : 'no existe';
       return `<div class="item"><span>${escapeHtml(name)}<br><small>${escapeHtml(file.path)}</small></span><small>${escapeHtml(kb)}</small></div>`;
     }
 
     function escapeHtml(value) {
-      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+      return String(value  '').replace(/[&<>"']/g, (char) => ({
         '&': '&amp;',
         '<': '&lt;',
         '>': '&gt;',
@@ -2634,20 +2737,20 @@ HTML = r"""<!doctype html>
     }
 
     function jsonOptionHtml(item) {
-      const suffix = item.exists ? '' : ' · pendiente';
+      const suffix = item.exists  '' : ' · pendiente';
       return optionHtml(item.path, `${item.label}${suffix}`);
     }
 
     function courseOptionHtml(item) {
-      const suffix = item.current ? ' · actual' : '';
+      const suffix = item.current  ' · actual' : '';
       return optionHtml(item.url, `${item.id} · ${item.titulo}${suffix}`);
     }
 
     function courseCheckboxHtml(item) {
       const selectedIds = coursePickSelectionOverride || courseOptions.selected_course_ids || [];
       const selected = selectedIds.includes(String(item.id));
-      const suffix = item.current ? ' · activo' : '';
-      return `<label class="check"><input type="checkbox" class="coursePick" value="${escapeAttr(item.id)}" ${selected ? 'checked' : ''}> ${escapeHtml(item.id + ' · ' + item.titulo + suffix)}</label>`;
+      const suffix = item.current  ' · activo' : '';
+      return `<label class="check"><input type="checkbox" class="coursePick" value="${escapeAttr(item.id)}" ${selected  'checked' : ''}> ${escapeHtml(item.id + ' · ' + item.titulo + suffix)}</label>`;
     }
 
     function checkedCourseIds() {
@@ -2655,25 +2758,25 @@ HTML = r"""<!doctype html>
     }
 
     function selectedCourseSummaryHtml(item) {
-      const cache = item.cache_exists ? 'cache OK' : 'sin cache';
+      const cache = item.cache_exists  'cache OK' : 'sin cache';
       const csv = item.revision_csv && item.revision_csv.exists
-        ? `${item.revision_rows || 0} fila(s) CSV`
+         `${item.revision_rows || 0} fila(s) CSV`
         : 'sin CSV';
-      const blocking = item.revision_blocking ? ` · ${item.revision_blocking} incidencia(s)` : '';
-      const activities = item.revision_activities ? Object.entries(item.revision_activities).map(([key, value]) => `${key}:${value}`).join(', ') : '';
-      const cacheDate = item.cache && item.cache.modified ? new Date(item.cache.modified * 1000).toLocaleString() : 'cache sin fecha';
+      const blocking = item.revision_blocking  ` · ${item.revision_blocking} incidencia(s)` : '';
+      const activities = item.revision_activities  Object.entries(item.revision_activities).map(([key, value]) => `${key}:${value}`).join(', ') : '';
+      const cacheDate = item.cache && item.cache.modified  new Date(item.cache.modified * 1000).toLocaleString() : 'cache sin fecha';
       const detail = `${cache} · ${cacheDate} · ${item.prompts} prompt(s) · ${item.corrections} JSON · ${csv}${blocking}`;
-      const extra = activities ? `<br><small>${escapeHtml(activities)}</small>` : '';
+      const extra = activities  `<br><small>${escapeHtml(activities)}</small>` : '';
       return `<div class="item"><span>${escapeHtml(item.id + ' · ' + item.titulo)}<br><small>${escapeHtml(detail)}</small>${extra}</span></div>`;
     }
 
     function healthCheckHtml(item) {
-      const status = item.ok ? 'OK' : (item.required ? 'Pendiente' : 'Opcional');
+      const status = item.ok  'OK' : (item.required  'Pendiente' : 'Opcional');
       return `<div class="item"><span>${escapeHtml(item.name)}<br><small>${escapeHtml(item.message || '')}</small></span><small>${escapeHtml(status)}</small></div>`;
     }
 
     function activityLabel(act) {
-      const tipo = act.tipo ? ` · ${act.tipo}` : '';
+      const tipo = act.tipo  ` · ${act.tipo}` : '';
       return `${act.codigo} · ${act.nombre}${tipo}`;
     }
 
@@ -2699,11 +2802,11 @@ HTML = r"""<!doctype html>
     function setInputValue(id, value) {
       const el = $(id);
       if (document.activeElement === el) return;
-      if (el.value !== String(value ?? '')) el.value = String(value ?? '');
+      if (el.value !== String(value  '')) el.value = String(value  '');
     }
 
     function isEditingControl() {
-      const tag = (document.activeElement?.tagName || '').toLowerCase();
+      const tag = (document.activeElement.tagName || '').toLowerCase();
       return ['input', 'select', 'textarea', 'button'].includes(tag);
     }
 
@@ -2714,14 +2817,14 @@ HTML = r"""<!doctype html>
     async function loadOptions() {
       courseOptions = await api('/api/options');
       const unitHtml = courseOptions.units.length
-        ? courseOptions.units.map((unit) => optionHtml(unit.codigo, `${unit.codigo} · ${unit.nombre}`)).join('')
+         courseOptions.units.map((unit) => optionHtml(unit.codigo, `${unit.codigo} · ${unit.nombre}`)).join('')
         : '<option value="">Sin unidades detectadas</option>';
       fillSelect($('unidad'), unitHtml, $('unidad').value || 'ud01');
       fillSelect($('advancedUnidad'), unitHtml, $('advancedUnidad').value || $('unidad').value);
       updateActivityOptions();
       updateAdvancedActivityOptions();
       const source = courseOptions.source === 'cache_didactica'
-        ? (courseOptions.didactic_units < courseOptions.units.length ? 'cache parcial' : 'cache didactica')
+         (courseOptions.didactic_units < courseOptions.units.length  'cache parcial' : 'cache didactica')
         : 'valores base';
       $('courseSummary').textContent = `${courseOptions.units.length} unidades · ${courseOptions.activities.length} casos · ${source}`;
     }
@@ -2735,7 +2838,7 @@ HTML = r"""<!doctype html>
       if ($('settingsOpenaiModel')) $('settingsOpenaiModel').value = authState.openai_model || 'gpt-5-mini';
       if ($('openaiMessage')) {
         $('openaiMessage').textContent = authState.openai_api_configured
-          ? `API configurada. Modo: ${authState.correction_mode || 'api'}. Modelo: ${authState.openai_model || 'gpt-5-mini'}.`
+           `API configurada. Modo: ${authState.correction_mode || 'api'}. Modelo: ${authState.openai_model || 'gpt-5-mini'}.`
           : `Sin API key. Modo: ${authState.correction_mode || 'prompt'}.`;
       }
       setAuthLocked(!authState.configured);
@@ -2749,11 +2852,11 @@ HTML = r"""<!doctype html>
       fillSelect(
         $('actividad'),
         source.length
-          ? source.map((act) => optionHtml(act.codigo, activityLabel(act))).join('')
+           source.map((act) => optionHtml(act.codigo, activityLabel(act))).join('')
           : '<option value="">Sin casos detectados para esta unidad</option>',
         $('actividad').value
       );
-      $('activityField').style.display = $('prepareMode').value === 'activity' ? '' : 'none';
+      $('activityField').style.display = $('prepareMode').value === 'activity'  '' : 'none';
       $('unidad').disabled = $('prepareMode').value === 'course';
     }
 
@@ -2761,7 +2864,7 @@ HTML = r"""<!doctype html>
       fillSelect(
         $('advancedActividad'),
         courseOptions.activities.length
-          ? courseOptions.activities.map((act) => optionHtml(act.codigo, activityLabel(act))).join('')
+           courseOptions.activities.map((act) => optionHtml(act.codigo, activityLabel(act))).join('')
           : '<option value="">Sin casos detectados</option>',
         $('advancedActividad').value || $('actividad').value
       );
@@ -2792,9 +2895,9 @@ HTML = r"""<!doctype html>
 
     function setWorkflow(status, state) {
       const hasReviewFiles = state.revision_csv.exists && (state.pending_publication.rows > 0 || state.correction_source.exists);
-      $('stepPrepare').className = 'step ' + (hasReviewFiles ? 'done' : 'active');
-      $('stepReview').className = 'step ' + (hasReviewFiles ? 'active' : '');
-      $('stepPublish').className = 'step ' + ($('publishCheck').checked ? 'active' : '');
+      $('stepPrepare').className = 'step ' + (hasReviewFiles  'done' : 'active');
+      $('stepReview').className = 'step ' + (hasReviewFiles  'active' : '');
+      $('stepPublish').className = 'step ' + ($('publishCheck').checked  'active' : '');
       if (status.running) {
         $('stepPrepare').className = 'step active';
         $('stepReview').className = 'step';
@@ -2804,14 +2907,14 @@ HTML = r"""<!doctype html>
 
     function toggleAuth(open) {
       $('authModal').classList.toggle('open', open);
-      $('authModal').setAttribute('aria-hidden', open ? 'false' : 'true');
+      $('authModal').setAttribute('aria-hidden', open  'false' : 'true');
     }
 
     function setAuthLocked(locked) {
       document.body.classList.toggle('auth-locked', locked);
       $('authModal').classList.toggle('locked', locked);
       toggleAuth(locked);
-      $('authSubtitle').textContent = locked ? 'Acceso requerido' : 'Credenciales configuradas';
+      $('authSubtitle').textContent = locked  'Acceso requerido' : 'Credenciales configuradas';
       if (locked) {
         $('authMessage').textContent = 'Introduce CARM y elige API o solo prompts para usar el panel.';
         showSystemNotice('Panel bloqueado: falta configuracion inicial.');
@@ -2824,7 +2927,7 @@ HTML = r"""<!doctype html>
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([activity, count]) => `${activity.toUpperCase()}: ${count}`)
         .join(' · ');
-      return `Subir ${pending.rows} pendiente(s) a CARM${activities ? ` · ${activities}` : ''}`;
+      return `Subir ${pending.rows} pendiente(s) a CARM${activities  ` · ${activities}` : ''}`;
     }
 
     function pendingUploadDetail(pending) {
@@ -2834,14 +2937,14 @@ HTML = r"""<!doctype html>
         .map(([activity, count]) => `${activity.toUpperCase()} (${count})`)
         .join(', ');
       const blocked = pending.blocking
-        ? ` Hay ${pending.blocking} fila(s) con incidencia; revisa el CSV antes de subir.`
+         ` Hay ${pending.blocking} fila(s) con incidencia; revisa el CSV antes de subir.`
         : '';
       return `Pendiente por subir: ${activities || `${pending.rows} fila(s)`}.${blocked}`;
     }
 
     function toggleSettings(open) {
       $('settingsModal').classList.toggle('open', open);
-      $('settingsModal').setAttribute('aria-hidden', open ? 'false' : 'true');
+      $('settingsModal').setAttribute('aria-hidden', open  'false' : 'true');
       if (open) updateAdvancedForm();
     }
 
@@ -2876,7 +2979,7 @@ HTML = r"""<!doctype html>
           temporal_dir: $('temporalDir').value
         })
       });
-      $('foldersMessage').textContent = result.message || (result.ok ? 'Carpetas guardadas.' : 'No se pudieron guardar.');
+      $('foldersMessage').textContent = result.message || (result.ok  'Carpetas guardadas.' : 'No se pudieron guardar.');
       $('saveFoldersBtn').disabled = false;
       await refresh();
     }
@@ -2891,10 +2994,14 @@ HTML = r"""<!doctype html>
           course_scoped_dirs: $('courseScopedDirs').checked
         })
       });
-      $('courseMessage').textContent = result.message || (result.ok ? 'Curso guardado.' : 'No se pudo guardar.');
+      $('courseMessage').textContent = result.message || (result.ok  'Curso guardado.' : 'No se pudo guardar.');
       $('saveCourseBtn').disabled = false;
       if (result.ok && result.pendientes_dir) {
         $('foldersMessage').textContent = `Carpeta activa del curso: ${result.pendientes_dir}`;
+        $('activeFoldersMessage').textContent = `Carpeta activa: ${result.pendientes_dir} | ${result.temporal_dir}`;
+      }
+      if (result.ok && result.course_scan_started) {
+        showSystemNotice('Curso guardado. Escaneando datos didacticos de CARM...');
       }
       if (result.ok) await refresh();
     }
@@ -2907,7 +3014,7 @@ HTML = r"""<!doctype html>
         method: 'POST',
         body: JSON.stringify({course_ids: ids})
       });
-      $('courseMessage').textContent = result.message || (result.ok ? 'Seleccion guardada.' : 'No se pudo guardar la seleccion.');
+      $('courseMessage').textContent = result.message || (result.ok  'Seleccion guardada.' : 'No se pudo guardar la seleccion.');
       $('saveSelectedCoursesBtn').disabled = false;
       await refresh();
     }
@@ -2924,7 +3031,7 @@ HTML = r"""<!doctype html>
           auto_prepare_time: $('autoPrepareTime').value
         })
       });
-      $('courseMessage').textContent = result.message || (result.ok ? 'Automatizacion guardada.' : 'No se pudo guardar.');
+      $('courseMessage').textContent = result.message || (result.ok  'Automatizacion guardada.' : 'No se pudo guardar.');
       $('saveAutomationBtn').disabled = false;
       await refresh();
     }
@@ -2939,7 +3046,7 @@ HTML = r"""<!doctype html>
           auto_correct: $('startupAutoCorrect').checked
         })
       });
-      $('startupMessage').textContent = result.message || (result.ok ? 'Arranque guardado.' : 'No se pudo guardar el arranque.');
+      $('startupMessage').textContent = result.message || (result.ok  'Arranque guardado.' : 'No se pudo guardar el arranque.');
       $('saveStartupBtn').disabled = false;
       await refresh();
     }
@@ -2948,7 +3055,7 @@ HTML = r"""<!doctype html>
       $('checkHealthBtn').disabled = true;
       $('healthMessage').textContent = 'Comprobando equipo...';
       const result = await api('/api/health');
-      $('healthMessage').textContent = result.message || (result.ok ? 'Equipo listo.' : 'Hay puntos pendientes.');
+      $('healthMessage').textContent = result.message || (result.ok  'Equipo listo.' : 'Hay puntos pendientes.');
       $('healthChecks').innerHTML = (result.checks || []).map(healthCheckHtml).join('');
       $('checkHealthBtn').disabled = false;
     }
@@ -2956,17 +3063,17 @@ HTML = r"""<!doctype html>
     async function saveOpenAIConfig(checkOnly = false) {
       $('saveOpenaiBtn').disabled = true;
       $('checkOpenaiBtn').disabled = true;
-      $('openaiMessage').textContent = checkOnly ? 'Comprobando API...' : 'Guardando OpenAI...';
+      $('openaiMessage').textContent = checkOnly  'Comprobando API...' : 'Guardando OpenAI...';
       const result = await api('/api/config/openai', {
         method: 'POST',
         body: JSON.stringify({
-          correction_mode: checkOnly ? 'api' : $('settingsCorrectionMode').value,
+          correction_mode: checkOnly  'api' : $('settingsCorrectionMode').value,
           openai_api_key: $('settingsOpenaiKey').value,
           openai_model: $('settingsOpenaiModel').value,
           check_only: checkOnly
         })
       });
-      $('openaiMessage').textContent = result.message || (result.ok ? 'OpenAI configurado.' : 'No se pudo comprobar OpenAI.');
+      $('openaiMessage').textContent = result.message || (result.ok  'OpenAI configurado.' : 'No se pudo comprobar OpenAI.');
       $('saveOpenaiBtn').disabled = false;
       $('checkOpenaiBtn').disabled = false;
       if (result.ok && !checkOnly) {
@@ -3005,28 +3112,31 @@ HTML = r"""<!doctype html>
       const state = await api('/api/state');
       await loadOptions();
       if (state.release) {
-        const dirty = state.release.dirty ? ' · cambios locales' : '';
+        const dirty = state.release.dirty  ' · cambios locales' : '';
         setText('releaseInfo', `Panel local · v${state.release.version} · ${state.release.commit}${dirty}`);
       }
       setInputValue('pendientesDir', state.base_pendientes_dir || state.pendientes_dir);
       setInputValue('temporalDir', state.base_temporal_dir || state.temporal_dir);
       if ($('courseScopedDirs')) $('courseScopedDirs').checked = Boolean(state.course_scoped_dirs);
+      setText('activeFoldersMessage', state.course_scoped_dirs && state.course_id
+         `Carpeta activa del curso ${state.course_id}: ${state.pendientes_dir} | ${state.temporal_dir}`
+        : `Carpeta activa: ${state.pendientes_dir} | ${state.temporal_dir}`);
       setInputValue('autoScanInterval', state.auto_scan_interval_minutes);
       if ($('periodicAutoPrepare')) $('periodicAutoPrepare').checked = Boolean(state.periodic_auto_prepare);
       setInputValue('autoPrepareInterval', state.auto_prepare_interval_minutes);
       setInputValue('autoPrepareTime', state.auto_prepare_time || '');
-      $('pauseScanBtn').textContent = state.auto_scan_interval_minutes > 0 ? 'Pausar autoescaneo' : 'Autoescaneo pausado';
+      $('pauseScanBtn').textContent = state.auto_scan_interval_minutes > 0  'Pausar autoescaneo' : 'Autoescaneo pausado';
       if ($('startupEnabled')) $('startupEnabled').checked = Boolean(state.startup_installed);
       if ($('startupAutoCorrect')) $('startupAutoCorrect').checked = Boolean(state.startup_auto_correct_enabled);
       if ($('startupMessage')) {
         $('startupMessage').textContent = state.startup_installed
-          ? (state.startup_auto_correct_enabled ? 'Arranque instalado con autopreparacion de prompts.' : 'Arranque instalado sin autopreparacion de prompts.')
+           (state.startup_auto_correct_enabled  'Arranque instalado con autopreparacion de prompts.' : 'Arranque instalado sin autopreparacion de prompts.')
           : 'Arranque automatico no instalado.';
       }
       const jsonHtml = state.json_options.map(jsonOptionHtml).join('');
       const selectedCorrectionSource = state.json_options.find((item) => item.path === $('jsonPath').value);
       const correctionSourceValue = selectedCorrectionSource && selectedCorrectionSource.exists
-        ? selectedCorrectionSource.path
+         selectedCorrectionSource.path
         : state.correction_source.path;
       fillSelect($('jsonPath'), jsonHtml, correctionSourceValue);
       fillSelect($('importJsonPath'), jsonHtml, $('importJsonPath').value);
@@ -3037,30 +3147,30 @@ HTML = r"""<!doctype html>
         setInputValue('courseUrl', courseOptions.course_url || courseOptions.dashboard_url || '');
       }
       const detectedHtml = courseOptions.detected_courses.length
-        ? courseOptions.detected_courses.map(courseOptionHtml).join('')
+         courseOptions.detected_courses.map(courseOptionHtml).join('')
         : '<option value="">Sin cursos detectados todavia</option>';
-      fillSelect($('detectedCourse'), detectedHtml, settingsOpen ? previousDetectedCourse : (courseOptions.course_url || ''));
+      fillSelect($('detectedCourse'), detectedHtml, settingsOpen  previousDetectedCourse : (courseOptions.course_url || ''));
       const activeCourseHtml = courseOptions.detected_courses.length
-        ? courseOptions.detected_courses.map(courseOptionHtml).join('')
+         courseOptions.detected_courses.map(courseOptionHtml).join('')
         : `<option value="${escapeAttr(courseOptions.course_url || '')}">Curso ${escapeHtml(courseOptions.course_id || 'actual')}</option>`;
       fillSelect($('activeCourseSelect'), activeCourseHtml, courseOptions.course_url || '');
-      coursePickSelectionOverride = settingsOpen && hadCoursePicks ? previousCoursePicks : null;
+      coursePickSelectionOverride = settingsOpen && hadCoursePicks  previousCoursePicks : null;
       $('selectedCoursesList').innerHTML = courseOptions.detected_courses.length
-        ? courseOptions.detected_courses.map(courseCheckboxHtml).join('')
+         courseOptions.detected_courses.map(courseCheckboxHtml).join('')
         : '<div class="item"><span>Detecta cursos CARM para elegir varios.</span></div>';
       coursePickSelectionOverride = null;
       $('selectedCoursesSummary').innerHTML = state.selected_courses && state.selected_courses.length
-        ? state.selected_courses.map(selectedCourseSummaryHtml).join('')
+         state.selected_courses.map(selectedCourseSummaryHtml).join('')
         : '<div class="item"><span>Sin cursos seleccionados para autoprompteo.</span></div>';
       $('useDetectedCourseBtn').disabled = !courseOptions.detected_courses.length;
       setText('courseMessage', courseOptions.cache_path
-        ? `Curso ${courseOptions.course_id} · cache: ${courseOptions.cache_path} · trabajo: ${state.pendientes_dir}`
+         `Curso ${courseOptions.course_id} · cache: ${courseOptions.cache_path} · trabajo: ${state.pendientes_dir}`
         : `Curso ${courseOptions.course_id || 'sin ID'} · sin cache didactica · trabajo: ${state.pendientes_dir}`);
       const badge = $('statusBadge');
       const failed = status.has_error || (status.exit_code && status.exit_code !== 0);
-      badge.className = 'badge ' + (status.running ? '' : (failed ? 'err' : 'idle'));
-      setText('statusBadge', status.running ? 'Ejecutando' : (status.permission_error ? 'Permisos Windows' : (failed ? 'Error' : 'Parado')));
-      setText('elapsed', status.running ? `${status.action} · ${status.elapsed}s` : '');
+      badge.className = 'badge ' + (status.running  '' : (failed  'err' : 'idle'));
+      setText('statusBadge', status.running  'Ejecutando' : (status.permission_error  'Permisos Windows' : (failed  'Error' : 'Parado')));
+      setText('elapsed', status.running  `${status.action} · ${status.elapsed}s` : '');
       const logBox = $('logBox');
       const wasAtLogBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 24;
       const nextLog = (status.lines || []).join('\n') || (state.agent_log || []).join('\n');
@@ -3069,22 +3179,22 @@ HTML = r"""<!doctype html>
       if (state.pending_publication && state.pending_publication.pending) {
         const pending = state.pending_publication;
         const extra = pending.blocking
-          ? `Hay ${pending.blocking} incidencia(s); revisa el CSV antes de subir.`
+           `Hay ${pending.blocking} incidencia(s); revisa el CSV antes de subir.`
           : 'Puedes usar Subida asistida para rellenar CARM y guardar manualmente.';
         showSystemNotice(`Hay ${pending.rows} calificacion(es) preparadas pendientes de subir. ${extra}`);
       }
       if (state.prompts.length && authState.openai_api_configured && !(state.pending_publication && state.pending_publication.pending)) {
         showSystemNotice(`Hay ${state.prompts.length} prompt(s) preparados. Pulsa "Corregir prompts con API" cuando quieras gastar la API.`);
       }
-      window.__pendingUploadRows = state.pending_publication ? state.pending_publication.rows : 0;
-      window.__pendingUploadBlocking = state.pending_publication ? state.pending_publication.blocking : 0;
+      window.__pendingUploadRows = state.pending_publication  state.pending_publication.rows : 0;
+      window.__pendingUploadBlocking = state.pending_publication  state.pending_publication.blocking : 0;
       setText('assistPublishBtn', pendingUploadLabel(state.pending_publication));
       setText('uploadPendingDetail', pendingUploadDetail(state.pending_publication));
-      setText('combinedPath', `${state.correction_source.path} · ${state.correction_source.exists ? 'listo' : 'pendiente'}`);
-      setText('revisionPath', `${state.revision_csv.path} · ${state.revision_csv.exists ? 'listo' : 'pendiente'}`);
-      setHtml('promptsList', state.prompts.length ? state.prompts.map(fmtFile).join('') : '<span class="muted">Sin prompts</span>');
-      setHtml('correctionsList', state.corrections.length ? state.corrections.map(fmtFile).join('') : '<span class="muted">Sin correcciones</span>');
-      setHtml('summariesList', state.summaries.length ? state.summaries.map(fmtFile).join('') : '<span class="muted">Sin resumenes</span>');
+      setText('combinedPath', `${state.correction_source.path} · ${state.correction_source.exists  'listo' : 'pendiente'}`);
+      setText('revisionPath', `${state.revision_csv.path} · ${state.revision_csv.exists  'listo' : 'pendiente'}`);
+      setHtml('promptsList', state.prompts.length  state.prompts.map(fmtFile).join('') : '<span class="muted">Sin prompts</span>');
+      setHtml('correctionsList', state.corrections.length  state.corrections.map(fmtFile).join('') : '<span class="muted">Sin correcciones</span>');
+      setHtml('summariesList', state.summaries.length  state.summaries.map(fmtFile).join('') : '<span class="muted">Sin resumenes</span>');
       setText('promptCount', String(state.prompts.length));
       setText('correctionCount', String(state.pending_publication.rows || state.corrections.length));
       setWorkflow(status, state);
@@ -3117,7 +3227,7 @@ HTML = r"""<!doctype html>
     }
 
     async function restartApp() {
-      if (!confirm('Reiniciar la aplicacion local ahora? Se detendra cualquier tarea en curso.')) return;
+      if (!confirm('Reiniciar la aplicacion local ahora Se detendra cualquier tarea en curso.')) return;
       showSystemNotice('Reiniciando Corrector CARM...');
       try {
         await api('/api/restart', {method: 'POST'});
@@ -3143,7 +3253,7 @@ HTML = r"""<!doctype html>
     $('refreshBtn').onclick = safeRefresh;
     $('restartBtn').onclick = restartApp;
     $('logoutBtn').onclick = async () => {
-      if (!confirm('Esto vaciara CARM_USUARIO/CARM_CONTRASENA en .env y borrara la sesion recordada. Tendras que volver a introducir credenciales para usar el panel. Continuar?')) return;
+      if (!confirm('Esto vaciara CARM_USUARIO/CARM_CONTRASENA en .env y borrara la sesion recordada. Tendras que volver a introducir credenciales para usar el panel. Continuar')) return;
       const result = await api('/api/auth/logout', {method:'POST'});
       $('authMessage').textContent = result.message || 'Sesion cerrada.';
       await refresh();
@@ -3161,12 +3271,15 @@ HTML = r"""<!doctype html>
           openai_model: $('openaiModel').value
         })
       });
-      $('authMessage').textContent = result.message || (result.ok ? 'Guardado.' : 'No se pudo guardar.');
+      $('authMessage').textContent = result.message || (result.ok  'Guardado.' : 'No se pudo guardar.');
       $('saveAuthBtn').disabled = false;
       if (result.ok) {
         $('carmPass').value = '';
         $('openaiKey').value = '';
         setAuthLocked(false);
+        if (result.course_detection_started) {
+          showSystemNotice('Credenciales guardadas. Detectando cursos CARM...');
+        }
         await refresh();
       }
     };
@@ -3214,7 +3327,7 @@ HTML = r"""<!doctype html>
     $('advancedAction').onchange = updateAdvancedForm;
     $('runAdvancedBtn').onclick = () => {
       const action = $('advancedAction').value;
-      if (action === 'delete_cache' && !confirm('Borrar la cache local del curso?')) return;
+      if (action === 'delete_cache' && !confirm('Borrar la cache local del curso')) return;
       toggleSettings(false);
       run(action, {
         unidad: $('advancedUnidad').value,
@@ -3293,8 +3406,24 @@ class Handler(BaseHTTPRequestHandler):
                         str(body.get("correction_mode") or ""),
                     )
                     message = f"{message} {openai_message}" if ok else openai_message
+                detection_started = False
+                detection_message = ""
+                if ok:
+                    detection_started, detection_message = RUNNER.start("detect_courses", ["--listar-cursos-carm"])
+                    if detection_started:
+                        message = f"{message} Detectando cursos CARM en segundo plano."
+                    else:
+                        message = f"{message} No se ha iniciado autodeteccion de cursos: {detection_message}"
                 audit_ui_event("guardar_credenciales_carm", "ok" if ok else "error", usuario=body.get("usuario", ""))
-                send_json(self, {"ok": ok, "message": message}, 200 if ok else 400)
+                send_json(
+                    self,
+                    {
+                        "ok": ok,
+                        "message": message,
+                        "course_detection_started": detection_started,
+                    },
+                    200 if ok else 400,
+                )
             except Exception as exc:
                 audit_ui_event("guardar_credenciales_carm", "error", error=exc)
                 send_json(self, {"ok": False, "message": str(exc)}, 400)
@@ -3358,11 +3487,19 @@ class Handler(BaseHTTPRequestHandler):
                 dashboard_saved = DASHBOARD_URL_RE.fullmatch(str(body.get("course") or "").strip()) is not None
                 audit_ui_event("configurar_curso", course_id=course_id_from_url(url), dashboard=dashboard_saved)
                 active_label = course_id_from_url(url) or "sin seleccionar"
+                scan_started = False
+                scan_message = ""
+                if active_label != "sin seleccionar" and not dashboard_saved and not has_cached_course_data():
+                    scan_started, scan_message = schedule_course_scan_if_missing(active_label)
                 message = (
                     f"Area personal guardada para detectar cursos. Curso activo: {active_label} ({scope})."
                     if dashboard_saved
-                    else f"Curso activo guardado: {active_label} ({scope}). Actualiza datos didacticos para cargar sus unidades."
+                    else f"Curso activo guardado: {active_label} ({scope})."
                 )
+                if scan_message:
+                    message = f"{message} {scan_message}"
+                elif not dashboard_saved:
+                    message = f"{message} Cache didactica disponible."
                 send_json(
                     self,
                     {
@@ -3374,6 +3511,7 @@ class Handler(BaseHTTPRequestHandler):
                         "course_scoped_dirs": course_scoped_dirs_enabled(),
                         "pendientes_dir": str(PENDIENTES_DIR),
                         "temporal_dir": str(TEMPORAL_DIR),
+                        "course_scan_started": scan_started,
                     },
                 )
             except Exception as exc:
