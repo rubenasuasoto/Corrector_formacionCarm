@@ -158,10 +158,12 @@ Objetivo: facilitar uso en Windows sin depender de conocimientos tecnicos.
 - Script de instalacion guiado.
 - Comprobacion de Python, dependencias y Playwright. Estado: instalador valida Python 3.12+, revisa codigos de salida, instala dependencias y ejecuta `verificar_app.py --instalacion`.
 - Instalacion de Chromium para Playwright. Estado: implementado; si Chromium ya existe, no lo reinstala para evitar locks de Windows.
-- Acceso directo de escritorio o menu inicio. Estado: acceso directo opcional con `-CrearAccesoDirecto`.
+- Entrada guiada de usuario. Estado: implementado con `INSTALAR_CORRECTOR_CARM.cmd` y `ABRIR_CORRECTOR_CARM.cmd`.
+- Acceso directo de escritorio o menu inicio. Estado: el instalador guiado los crea por defecto; el instalador tecnico mantiene `-CrearAccesoDirecto`.
 - Arranque opcional del panel local. Estado: implementado; inicio manual usa `iniciar_app_windows.ps1` con comprobacion rapida y opciones `-AbrirNavegador`, `-AutoPreparar`, `-SinEscaneoInicial`.
 - Reparacion de dependencias. Estado: `reparar_dependencias_windows.cmd` usa flujo propio, puede reinstalar dependencias, reinstalar Chromium y limpiar `ms-playwright\__dirlock`.
 - Mensajes claros cuando Windows bloquee permisos. Estado: implementado en primera version con chequeo de lock Playwright, reparador dedicado y `SOLUCION_PROBLEMAS_WINDOWS.md`.
+- Paquete ZIP guiado para otro Windows. Estado: implementado con `crear_paquete_windows.cmd`; excluye `.env`, `.venv`, logs, caches, entregas y correcciones generadas.
 
 PyInstaller o instalador completo pueden esperar hasta que el flujo de descarga/publicacion sea estable.
 

@@ -19,6 +19,9 @@ La app local debe poder usarse en Windows por un docente con:
 ### Instalacion y arranque
 
 - [x] `instalar_windows.cmd` instala `.venv`, dependencias y Chromium.
+- [x] `INSTALAR_CORRECTOR_CARM.cmd` ofrece una entrada guiada para usuarios no tecnicos.
+- [x] `ABRIR_CORRECTOR_CARM.cmd` abre el panel sin obligar a elegir scripts internos.
+- [x] `crear_paquete_windows.cmd` genera un ZIP guiado para otro Windows sin secretos ni artefactos generados.
 - [x] `iniciar_app_windows.cmd` arranca la app con comprobacion rapida.
 - [x] `reparar_dependencias_windows.cmd` repara dependencias, Chromium y lock de Playwright.
 - [x] `verificar_app_windows.cmd` valida equipo, endpoints y prueba offline.

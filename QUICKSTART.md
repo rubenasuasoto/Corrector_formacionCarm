@@ -27,13 +27,26 @@ No uses comandos directos de publicacion: esa ruta esta desactivada. La subida a
 
 ## 1. Instalar
 
-En Windows, usa el instalador del proyecto:
+En Windows, la entrada recomendada para una instalacion guiada es:
+
+```powershell
+.\INSTALAR_CORRECTOR_CARM.cmd
+```
+
+Esto crea `.venv`, instala dependencias base y de extraccion, instala Chromium de Playwright si falta, crea `.env` si no existe y deja accesos directos para abrir el panel. La primera configuracion de credenciales se hace desde la interfaz si faltan.
+
+Para abrir el panel despues:
+
+```powershell
+.\ABRIR_CORRECTOR_CARM.cmd
+```
+
+Los scripts tecnicos siguen disponibles para mantenimiento:
 
 ```powershell
 .\instalar_windows.cmd
+.\iniciar_app_windows.cmd
 ```
-
-Esto crea `.venv`, instala dependencias, instala Chromium de Playwright y crea `.env` si no existe.
 
 Para dejar tambien el arranque automatico en bandeja:
 
@@ -52,6 +65,14 @@ Para crear tambien un acceso directo en el escritorio:
 ```powershell
 .\instalar_windows.cmd -CrearAccesoDirecto
 ```
+
+Para generar un paquete ZIP guiado para otro Windows:
+
+```powershell
+.\crear_paquete_windows.cmd
+```
+
+El paquete se crea en el Escritorio y no incluye `.env`, `.venv`, logs, cache ni entregas/correcciones generadas.
 
 Para instalar dependencias opcionales de lectura avanzada:
 
