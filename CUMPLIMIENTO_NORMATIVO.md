@@ -34,9 +34,9 @@ Datos tratados:
 
 Fuentes oficiales consultadas:
 
-- RGPD: https://eur-lex.europa.eu/legal-content/ES/TXT/?uri=CELEX:32016R0679
-- LOPDGDD: https://www.boe.es/buscar/act.php?id=BOE-A-2018-16673
-- ENS: https://www.boe.es/buscar/act.php?id=BOE-A-2022-7191
+- RGPD: https://eur-lex.europa.eu/legal-content/ES/TXT/uri=CELEX:32016R0679
+- LOPDGDD: https://www.boe.es/buscar/act.phpid=BOE-A-2018-16673
+- ENS: https://www.boe.es/buscar/act.phpid=BOE-A-2022-7191
 - Reglamento (UE) 2024/1689 de IA: https://eur-lex.europa.eu/eli/reg/2024/1689/oj
 - AEPD, innovacion y tecnologia: https://www.aepd.es/areas-de-actuacion/innovacion-y-tecnologia
 - AEPD, auditorias de tratamientos con IA: https://www.aepd.es/guias/requisitos-auditorias-tratamientos-incluyan-ia.pdf

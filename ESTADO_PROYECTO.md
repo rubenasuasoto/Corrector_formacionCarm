@@ -1,4 +1,19 @@
-﻿# Estado del proyecto: agente corrector CARM
+# Estado del proyecto: agente corrector CARM
+
+## Actualizacion 2026-05-14
+
+Estado actual: seguimos en la puerta pre-Fase 5. La prioridad ya no es abrir infraestructura cloud, sino cerrar la app local instalable y dejarla suficientemente estable para uso real en Windows.
+
+- Instalacion guiada: existen `INSTALAR_CORRECTOR_CARM.cmd`, `ABRIR_CORRECTOR_CARM.cmd` y `crear_paquete_windows.cmd`. El paquete guiado excluye `.env`, `.venv`, logs, cache, entregas y correcciones generadas.
+- Primer paquete local guiado preparado para otro Windows: `Corrector_CARM_0.3.0-local_guiado_*.zip`.
+- Credenciales: `.env.example` deja `CARM_USUARIO` y `CARM_CONTRASENA` vacios para que la app no confunda valores de plantilla con credenciales reales.
+- Inicio tras login: al guardar credenciales CARM correctas, la interfaz lanza autodeteccion de cursos. Al seleccionar curso, si falta cache didactica util, programa el cacheo del curso.
+- Carpetas por curso: quedan activadas por defecto. El curso activo recalcula `pendientes` y `temporal` hacia `C:\temp\vscodec\cursos\<course_id>\...`.
+- Cache didactica: `corrector_agente.py` descarga contenido imprimible real cuando lo encuentra, extrae texto de recursos enlazados, guarda resumen local por unidad y descarta paginas indice/mapa de Moodle como contexto didactico.
+- Optimizacion de tokens: las correcciones por API y los prompts externos usan solo el contexto de la unidad de la actividad, no todo el curso. El resumen local por unidad se limita con `MAX_RESUMEN_DIDACTICO_CHARS`.
+- Codificacion: `verificar_app.py` incluye comprobacion anti-mojibake para textos versionados. Los archivos principales se validan en UTF-8; si PowerShell muestra caracteres raros suele ser un problema de codepage de consola, no del archivo.
+- Verificacion: `verificar_app.py --instalacion --sin-endpoints` paso en verde tras los ultimos cambios. El release completo tambien pasa y genera manifiesto `release_manifest_0.3.0-local_20260514_120121.json`.
+- Decision de fase: no abrir Fase 5 todavia. El siguiente bloque es decidir si se prueba multi-curso real o se empaqueta una version compartible con el instalador guiado actual.
 
 ## Actualizacion 2026-05-12
 
@@ -15,7 +30,7 @@ Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-cur
 - Ajuste de esperas: al promptear o subir, las actividades sin filas en `Requiere calificacion` se omiten rapido para evitar que Playwright quede esperando datos donde no hay casos practicos pendientes.
 - Deteccion CARM: si el enlace de accion de la actividad indica `0 Sin calificar`, la actividad se omite antes de abrir la tabla de grading; si indica pendientes, se sigue validando dentro de la tabla con el filtro `Requiere calificacion`.
 - Ajuste critico subida asistida: una correccion que no llega a abrir formulario de CARM ya no se elimina del CSV aunque no aparezca en la tabla `Requiere calificacion`. Solo se retira del CSV si fue publicada o si el docente confirma el guardado tras abrir/rellenar el formulario.
-- Saneado de feedback: se corrige la deformacion puntual `პასუხ/პასუხa/პასუხა` a `respuesta` y se bloquea cualquier otro token con caracteres georgianos antes de escribir CSV, resumenes o rellenar CARM.
+- Saneado de feedback: se corrigen deformaciones puntuales de la palabra `respuesta` y se bloquea cualquier otro token con caracteres no esperados antes de escribir CSV, resumenes o rellenar CARM.
 - Validacion real CARM: el docente confirma que el flujo actual prepara prompts correctamente, corrige con API, importa al CSV y sube a CARM mediante subida asistida con revision humana. La puerta pre-Fase 5 queda muy avanzada; falta completar release/higiene documental y decidir si se prueba multi-curso real.
 - Release local: `verificar_app.py` completo pasa en verde y `preparar_release.py` genera manifiesto `release_manifest_0.3.0-local_20260514_084143.json`. No se crea etiqueta porque hay cambios locales pendientes de revisar/commit.
 - Multi-curso: el curso activo queda guardado como `active_course_id` independiente de la lista de cursos para autoprompteo; al cambiar el selector de curso, las carpetas activas pasan a `C:\temp\vscodec\cursos\<course_id>\...`.
@@ -62,7 +77,7 @@ Implementado:
 - `corrector_agente.py --listar-cursos-carm` entra en CARM, lista cursos visibles y guarda `respuestas_extraidas/cursos_detectados.json`.
 - Se separan dos URLs:
   - `CARM_DASHBOARD_URL`: area personal para detectar todos los cursos, por defecto `https://formacion.carm.es/my/index.php`.
-  - `CARM_COURSE_URL`: curso activo concreto `course/view.php?id=...`; no tiene valor por defecto porque cada usuario puede tener cursos distintos.
+  - `CARM_COURSE_URL`: curso activo concreto `course/view.php[x]id=...`; no tiene valor por defecto porque cada usuario puede tener cursos distintos.
 - Compatibilidad: si una instalacion antigua puso la URL del area personal en `CARM_COURSE_URL`, la app la usa como dashboard. Despues hay que elegir un curso activo desde la interfaz.
 - Compatibilidad adicional: la app acepta la variante antigua `https://formacion.carm.es/course/my/index.php`, pero el valor canonico documentado es `https://formacion.carm.es/my/index.php`.
 - La interfaz muestra un selector de curso activo en la cabecera.
@@ -107,25 +122,25 @@ python -c "import interfaz_app as app; print(app.is_detected_course_allowed('FAQ
 
 El ultimo comando debe mostrar error controlado si no hay `CARM_COURSE_URL` de curso activo.
 
-## ActualizaciÃ³n operativa 2026-05-08
+## Actualización operativa 2026-05-08
 
-- La previsualizaciÃ³n desde la interfaz ya no intenta esperar `Enter` en un proceso sin consola. Rellena solo la primera correcciÃ³n y deja Chromium abierto hasta que el usuario cierre la pestaÃ±a.
-- La subida asistida ya no activa el modo de espera por consola: rellena nota y retroalimentaciÃ³n, muestra la guÃ­a de revisiÃ³n humana y espera a que el usuario guarde en CARM.
-- El relleno de CARM limpia primero la nota y la retroalimentaciÃ³n existentes antes de escribir los valores nuevos, contemplando reenvÃ­os de alumnos o calificaciones previas.
-- El panel local deja de forzar el scroll del log si el usuario no estÃ¡ situado al final, evitando saltos visuales mientras revisa la interfaz.
-- El refresco automÃ¡tico del panel ya no reconstruye selects/listas/campos si no cambian y no pisa inputs enfocados. El botÃ³n "Pausar autoescaneo" queda disponible durante un escaneo inicial y detiene la detecciÃ³n en curso.
-- Los modos de revisiÃ³n/previsualizaciÃ³n ya no piden pulsar Enter para cerrar. El navegador queda abierto hasta cerrar la pestaÃ±a o detener la tarea; la interfaz lanza los subprocesos sin ventana de consola adicional en Windows.
-- PrevisualizaciÃ³n y subida asistida detectan si Moodle/CARM se queda en tabla o resumen y pulsan automÃ¡ticamente "Calificar" para llegar al formulario antes de rellenar nota y feedback.
+- La previsualización desde la interfaz ya no intenta esperar `Enter` en un proceso sin consola. Rellena solo la primera corrección y deja Chromium abierto hasta que el usuario cierre la pestaña.
+- La subida asistida ya no activa el modo de espera por consola: rellena nota y retroalimentación, muestra la guía de revisión humana y espera a que el usuario guarde en CARM.
+- El relleno de CARM limpia primero la nota y la retroalimentación existentes antes de escribir los valores nuevos, contemplando reenvíos de alumnos o calificaciones previas.
+- El panel local deja de forzar el scroll del log si el usuario no está situado al final, evitando saltos visuales mientras revisa la interfaz.
+- El refresco automático del panel ya no reconstruye selects/listas/campos si no cambian y no pisa inputs enfocados. El botón "Pausar autoescaneo" queda disponible durante un escaneo inicial y detiene la detección en curso.
+- Los modos de revisión/previsualización ya no piden pulsar Enter para cerrar. El navegador queda abierto hasta cerrar la pestaña o detener la tarea; la interfaz lanza los subprocesos sin ventana de consola adicional en Windows.
+- Previsualización y subida asistida detectan si Moodle/CARM se queda en tabla o resumen y pulsan automáticamente "Calificar" para llegar al formulario antes de rellenar nota y feedback.
 - Nota historica: se llego a probar Codex CLI, pero ya no es ruta operativa recomendada.
-- Los prompts para Codex limpian el contexto procedente de cache antes de incluirlo. Si la cache contiene una pÃ¡gina Ã­ndice/mapa de Moodle en vez de contenido didÃ¡ctico real, se descarta para ahorrar tokens y evitar ruido.
+- Los prompts para Codex limpian el contexto procedente de cache antes de incluirlo. Si la cache contiene una página índice/mapa de Moodle en vez de contenido didáctico real, se descarta para ahorrar tokens y evitar ruido.
 
-Ãšltima actualizaciÃ³n: 8 de mayo de 2026
+Última actualización: 8 de mayo de 2026
 
-## RevisiÃ³n completa 2026-05-08
+## Revisión completa 2026-05-08
 
-**Estado tÃ©cnico actual**: backend e interfaz siguen operativos, con cambios recientes centrados en estabilidad de UI, subida asistida y reducciÃ³n de ruido en prompts.
+**Estado técnico actual**: backend e interfaz siguen operativos, con cambios recientes centrados en estabilidad de UI, subida asistida y reducción de ruido en prompts.
 
-**ValidaciÃ³n ejecutada en esta revisiÃ³n**:
+**Validación ejecutada en esta revisión**:
 
 ```powershell
 .\.venv\Scripts\python.exe -m py_compile corrector_agente.py interfaz_app.py verificar_app.py preparar_release.py
@@ -136,69 +151,69 @@ Resultado: OK.
 **Archivos modificados actualmente en git**:
 
 - `.env.example`: variables CARM/OpenAI/retencion sin ruta de Codex CLI.
-- `corrector_agente.py`: cambios de subida/previsualizaciÃ³n, limpieza de prompts y desactivacion del flujo CLI integrado.
-- `ESTADO_PROYECTO.md`: actualizaciÃ³n de estado.
-- `logs_correcciones/agente.log`: log de ejecuciÃ³n local, ignorado por `.gitignore`.
+- `corrector_agente.py`: cambios de subida/previsualización, limpieza de prompts y desactivacion del flujo CLI integrado.
+- `ESTADO_PROYECTO.md`: actualización de estado.
+- `logs_correcciones/agente.log`: log de ejecución local, ignorado por `.gitignore`.
 
 **Hallazgos importantes**:
 
 - Codex CLI queda como prueba historica; el flujo actual usa prompts externos e importacion de JSON.
-- Los prompts actuales se han limpiado para no incluir navegaciÃ³n/JS/mapa de Moodle. Si la cache trae una pÃ¡gina Ã­ndice en vez de contenido didÃ¡ctico real, el generador la descarta.
-- La cache didÃ¡ctica aÃºn no descarga/lee el PDF real de "Contenido imprimible"; ahora detecta el Ã­ndice como ruido. PrÃ³ximo paso claro: resolver enlaces a PDF de contenido imprimible y cachear texto didÃ¡ctico real.
-- El flujo de previsualizaciÃ³n/subida asistida ya no debe pedir `Enter`, debe intentar entrar automÃ¡ticamente al formulario `Calificar`, y debe limpiar nota/feedback previos antes de rellenar.
-- En logs se observÃ³ solapamiento de cacheos al inicio; la UI ya permite pausar/detener autoescaneo, pero conviene probarlo tras reiniciar la app para verificar que no quedan procesos antiguos.
+- Los prompts actuales se han limpiado para no incluir navegación/JS/mapa de Moodle. Si la cache trae una página índice en vez de contenido didáctico real, el generador la descarta.
+- La cache didáctica aún no descarga/lee el PDF real de "Contenido imprimible"; ahora detecta el índice como ruido. Próximo paso claro: resolver enlaces a PDF de contenido imprimible y cachear texto didáctico real.
+- El flujo de previsualización/subida asistida ya no debe pedir `Enter`, debe intentar entrar automáticamente al formulario `Calificar`, y debe limpiar nota/feedback previos antes de rellenar.
+- En logs se observó solapamiento de cacheos al inicio; la UI ya permite pausar/detener autoescaneo, pero conviene probarlo tras reiniciar la app para verificar que no quedan procesos antiguos.
 
 **Riesgos abiertos**:
 
 - Falta una prueba real final de subida asistida completa en lote con varios alumnos de la misma actividad.
 - La subida asistida usa `Guardar cambios` y confirmacion humana; no depende de `Guardar cambios y mostrar siguiente`.
-- La cache didÃ¡ctica debe mejorar para extraer PDFs/recursos enlazados, no solo `innerText` de pÃ¡ginas Moodle.
+- La cache didáctica debe mejorar para extraer PDFs/recursos enlazados, no solo `innerText` de páginas Moodle.
 - Las pruebas offline antiguas se han retirado; la verificacion actual usa compilacion, salud local y endpoints con token.
 
 ## Resumen ejecutivo
 
-**Estado general**: Operacional. Backend implementado y probado con Ã©xito.
+**Estado general**: Operacional. Backend implementado y probado con éxito.
 
-El sistema funciona en ciclos completos desde descarga hasta publicaciÃ³n:
+El sistema funciona en ciclos completos desde descarga hasta publicación:
 
-âœ… **Funcionalidades implementadas y probadas**:
+[x] **Funcionalidades implementadas y probadas**:
 - Extrae entregas desde CARM/Moodle con Playwright
-- Filtra por unidad, actividad o "Requiere calificaciÃ³n"
+- Filtra por unidad, actividad o "Requiere calificación"
 - Descarga solo archivos necesarios, registra incidencias
 - Genera prompts optimizados para Codex
 - Corrige mediante API de OpenAI o mediante JSON resuelto fuera con `$C`/Codex/ChatGPT
 - Importa correcciones JSON a archivos `.txt` por alumno
-- Genera CSV de revisiÃ³n (`revision_pendiente.csv`)
+- Genera CSV de revisión (`revision_pendiente.csv`)
 - Previsualiza en local antes de publicar
 - Publica notas y feedback en CARM
 - Interfaz web local en `interfaz_app.py`
 
-âš ï¸ **Requisitos previos**: La subida a CARM requiere verificaciÃ³n humana. Flujo: preparar â†’ revisar local â†’ publicar tras validaciÃ³n.
+[!] **Requisitos previos**: La subida a CARM requiere verificación humana. Flujo: preparar → revisar local → publicar tras validación.
 
 ## Objetivo
 
-Automatizar la correcciÃ³n de casos prÃ¡cticos de CARM FormaciÃ³n reduciendo trabajo repetitivo, sin perder control humano sobre notas y retroalimentaciÃ³n.
+Automatizar la corrección de casos prácticos de CARM Formación reduciendo trabajo repetitivo, sin perder control humano sobre notas y retroalimentación.
 
 El flujo objetivo actual es:
 
 1. Entrar en CARM.
-2. Detectar casos prÃ¡cticos obligatorios que requieren calificaciÃ³n.
+2. Detectar casos prácticos obligatorios que requieren calificación.
 3. Descargar entregas.
 4. Recoger enunciado y contexto de unidad.
 5. Generar prompts por actividad.
 6. Corregir con API o resolver prompts fuera de la app e importar JSON.
 7. Crear salidas locales revisables.
-8. Publicar en CARM solo tras revisiÃ³n manual.
+8. Publicar en CARM solo tras revisión manual.
 
 ## Estado de datos y pruebas (2026-05-05)
 
-**Correcciones validadas**: 13 JSON generados en la Ãºltima tanda de pruebas.
+**Correcciones validadas**: 13 JSON generados en la última tanda de pruebas.
 - Timestamps: 13:48:10, 13:49:51, 13:50:22, 13:50:35
 - Actividades probadas: 3 actividades de prueba diferentes
 - Alumnos de prueba: alumno_prueba_1, 2, 3
 - Archivos procesados por lote
 
-**Logs disponibles**: 6 registros de ejecuciÃ³n
+**Logs disponibles**: 6 registros de ejecución
 - `agente_20260505_134810.log` (primer lote)
 - `agente_20260505_134951.log` (segundo lote)
 - `agente_20260505_135022.log` (tercer lote)
@@ -207,47 +222,47 @@ El flujo objetivo actual es:
 
 **Estado de CARM**:
 - `envios_descargados.json`: registro de descargas completadas
-- `envios_carm_registros.json`: auditorÃ­a de operaciones
+- `envios_carm_registros.json`: auditoría de operaciones
 
 ## Documentos de referencia
 
 Lectura recomendada en este orden:
 
-1. **`ESTADO_PROYECTO.md`** (este archivo): memoria viva, decisiones, prÃ³ximos pasos.
+1. **`ESTADO_PROYECTO.md`** (este archivo): memoria viva, decisiones, próximos pasos.
 2. **`README.md`**: entrada breve del proyecto.
-3. **`QUICKSTART.md`**: comandos rÃ¡pidos para instalar y usar.
+3. **`QUICKSTART.md`**: comandos rápidos para instalar y usar.
 4. **`SEGURIDAD_ASVS.md`**: checklist OWASP ASVS 5.0.0 adaptado.
-5. **`SEGURIDAD_CVSS.md`**: priorizaciÃ³n de riesgos con CVSS v4.0.
+5. **`SEGURIDAD_CVSS.md`**: priorización de riesgos con CVSS v4.0.
 6. **`ROADMAP_DESCARGA_SEGURA.md`**: fases para interfaz de descarga, seguridad local y despliegue gradual.
 7. **`CUMPLIMIENTO_NORMATIVO.md`**: RGPD/LOPDGDD/ENS/IA aplicados de forma practica al proyecto.
-8. **`prompts_correccion.json`**: rÃºbricas y prompts editables por actividad.
+8. **`prompts_correccion.json`**: rúbricas y prompts editables por actividad.
 
-ðŸ“Œ **Si hay conflicto entre documentos, manda este archivo (`ESTADO_PROYECTO.md`).**
+📌 **Si hay conflicto entre documentos, manda este archivo (`ESTADO_PROYECTO.md`).**
 
-## Estructura de cÃ³digo
+## Estructura de código
 
 ### Archivos ejecutables
 
-- **`corrector_agente.py`**: nÃºcleo principal con toda la lÃ³gica
-  - ExtracciÃ³n desde CARM
+- **`corrector_agente.py`**: núcleo principal con toda la lógica
+  - Extracción desde CARM
   - Preparacion de prompts e importacion de JSON externos
-  - ImportaciÃ³n de salidas
+  - Importación de salidas
   - Subida asistida a CARM
   - Soporta flags: `--preparar-carm-codex`, `--corregir-prompts-openai`, `--subir-correcciones-carm`, `--subida-asistida-carm`
 
 - **`interfaz_app.py`**: interfaz web local
   - Servidor HTTP local en puerto 8765
-  - GestiÃ³n de sesiÃ³n con token
+  - Gestión de sesión con token
   - Navega correcciones y publica desde navegador
   - Controles CSRF activados
 
-### Archivos de configuraciÃ³n
+### Archivos de configuración
 
 - **`.env.example`**: plantilla de variables (copia a `.env` y rellena)
 - **`.env`** (local, no compartir): credenciales CARM, API keys
-- **`prompts_correccion.json`**: rÃºbricas JSON por actividad
+- **`prompts_correccion.json`**: rúbricas JSON por actividad
   - Usa `"default"` como base
-  - AÃ±ade claves tipo `"ud02cp03"` para rÃºbricas especÃ­ficas
+  - Añade claves tipo `"ud02cp03"` para rúbricas específicas
 
 ### Dependencias
 
@@ -258,48 +273,48 @@ Lectura recomendada en este orden:
 
 ### Carpetas principales de datos
 
-| Carpeta | DescripciÃ³n |
+| Carpeta | Descripción |
 |---------|-------------|
 | `cache_carm/` | Cache SQLite del curso (`curso_1592.sqlite`) |
-| `correcciones_validadas/` | âœ… Historial de correcciones JSON validadas |
-| `logs_correcciones/` | ðŸ“ Logs de ejecuciÃ³n del agente |
-| `respuestas_extraidas/` | ðŸ“Š AuditorÃ­a de descargas y subidas |
+| `correcciones_validadas/` | [x] Historial de correcciones JSON validadas |
+| `logs_correcciones/` | Logs Logs de ejecución del agente |
+| `respuestas_extraidas/` | 📊 Auditoría de descargas y subidas |
 
 ### Carpetas de trabajo (externas, en `C:\temp\vscodec\`)
 
-| Ruta | DescripciÃ³n |
+| Ruta | Descripción |
 |------|------------|
-| `pendientes/` | ðŸ“¥ Entregas descargadas desde CARM |
-| `temporal/` | ðŸ“¤ Salidas generadas (alumno, actividad, resÃºmenes) |
-| `pendientes/prompts_codex/` | ðŸ¤– Prompts pendientes de resolver, JSON de correcciones y manifiesto |
+| `pendientes/` | 📥 Entregas descargadas desde CARM |
+| `temporal/` | 📤 Salidas generadas (alumno, actividad, resúmenes) |
+| `pendientes/prompts_codex/` | 🤖 Prompts pendientes de resolver, JSON de correcciones y manifiesto |
 
 ### Archivos clave generados en salida
 
 ```
 C:\temp\vscodec\
-â”œâ”€â”€ pendientes\
-â”‚   â””â”€â”€ prompts_codex\
-â”‚       â”œâ”€â”€ prompt_udXXcpYY.md                  # Prompt pendiente de resolver
-â”‚       â”œâ”€â”€ prompt_udXXcpYY_correccion.json     # Respuesta JSON individual
-â”‚       â””â”€â”€ manifiesto_entregas.json            # Inventario de entregas
-â”œâ”€â”€ temporal\
-â”œâ”€â”€ revision_pendiente.csv                      # Resumen + scores para revisar
-â”œâ”€â”€ <nombre_alumno>/
-â”‚   â”œâ”€â”€ ud01cp01.txt                            # Entrega original
-â”‚   â”œâ”€â”€ ud01cp01_resumen.txt                    # CorrecciÃ³n JSON legible
-â”‚   â””â”€â”€ resumen_global_<alumno>.txt             # Notas de todas sus actividades
-â””â”€â”€ ...
+|------ pendientes\
+|   `------ prompts_codex\
+|       |------ prompt_udXXcpYY.md                  # Prompt pendiente de resolver
+|       |------ prompt_udXXcpYY_correccion.json     # Respuesta JSON individual
+|       `------ manifiesto_entregas.json            # Inventario de entregas
+|------ temporal\
+|------ revision_pendiente.csv                      # Resumen + scores para revisar
+|------ <nombre_alumno>/
+|   |------ ud01cp01.txt                            # Entrega original
+│   ├── ud01cp01_resumen.txt                    # Corrección JSON legible
+|   `------ resumen_global_<alumno>.txt             # Notas de todas sus actividades
+`------ ...
 ```
 
-**Workflow de revisiÃ³n**:
-1. Revisar `revision_pendiente.csv` (notas rÃ¡pidas)
+**Workflow de revisión**:
+1. Revisar `revision_pendiente.csv` (notas rápidas)
 2. Explorar `temporal/<alumno>/` (correcciones por actividad)
 3. Validar `revision_pendiente.csv` como archivo principal de subida; en modo prompts/Codex se importan los `*_correccion.json` individuales
 4. Si todo OK -> subida asistida con guardado humano.
 
 En modo API desde la interfaz, el flujo queda en dos fases: preparar prompts acumulados sin gastar API y, cuando el usuario lo confirme, ejecutar `--corregir-prompts-openai` para generar JSON, CSV revisable y salidas listas para subir.
 
-`--corregir-prompts-openai` estima tokens antes de enviar cada prompt. Avisa por defecto a partir de ~100k tokens y bloquea por seguridad a partir de ~180k, para evitar llamadas destinadas a fallar por lÃ­mites. Se puede ajustar con `--openai-warn-tokens-prompt` y `--openai-max-tokens-prompt`.
+`--corregir-prompts-openai` estima tokens antes de enviar cada prompt. Avisa por defecto a partir de ~100k tokens y bloquea por seguridad a partir de ~180k, para evitar llamadas destinadas a fallar por límites. Se puede ajustar con `--openai-warn-tokens-prompt` y `--openai-max-tokens-prompt`.
 
 ## Comandos operacionales
 
@@ -309,7 +324,7 @@ En modo API desde la interfaz, el flujo queda en dos fases: preparar prompts acu
 .\.venv\Scripts\python.exe corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 0
 ```
 
-**QuÃ© hace**:
+**Qué hace**:
 1. Entra en CARM (requiere credenciales en `.env`)
 2. Descarga entregas de la unidad `ud01`
 3. Agrupa por actividad (ud01cp01, ud01cp02, etc.)
@@ -333,7 +348,7 @@ C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\prompt_udXXcpYY.md
 .\.venv\Scripts\python.exe corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\cursos\<course_id>\temporal\revision_pendiente.csv --subida-asistida-carm
 ```
 
-**QuÃ© hace**:
+**Qué hace**:
 1. Lee `revision_pendiente.csv`
 2. Rellena notas y feedback en CARM
 3. Espera guardado humano confirmado
@@ -349,10 +364,10 @@ C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\prompt_udXXcpYY.md
 .\.venv\Scripts\python.exe verificar_app.py --sin-endpoints
 ```
 
-**Ãšsalo para**:
+**Úsalo para**:
 - Testing sin conectarse a CARM
 - Verificacion local sin datos sinteticos antiguos
-- ValidaciÃ³n de prompts sin gasto de tokens
+- Validación de prompts sin gasto de tokens
 
 ## Interfaz local
 
@@ -488,16 +503,16 @@ Flujo acordado:
 - La subida asistida rellena nota y feedback, exige que el usuario pulse `Guardar cambios` en CARM, detecta guardado real antes de avanzar y elimina del CSV solo filas confirmadas tras abrir/rellenar formulario.
 - Cuando una actividad queda gestionada, se archivan prompts, correcciones y resumenes usados.
 
-Se aÃ±ade `CUMPLIMIENTO_NORMATIVO.md` como marco prÃ¡ctico para RGPD, LOPDGDD, ENS, Reglamento europeo de IA, guÃ­as AEPD, ASVS y CVSS.
+Se añade `CUMPLIMIENTO_NORMATIVO.md` como marco práctico para RGPD, LOPDGDD, ENS, Reglamento europeo de IA, guías AEPD, ASVS y CVSS.
 
 Controles incorporados:
 
-- AuditorÃ­a local en `respuestas_extraidas/auditoria.jsonl` para acciones sensibles.
-- RedacciÃ³n bÃ¡sica de emails, tokens, cookies, claves y contraseÃ±as en logs/eventos.
+- Auditoría local en `respuestas_extraidas/auditoria.jsonl` para acciones sensibles.
+- Redacción básica de emails, tokens, cookies, claves y contraseñas en logs/eventos.
 - Sanitizado de feedback antes de insertarlo en editores Moodle/CARM.
-- RetenciÃ³n local configurable de logs y auditorÃ­a (`LOG_RETENTION_DAYS`, `AUDIT_RETENTION_DAYS`).
+- Retención local configurable de logs y auditoría (`LOG_RETENTION_DAYS`, `AUDIT_RETENTION_DAYS`).
 - Purga manual protegida de datos personales locales con `--purgar-datos-personales-locales --confirmar-purga-datos`.
-- Se mantiene revisiÃ³n humana obligatoria antes de publicar notas y feedback.
+- Se mantiene revisión humana obligatoria antes de publicar notas y feedback.
 - Aviso al iniciar si hay correcciones preparadas pendientes de subir.
 - Modo `--subida-asistida-carm`: rellena nota/feedback en CARM, muestra guia de revision humana y espera a que el usuario pulse guardar.
 - Si faltan credenciales CARM, la interfaz bloquea el panel y solicita verificacion. En consola interactiva, los flujos CARM preguntan usuario/contrasena y esperan en vez de fallar directamente.
@@ -508,84 +523,84 @@ Controles incorporados:
 - Arrancar en bandeja (`--tray`) no gasta API ni publica automaticamente. Con `--auto-correct` se activa el autoprompteo: revisar CARM, preparar prompts y dejar la correccion para confirmacion posterior.
 - Configuracion permite pausar autoescaneo (`0` minutos), reactivarlo a 60 minutos y lanzar escaneo manual. La tarea en curso se puede cancelar con `Detener`.
 
-DecisiÃ³n: no activar purgas automÃ¡ticas agresivas de entregas/notas mientras el flujo de descarga y revisiÃ³n sigue en desarrollo. La purga de datos personales queda como acciÃ³n manual confirmada; la cache didÃ¡ctica sÃ­ puede purgarse automÃ¡ticamente por `CARM_COURSE_END_DATE`.
+Decisión: no activar purgas automáticas agresivas de entregas/notas mientras el flujo de descarga y revisión sigue en desarrollo. La purga de datos personales queda como acción manual confirmada; la cache didáctica sí puede purgarse automáticamente por `CARM_COURSE_END_DATE`.
 
 Decision de subida humana asistida: se prioriza el modo asistido frente a la publicacion totalmente automatica. La app recomienda `Guardar cambios`, comprueba que CARM haya guardado antes de avanzar y la accion final de guardado sigue siendo humana.
 
 ### Implementado (Prioridad Alta completada)
 
-âœ… **1. Token local anti-CSRF en interfaz**
+[x] **1. Token local anti-CSRF en interfaz**
 - Todos los `POST` requieren `X-Corrector-Token`
-- Token se genera en sesiÃ³n al cargar la pÃ¡gina
-- Enviado automÃ¡ticamente desde el cliente
+- Token se genera en sesión al cargar la página
+- Enviado automáticamente desde el cliente
 - Probado: `POST` sin token a `/api/stop` devuelve `403`
 - Archivo: `interfaz_app.py`
 
-âœ… **2. Bloqueo de publicaciÃ³n si hay revisiÃ³n manual o errores**
-- `revision_pendiente.csv` es auditorÃ­a previa obligatoria
+✅ **2. Bloqueo de publicación si hay revisión manual o errores**
+- `revision_pendiente.csv` es auditoría previa obligatoria
 - Publica bloqueado si el CSV:
-  - No existe o estÃ¡ vacÃ­o
+  - No existe o está vacío
   - Contiene estados: `revision_manual_necesaria`, `error`, `error_descarga`, `sin_archivo_detectado`, `sin_entrega`
-- ValidaciÃ³n en: `corrector_agente.py` funciÃ³n de publicaciÃ³n
+- Validación en: `corrector_agente.py` función de publicación
 - Probado previamente con datos sinteticos; esas pruebas antiguas ya fueron retiradas del repo.
 
-âœ… **3. Endurecimiento de lectura de archivos de alumnos**
-- LÃ­mite general de tamaÃ±o por archivo
+[x] **3. Endurecimiento de lectura de archivos de alumnos**
+- Límite general de tamaño por archivo
 - Lista cerrada de extensiones permitidas
 - ZIP endurecido contra:
   - Exceso de archivos internos
-  - TamaÃ±o total excesivo
+  - Tamaño total excesivo
   - Archivo individual demasiado grande
   - Rutas inseguras (`../`, absolutas)
-- Contenido dudoso â†’ revisiÃ³n manual
+- Contenido dudoso → revisión manual
 - Archivo: `corrector_agente.py` clase `LecturaEntrega`
 
-âœ… **4. DocumentaciÃ³n de seguridad**
+✅ **4. Documentación de seguridad**
 - `SEGURIDAD_ASVS.md`: checklist OWASP ASVS 5.0.0 adaptado a esta app
-- `SEGURIDAD_CVSS.md`: guÃ­a prÃ¡ctica de priorizaciÃ³n con CVSS v4.0
-- Ejemplos especÃ­ficos: credenciales CARM, endpoints, ZIP, logs
+- `SEGURIDAD_CVSS.md`: guía práctica de priorización con CVSS v4.0
+- Ejemplos específicos: credenciales CARM, endpoints, ZIP, logs
 - Enlazados desde: `README.md`, `ESTADO_PROYECTO.md`, `SEGURIDAD_ASVS.md`
 
-### ImplementaciÃ³n previa
+### Implementación previa
 
 - `.gitignore` incluye `.env`, caches, logs sensibles
-- DiagnÃ³stico no guarda HTML por defecto
-- RedacciÃ³n bÃ¡sica de emails y secretos en HTML
+- Diagnóstico no guarda HTML por defecto
+- Redacción básica de emails y secretos en HTML
 - Contexto Playwright temporal y limpieza
 - Cache sin entregas ni credenciales
 
-### PrÃ³ximas medidas recomendadas (Prioridad Alta)
+### Próximas medidas recomendadas (Prioridad Alta)
 
-â³ **2. Guardar credenciales CARM con Windows DPAPI**
+[ ] **2. Guardar credenciales CARM con Windows DPAPI**
 - Descifra credenciales desde `.env` con `dpapi` de Windows
 - Evita guardarlas en texto plano
-- Requiere: investigar integraciÃ³n con `ctypes` de Python
+- Requiere: investigar integración con `ctypes` de Python
 - Impacto: credenciales cifradas con usuario Windows
 
-â³ **5. RedacciÃ³n/limpieza de logs sensibles**
+[ ] **5. Redacción/limpieza de logs sensibles**
 - Logs actualmente contienen: nombres de alumnos, actividades, estado de subida
 - Propuesta: ofuscar nombres, emails, URLs sensibles
-- Mantener solo: timestamps, cÃ³digos de error, estadÃ­sticas
+- Mantener solo: timestamps, códigos de error, estadísticas
 - Archivos: `logs_correcciones/*.log`
 
-### PrÃ³ximas medidas recomendadas (Prioridad Media)
+### Próximas medidas recomendadas (Prioridad Media)
 
-â³ **6. AuditorÃ­a local de acciones sensibles**
-- Registro de: quiÃ©n (sesiÃ³n), cuÃ¡ndo, quÃ© acciÃ³n (descarga, correcciÃ³n, publicaciÃ³n)
+[ ] **6. Auditoría local de acciones sensibles**
+- Registro de: quién (sesión), cuándo, qué acción (descarga, corrección, publicación)
 - Almacenar en: `respuestas_extraidas/auditoria.json`
-- InformaciÃ³n: timestamps, flags utilizados, resultado
+- Información: timestamps, flags utilizados, resultado
 
-â³ **7. SeparaciÃ³n de datos didÃ¡cticos vs personales**
-- Cache didÃ¡ctica (contenido/enunciados): en `cache_carm/`
+[ ] **7. Separación de datos didácticos vs personales**
+- Cache didáctica (contenido/enunciados): en `cache_carm/`
 - Entregas/notas/alumnos: en carpetas temporales con purga clara
 - Flag: `--purgar-datos-temporales-al-finalizar-curso`
 
-â³ **8. ConfirmaciÃ³n fuerte para publicar**
-- BotÃ³n bloqueado hasta completar revisiÃ³n limpia
-- ConfirmaciÃ³n explÃ­cita tipo "PUBLICAR SÃ, ENTIENDO RIESGOS"
+[ ] **8. Confirmación fuerte para publicar**
+- Botón bloqueado hasta completar revisión limpia
+- Confirmación explícita tipo "PUBLICAR SI, ENTIENDO RIESGOS"
 - Interfaz: `interfaz_app.py`
 
-### ValidaciÃ³n en ejecuciÃ³n
+### Validación en ejecución
 
 Probado entre el 2026-05-07 y el 2026-05-08:
 
@@ -596,7 +611,7 @@ Probado entre el 2026-05-07 y el 2026-05-08:
 - `/api/auth`: `configured: true`
 - Anti-CSRF: funcional
 - Flujo sin API validado mediante prompts externos e importacion de JSON.
-- Prompts actuales limpiados para descartar mapa/navegaciÃ³n de Moodle.
+- Prompts actuales limpiados para descartar mapa/navegación de Moodle.
 
 ## Codex externo / modo sin API
 
@@ -614,41 +629,41 @@ El prompt `default` es general. El enunciado real viene de CARM y se inyecta apa
 
 Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por error.
 
-## PrÃ³ximos pasos recomendados
+## Próximos pasos recomendados
 
 ### Corto plazo (esta semana)
 
 1. **Probar subida asistida real en lote controlado**
-   - Usar `revision_pendiente.csv` actual tras revisiÃ³n.
+   - Usar `revision_pendiente.csv` actual tras revisión.
    - Confirmar que abre el formulario `Calificar`, limpia campos previos y rellena nota/feedback.
-   - El usuario debe pulsar guardar manualmente para cumplir revisiÃ³n humana.
+   - El usuario debe pulsar guardar manualmente para cumplir revisión humana.
 
-2. **Mejorar cache didÃ¡ctica real**
+2. **Mejorar cache didáctica real**
    - Detectar enlaces a PDF de "Contenido imprimible".
    - Descargar/leer el PDF con dependencias opcionales.
-   - Guardar texto didÃ¡ctico limpio en SQLite, no el mapa de Moodle.
+   - Guardar texto didáctico limpio en SQLite, no el mapa de Moodle.
 
 3. **Revisar y publicar solo correcciones limpias**
    - Validar `revision_pendiente.csv`.
    - Comprobar incidencias como alumnos sin archivo.
-   - Usar subida asistida antes de cualquier publicaciÃ³n totalmente automÃ¡tica.
+   - Usar subida asistida antes de cualquier publicación totalmente automática.
 
 4. **Decidir sobre DPAPI para credenciales**
-   - Â¿Guardar CARM con cifrado Windows?
-   - Â¿Mantener `.env` en texto plano?
-   - RecomendaciÃ³n: DPAPI si /.env se comparte o se guarda en USB
+   - ¿Guardar CARM con cifrado Windows
+   - ¿Mantener `.env` en texto plano
+   - Recomendación: DPAPI si /.env se comparte o se guarda en USB
 
-### Mediano plazo (prÃ³ximas 2-3 semanas)
+### Mediano plazo (próximas 2-3 semanas)
 
-5. **Refinar confirmaciÃ³n fuerte para publicar**
-   - BotÃ³n bloqueado hasta revisiÃ³n limpia
-   - ConfirmaciÃ³n modal explÃ­cita
+5. **Refinar confirmación fuerte para publicar**
+   - Botón bloqueado hasta revisión limpia
+   - Confirmación modal explícita
    - Interfaz: `interfaz_app.py`
 
-6. **Preparar para escalar a mÃ¡s unidades**
+6. **Preparar para escalar a más unidades**
    - UD02, UD03, etc.
    - Validar cache con `--refrescar-cache`
-   - Probar filtros por actividad especÃ­fica
+   - Probar filtros por actividad específica
 
 7. **Mantener limpieza de rutas obsoletas**
    - Evitar reintroducir scripts de prueba antiguos como rutas activas.
@@ -656,8 +671,8 @@ Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por err
 
 ### Largo plazo (mes siguiente)
 
-8. **DocumentaciÃ³n de operador**
-   - GuÃ­a paso a paso: extracciÃ³n â†’ correcciÃ³n â†’ publicaciÃ³n
+8. **Documentación de operador**
+   - Guía paso a paso: extracción → corrección → publicación
    - Troubleshooting de errores comunes
    - Video tutorial si es viable
 
@@ -668,13 +683,13 @@ Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por err
 
 ## Resumen de estado para alguien nuevo
 
-Este proyecto automatiza correcciÃ³n de casos prÃ¡cticos en CARM FormaciÃ³n:
+Este proyecto automatiza corrección de casos prácticos en CARM Formación:
 
-- **Â¿QuÃ©?**: Descarga entregas de CARM, genera prompts/correcciones revisables, y ayuda a subir notas y feedback
-- **Â¿DÃ³nde?**: `corrector_agente.py` es el motor principal; `interfaz_app.py` es la UI web
-- **Â¿CuÃ¡ndo?**: Operacional, Ãºltima revisiÃ³n de proyecto el 2026-05-08
-- **Â¿Seguridad?**: Token anti-CSRF, bloqueo de publicaciÃ³n sin revisiÃ³n, subida asistida con revisiÃ³n humana, endurecimiento de ZIP, documentaciÃ³n ASVS/CVSS/RGPD
-- **Â¿PrÃ³ximos?**: Probar subida asistida real en lote â†’ mejorar cache didÃ¡ctica con PDFs reales â†’ revisar/publicar correcciones limpias
+- **¿Qué**: Descarga entregas de CARM, genera prompts/correcciones revisables, y ayuda a subir notas y feedback
+- **¿Dónde**: `corrector_agente.py` es el motor principal; `interfaz_app.py` es la UI web
+- **¿Cuándo**: Operacional, última revisión de proyecto el 2026-05-08
+- **¿Seguridad**: Token anti-CSRF, bloqueo de publicación sin revisión, subida asistida con revisión humana, endurecimiento de ZIP, documentación ASVS/CVSS/RGPD
+- **¿Próximos**: Probar subida asistida real en lote → mejorar cache didáctica con PDFs reales → revisar/publicar correcciones limpias
 
 Para empezar:
 ```powershell
@@ -711,12 +726,12 @@ Prioridad alta:
 
 - Validar una subida asistida real completa en un lote controlado, revisando cada guardado manual.
 - Seguir probando subida asistida en lotes completos y casos ya gestionados por CARM.
-- Mejorar cache didÃ¡ctica: descargar/leer el PDF real de contenido imprimible en vez de guardar pÃ¡ginas Ã­ndice de Moodle.
+- Mejorar cache didáctica: descargar/leer el PDF real de contenido imprimible en vez de guardar páginas índice de Moodle.
 - Mejorar la interfaz local: vista de revision por alumno antes de subir.
 
 Prioridad media:
 
-- AÃ±adir aviso visual cuando el contexto didÃ¡ctico se descarta por ser Ã­ndice/mapa de Moodle.
+- Añadir aviso visual cuando el contexto didáctico se descarta por ser índice/mapa de Moodle.
 - Revisar notas generadas por Codex para calibrar severidad.
 - Consolidar logs de subida con alumno, actividad, nota, boton usado y resultado.
 - Anadir pantalla de incidencias: alumnos sin archivo, formatos no legibles, errores de descarga.

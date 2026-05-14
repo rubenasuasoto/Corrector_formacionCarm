@@ -1,16 +1,16 @@
-﻿# Agente corrector CARM
+# Agente corrector CARM
 
-Agente local para corregir casos prÃ¡cticos descargados desde CARM FormaciÃ³n/Moodle, usando prompts resueltos fuera de la app o la API de OpenAI, y dejando siempre una revisiÃ³n manual antes de publicar notas o retroalimentaciÃ³n.
+Agente local para corregir casos prácticos descargados desde CARM Formación/Moodle, usando prompts resueltos fuera de la app o la API de OpenAI, y dejando siempre una revisión manual antes de publicar notas o retroalimentación.
 
 ## Estado corto
 
-El flujo principal ya estÃ¡ implementado en `corrector_agente.py`:
+El flujo principal ya está implementado en `corrector_agente.py`:
 
 - Corrige entregas locales colocadas en la carpeta activa de pendientes. Con carpetas por curso activadas: `C:\temp\vscodec\cursos\<course_id>\pendientes`.
 - Agrupa las entregas por actividad, por ejemplo `ud01cp01` o `ud02cp03`.
 - Prepara prompts por lote para reducir llamadas a la IA.
 - Crea una carpeta por alumno en la carpeta temporal activa. Con carpetas por curso activadas: `C:\temp\vscodec\cursos\<course_id>\temporal`.
-- Copia la entrega original, genera la correcciÃ³n y escribe resÃºmenes.
+- Copia la entrega original, genera la corrección y escribe resúmenes.
 - Genera `revision_pendiente.csv` para revisar notas y feedback antes de subir nada.
 - Marca como `revision_manual_necesaria` los archivos que no pueda leer con fiabilidad.
 
@@ -20,10 +20,10 @@ La extraccion directa desde CARM ya se ha probado con UD01. El flujo recomendado
 
 Lee estos archivos en este orden:
 
-1. `ESTADO_PROYECTO.md`: memoria viva del proyecto, decisiones tomadas y prÃ³ximos pasos.
-2. `QUICKSTART.md`: comandos rÃ¡pidos de instalaciÃ³n, prueba y uso.
+1. `ESTADO_PROYECTO.md`: memoria viva del proyecto, decisiones tomadas y próximos pasos.
+2. `QUICKSTART.md`: comandos rápidos de instalación, prueba y uso.
 3. `SEGURIDAD_ASVS.md`: controles OWASP ASVS aplicables a esta app.
-4. `SEGURIDAD_CVSS.md`: criterio de priorizaciÃ³n de riesgos basado en CVSS v4.0.
+4. `SEGURIDAD_CVSS.md`: criterio de priorización de riesgos basado en CVSS v4.0.
 5. `ARQUITECTURA_PROYECTO.md`: estructura profesional objetivo y estado de archivos.
 6. `RELEASE_CHECKLIST.md`: comprobaciones antes de distribuir o usar una version en real.
 7. `CIERRE_APP_LOCAL.md`: puerta antes de abrir Fase 5.
@@ -35,7 +35,7 @@ El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_P
 
 La version local esta en `VERSION`. La interfaz y `verificar_app.py` muestran version, commit y si hay cambios locales.
 
-## InstalaciÃ³n
+## Instalación
 
 ```powershell
 .\INSTALAR_CORRECTOR_CARM.cmd
@@ -89,15 +89,15 @@ Para crear un ZIP guiado para instalar en otro Windows:
 
 El paquete no incluye `.env`, `.venv`, cache, logs, entregas ni correcciones generadas.
 
-Dependencias opcionales para leer PDF, PPTX, XLSX, ZIP e imÃ¡genes con OCR:
+Dependencias opcionales para leer PDF, PPTX, XLSX, ZIP e imágenes con OCR:
 
 ```powershell
 pip install -r requirements-extraccion.txt
 ```
 
-Para OCR de JPG/PNG tambiÃ©n hace falta Tesseract OCR instalado en Windows y disponible en el `PATH`.
+Para OCR de JPG/PNG también hace falta Tesseract OCR instalado en Windows y disponible en el `PATH`.
 
-## ConfiguraciÃ³n
+## Configuración
 
 Copia `.env.example` a `.env` y rellena credenciales:
 
@@ -106,12 +106,12 @@ CARM_USUARIO=tu_usuario_carm
 CARM_CONTRASENA=tu_contrasena_carm
 OPENAI_API_KEY=tu_api_key_aqui
 OPENAI_MODEL=gpt-5-mini
-CARM_COURSE_URL=https://formacion.carm.es/course/view.php?id=1592
+CARM_COURSE_URL=https://formacion.carm.es/course/view.php[x]id=1592
 ```
 
 No subas `.env` al repositorio.
 
-`OPENAI_API_KEY` es opcional si corriges con el modo solo prompts y luego importas los JSON. No guardes API keys, tokens o contraseÃ±as en archivos `.txt`. Las claves locales deben vivir solo en `.env`.
+`OPENAI_API_KEY` es opcional si corriges con el modo solo prompts y luego importas los JSON. No guardes API keys, tokens o contraseñas en archivos `.txt`. Las claves locales deben vivir solo en `.env`.
 
 ## Uso sin API
 
@@ -147,15 +147,15 @@ Conservando los archivos en pendientes durante pruebas:
 python corrector_agente.py --preparar-prompts-codex --conservar-pendientes
 ```
 
-## ExtracciÃ³n desde CARM
+## Extracción desde CARM
 
-Primero conviene diagnosticar la navegaciÃ³n real:
+Primero conviene diagnosticar la navegación real:
 
 ```powershell
 python corrector_agente.py --diagnosticar-carm
 ```
 
-El diagnÃ³stico guarda un `diagnostico.json` limpio en `logs_correcciones\diagnostico_carm`, sin descargar ni corregir entregas. Por defecto no guarda HTML ni capturas.
+El diagnóstico guarda un `diagnostico.json` limpio en `logs_correcciones\diagnostico_carm`, sin descargar ni corregir entregas. Por defecto no guarda HTML ni capturas.
 
 Para depurar selectores con evidencias redactadas:
 
@@ -163,7 +163,7 @@ Para depurar selectores con evidencias redactadas:
 python corrector_agente.py --diagnosticar-carm --guardar-evidencias
 ```
 
-Para listar entregas que requieren calificaciÃ³n sin descargar archivos:
+Para listar entregas que requieren calificación sin descargar archivos:
 
 ```powershell
 python corrector_agente.py --solo-listar-carm
@@ -182,7 +182,7 @@ python corrector_agente.py --cachear-curso --unidad ud01
 ```
 
 La cache local vive en `cache_carm\curso_1592.sqlite` y no guarda entregas ni datos personales de alumnos.
-Se usa automÃ¡ticamente cuando existe. Si `CARM_COURSE_END_DATE` ya pasÃ³, se borra al iniciar.
+Se usa automáticamente cuando existe. Si `CARM_COURSE_END_DATE` ya pasó, se borra al iniciar.
 
 ```powershell
 python corrector_agente.py --extraer-carm
@@ -196,7 +196,7 @@ Para descargar desde CARM y generar solo prompts para Codex, sin API:
 python corrector_agente.py --preparar-carm-codex
 ```
 
-Primera ejecuciÃ³n recomendada, limitada a unidad 1 y con prompts por lotes, usando una sola sesiÃ³n de Playwright:
+Primera ejecución recomendada, limitada a unidad 1 y con prompts por lotes, usando una sola sesión de Playwright:
 
 ```powershell
 python corrector_agente.py --preparar-carm-codex --unidad ud01 --max-entregas-por-prompt 6
@@ -236,7 +236,7 @@ La subida asistida rellena nota y feedback, pero el guardado en CARM lo hace el 
 
 ## Interfaz local
 
-Para usar la aplicaciÃ³n desde navegador:
+Para usar la aplicación desde navegador:
 
 ```powershell
 python interfaz_app.py
@@ -244,13 +244,13 @@ python interfaz_app.py
 
 Abre `http://127.0.0.1:8765`. La interfaz ejecuta solo los flujos permitidos: preparar prompts, corregir prompts con API bajo confirmacion e iniciar subida asistida a CARM.
 
-DespuÃ©s de pegar el prompt en Codex/ChatGPT, guarda el JSON de respuesta e impÃ³rtalo:
+Después de pegar el prompt en Codex/ChatGPT, guarda el JSON de respuesta e impórtalo:
 
 ```powershell
 python corrector_agente.py --importar-correcciones-codex C:\ruta\correcciones_ud01.json
 ```
 
-Esto genera los `.txt` por alumno, los resÃºmenes y `revision_pendiente.csv` sin llamar a la API.
+Esto genera los `.txt` por alumno, los resúmenes y `revision_pendiente.csv` sin llamar a la API.
 
 La subida recomendada es `--subida-asistida-carm`: la app rellena los campos y no avanza hasta detectar que CARM ha guardado y que el usuario lo confirma en el panel.
 
@@ -263,16 +263,16 @@ C:\temp\vscodec\cursos\<course_id>\temporal
 ```
 
 - `<alumno>\<actividad>.ext`: copia de la entrega.
-- `<alumno>\<actividad>.txt`: correcciÃ³n generada.
+- `<alumno>\<actividad>.txt`: corrección generada.
 - `resumen.txt`: resumen global.
 - `resumen_<actividad>.txt`: resumen por actividad.
 - `revision_pendiente.csv`: hoja para revisar antes de publicar.
 
-Todo queda en estado `borrador_pendiente_de_revision` salvo los casos que necesitan revisiÃ³n manual.
+Todo queda en estado `borrador_pendiente_de_revision` salvo los casos que necesitan revisión manual.
 
-## PrÃ³ximos pasos
+## Próximos pasos
 
 - Seguir validando subida asistida real por lotes y casos ya gestionados en CARM.
 - Mejorar la vista local de revision por alumno antes de subir.
-- Instalar y probar dependencias opcionales de extracciÃ³n.
-- Decidir si merece la pena aÃ±adir OCR con Tesseract.
+- Instalar y probar dependencias opcionales de extracción.
+- Decidir si merece la pena añadir OCR con Tesseract.
