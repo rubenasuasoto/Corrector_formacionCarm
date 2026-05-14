@@ -37,7 +37,7 @@ La app local debe poder usarse en Windows por un docente con:
 
 - [x] Ejecutar deteccion de cursos en CARM real.
 - [x] Probar por codigo que el selector de curso activo recalcula rutas y no reutiliza cursos de otra cuenta.
-- [ ] Probar carpetas por curso con al menos dos cursos reales si el docente los tiene.
+- [x] Probar carpetas por curso con al menos dos cursos reales si el docente los tiene.
 - [x] Confirmar que unidades/casos visibles son solo los existentes en CARM.
 - [x] Confirmar obligatorios antes que opcionales.
 - [x] Preparar prompts de una actividad pequena.

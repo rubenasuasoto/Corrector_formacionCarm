@@ -763,7 +763,7 @@ def save_carm_credentials(usuario: str, contrasena: str) -> tuple[bool, str]:
     save_app_config(
         {
             "carm_account_ref": new_ref,
-            **({"selected_course_ids": []} if account_changed else {}),
+            **({"selected_course_ids": [], "active_course_id": ""} if account_changed else {}),
         }
     )
     configure_work_dirs()
@@ -837,11 +837,14 @@ def logout_carm() -> None:
 
 
 def current_course_url() -> str:
+    if not account_context_matches_current_user():
+        return ""
     value = (read_env_values().get("CARM_COURSE_URL") or "").strip()
     if COURSE_URL_RE.fullmatch(value):
         return value
-    if not account_context_matches_current_user():
-        return ""
+    configured_active = str(load_app_config().get("active_course_id") or "").strip()
+    if configured_active.isdigit():
+        return course_url_from_id(configured_active)
     raw_selected = load_app_config().get("selected_course_ids", [])
     if isinstance(raw_selected, list):
         for item in raw_selected:
@@ -887,6 +890,8 @@ def save_course_url(url_or_id: str) -> str:
         raise ValueError("Introduce una URL de curso CARM, una URL de area personal CARM valida o solo el ID numerico del curso.")
     write_env_values({"CARM_COURSE_URL": value})
     new_course_id = course_id_from_url(value)
+    if new_course_id:
+        save_app_config({"active_course_id": new_course_id})
     selected_raw = load_app_config().get("selected_course_ids", [])
     selected = [str(item).strip() for item in selected_raw] if isinstance(selected_raw, list) else []
     selected = [item for item in selected if item.isdigit()]
@@ -2888,6 +2893,9 @@ HTML = r"""<!doctype html>
       });
       $('courseMessage').textContent = result.message || (result.ok ? 'Curso guardado.' : 'No se pudo guardar.');
       $('saveCourseBtn').disabled = false;
+      if (result.ok && result.pendientes_dir) {
+        $('foldersMessage').textContent = `Carpeta activa del curso: ${result.pendientes_dir}`;
+      }
       if (result.ok) await refresh();
     }
 
@@ -3361,6 +3369,7 @@ class Handler(BaseHTTPRequestHandler):
                         "ok": True,
                         "message": message,
                         "course_url": url,
+                        "course_id": course_id_from_url(url),
                         "dashboard_url": dashboard_url(),
                         "course_scoped_dirs": course_scoped_dirs_enabled(),
                         "pendientes_dir": str(PENDIENTES_DIR),
