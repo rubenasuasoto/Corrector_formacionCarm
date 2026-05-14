@@ -14,6 +14,10 @@ La app local debe poder usarse en Windows por un docente con:
 - datos sensibles fuera de Git;
 - documentacion suficiente para operar sin tocar codigo.
 
+## Estado 2026-05-14
+
+La puerta pre-Fase 5 esta muy avanzada. Ya hay instalacion guiada, paquete ZIP local, carpetas por curso por defecto, cache didactica con resumenes por unidad y verificacion anti-mojibake. Antes de entrar en Fase 5 queda cerrar una verificacion de release actualizada y decidir si se hace una prueba multi-curso real.
+
 ## Checklist obligatoria
 
 ### Instalacion y arranque
@@ -64,8 +68,9 @@ La app local debe poder usarse en Windows por un docente con:
 - [x] `RELEASE_CHECKLIST.md` existe.
 - [x] `preparar_release_windows.cmd` genera manifiesto.
 - [x] Etiqueta local `v0.3.0-local` creada.
-- [ ] Limpiar o archivar notas historicas con codificacion rota si molestan al mantenimiento.
-- [x] Ejecutar `preparar_release_windows.cmd` completo tras cerrar esta checklist.
+- [x] Verificacion anti-mojibake incorporada a `verificar_app.py`.
+- [x] Limpiar o archivar notas historicas con codificacion rota si molestan al mantenimiento.
+- [x] Ejecutar `preparar_release_windows.cmd` completo tras los cambios de 2026-05-14.
 
 ## Criterio para abrir Fase 5
 
