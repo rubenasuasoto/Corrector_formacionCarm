@@ -28,6 +28,7 @@ Debe validar:
 - aislamiento offline de cursos seleccionados cuando cambia la cuenta CARM;
 - endpoints locales con token;
 - pruebas offline de importacion y contexto cuenta/curso;
+- bloqueo offline de publicacion directa y preparacion de curso completo sin filtro de unidad;
 - credenciales CARM, curso activo y carpetas de trabajo.
 
 Para una instalacion nueva sin credenciales:

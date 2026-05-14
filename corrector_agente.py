@@ -1394,6 +1394,7 @@ class ExtractorCarm:
         pendientes_dir: Path,
         mantener_navegador: bool = False,
         guardar_evidencias: bool = False,
+        guardar_trace_subida: bool = False,
         unidades: set[str] | None = None,
         actividades: set[str] | None = None,
         cache: CacheCursoCarm | None = None,
@@ -1405,6 +1406,7 @@ class ExtractorCarm:
         self.pendientes_dir = pendientes_dir
         self.mantener_navegador = mantener_navegador
         self.guardar_evidencias = guardar_evidencias
+        self.guardar_trace_subida = guardar_trace_subida
         self.unidades = unidades or set()
         self.actividades = actividades or set()
         self.cache = cache
@@ -2463,15 +2465,6 @@ class ExtractorCarm:
             return []
 
     async def _guardar_calificacion(self, page, mostrar_siguiente: bool = False) -> str:
-        selectores_siguiente = (
-            "#id_saveandshownext",
-            "button[name='saveandshownext']",
-            "input[name='saveandshownext']",
-            "button:has-text('Guardar cambios y mostrar siguiente')",
-            "input[value='Guardar cambios y mostrar siguiente']",
-            "button:has-text('Guardar y mostrar siguiente')",
-            "input[value='Guardar y mostrar siguiente']",
-        )
         selectores_guardar = (
             "#id_savegrade",
             "button[name='savechanges']",
@@ -2482,7 +2475,7 @@ class ExtractorCarm:
             "input[value='Guardar']",
         )
 
-        selectores = selectores_siguiente + selectores_guardar if mostrar_siguiente else selectores_guardar
+        selectores = selectores_guardar
         for selector in selectores:
             locator = page.locator(selector).first
             try:
@@ -2601,9 +2594,47 @@ class ExtractorCarm:
             },
         )
 
-    async def _guardado_carm_detectado(self, page, url_formulario: str) -> bool:
+    async def _submission_sin_calificar_presente(self, page) -> bool:
+        selectores = (
+            ".submissionnotgraded",
+            "#region-main .submissionnotgraded",
+            "div.submissionnotgraded",
+        )
+        for selector in selectores:
+            try:
+                locator = page.locator(selector).first
+                if await locator.count():
+                    texto = self._normalizar(await locator.text_content(timeout=500) or "")
+                    if "sin calificar" in texto or "not graded" in texto:
+                        return True
+            except Exception:
+                continue
+        return False
+
+    async def _submission_calificado_presente(self, page) -> bool:
+        selectores = (
+            ".submissiongraded",
+            "#region-main .submissiongraded",
+            "div.submissiongraded",
+        )
+        for selector in selectores:
+            try:
+                locator = page.locator(selector).first
+                if await locator.count():
+                    texto = self._normalizar(await locator.text_content(timeout=500) or "")
+                    if "calificado" in texto or "graded" in texto:
+                        return True
+            except Exception:
+                continue
+        return False
+
+    async def _guardado_carm_detectado(self, page, url_formulario: str, sin_calificar_inicial: bool = False) -> bool:
         try:
             if page.url != url_formulario and not await self._hay_formulario_calificacion(page):
+                return True
+            if await self._submission_calificado_presente(page):
+                return True
+            if sin_calificar_inicial and not await self._submission_sin_calificar_presente(page):
                 return True
             texto = self._normalizar(await page.locator("body").first.text_content(timeout=1000) or "")
             return any(
@@ -2630,6 +2661,7 @@ class ExtractorCarm:
         usar_siguiente: bool,
     ) -> str:
         url_formulario = page.url
+        sin_calificar_inicial = await self._submission_sin_calificar_presente(page)
         logger.info(
             "Esperando confirmacion humana tras guardar en CARM: "
             f"{actividad_codigo} {pseudonimo(alumno)}"
@@ -2647,9 +2679,9 @@ class ExtractorCarm:
                             pseudonimo(alumno),
                         )
                         return decision
-                    if decision == "continuar" and not await self._guardado_carm_detectado(page, url_formulario):
+                    if decision == "continuar" and not await self._guardado_carm_detectado(page, url_formulario, sin_calificar_inicial):
                         await page.wait_for_timeout(1500)
-                    if decision == "continuar" and not await self._guardado_carm_detectado(page, url_formulario):
+                    if decision == "continuar" and not await self._guardado_carm_detectado(page, url_formulario, sin_calificar_inicial):
                         await page.evaluate("window.__correctorCarmDecision = ''")
                         await self._mostrar_guia_subida_asistida(
                             page,
@@ -2664,7 +2696,7 @@ class ExtractorCarm:
                         await page.wait_for_timeout(1200)
                         continue
                     return decision
-                guardado_detectado = await self._guardado_carm_detectado(page, url_formulario)
+                guardado_detectado = await self._guardado_carm_detectado(page, url_formulario, sin_calificar_inicial)
                 await self._mostrar_guia_subida_asistida(
                     page,
                     indice=indice,
@@ -2814,6 +2846,21 @@ class ExtractorCarm:
                 headless=False if (asistida or solo_primera_previsualizacion or self.mantener_navegador) else CARM_HEADLESS
             )
             context = await self._crear_contexto(browser)
+            trace_path: Path | None = None
+            trace_started = False
+            if self.guardar_trace_subida:
+                trace_dir = RESPUESTAS_DIR / "traces"
+                trace_dir.mkdir(parents=True, exist_ok=True)
+                trace_path = trace_dir / f"trace_subida_carm_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+                try:
+                    await context.tracing.start(screenshots=True, snapshots=True, sources=False)
+                    trace_started = True
+                    logger.warning(
+                        "Trace de subida CARM activado. Puede contener datos personales. Se guardara en: %s",
+                        trace_path,
+                    )
+                except Exception as exc:
+                    logger.warning("No se pudo iniciar trace de subida CARM: %s", exc)
             page = await context.new_page()
             self._configurar_page(page)
             resultados: list[dict] = []
@@ -2869,8 +2916,18 @@ class ExtractorCarm:
                     if solo_primera_previsualizacion and not publicar and not asistida and resultado.get("estado") == "previsualizado":
                         break
 
+                if trace_path:
+                    for resultado in resultados:
+                        resultado["trace_path"] = str(trace_path)
                 return resultados
             finally:
+                if trace_started and trace_path:
+                    try:
+                        await context.tracing.stop(path=str(trace_path))
+                        registrar_auditoria("trace_subida_carm", salida=trace_path)
+                        logger.warning("Trace de subida CARM generado en: %s", trace_path)
+                    except Exception as exc:
+                        logger.warning("No se pudo guardar trace de subida CARM: %s", exc)
                 if self.mantener_navegador and not asistida:
                     await self._esperar_revision_o_cierre(page, "Navegador abierto para revision.")
                 await self._cerrar_contexto(context, page)
@@ -4464,6 +4521,13 @@ async def ejecutar_flujo(args) -> None:
             return
 
         publicar = getattr(args, "publicar_carm", False)
+        if publicar:
+            logger.error(
+                "Publicacion automatica directa desactivada por seguridad. "
+                "Usa --subida-asistida-carm para mantener guardado humano en CARM."
+            )
+            registrar_auditoria("publicar_carm", "bloqueada_publicacion_automatica_desactivada")
+            return
         asistida = getattr(args, "subida_asistida_carm", False)
         extractor = ExtractorCarm(
             usuario,
@@ -4471,6 +4535,7 @@ async def ejecutar_flujo(args) -> None:
             pendientes_dir,
             mantener_navegador=getattr(args, "mantener_navegador", False),
             guardar_evidencias=getattr(args, "guardar_evidencias", False),
+            guardar_trace_subida=getattr(args, "guardar_trace_subida", False),
             unidades=unidades_filtro,
             actividades=actividades_filtro,
             cache=cache_curso,
@@ -4488,16 +4553,14 @@ async def ejecutar_flujo(args) -> None:
             return
 
         salida_path = RESPUESTAS_DIR / (
-            "subida_carm_publicada.json" if publicar else (
-                "subida_carm_asistida.json" if asistida else "subida_carm_previsualizacion.json"
-            )
+            "subida_carm_asistida.json" if asistida else "subida_carm_previsualizacion.json"
         )
         salida_path.write_text(
             json.dumps(resultados_subida, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
         registrar_auditoria(
-            "publicar_carm" if publicar else ("subida_asistida_carm" if asistida else "previsualizar_subida_carm"),
+            "subida_asistida_carm" if asistida else "previsualizar_subida_carm",
             correcciones=len(correcciones),
             resultados=len(resultados_subida),
             salida=salida_path,
@@ -4979,14 +5042,14 @@ def parse_args() -> argparse.Namespace:
         help="Previsualiza en CARM un JSON de correcciones: abre el formulario, rellena nota/feedback y no guarda.",
     )
     parser.add_argument(
-        "--publicar-carm",
-        action="store_true",
-        help="Con --subir-correcciones-carm, pulsa guardar y publica la calificaciÃ³n en CARM.",
-    )
-    parser.add_argument(
         "--subida-asistida-carm",
         action="store_true",
         help="Con --subir-correcciones-carm, rellena cada calificacion y espera a que el usuario pulse guardar.",
+    )
+    parser.add_argument(
+        "--guardar-trace-subida",
+        action="store_true",
+        help="Con --subida-asistida-carm, guarda un trace Playwright de diagnostico. Puede contener datos personales.",
     )
     parser.add_argument(
         "--solo-primera-previsualizacion-carm",

@@ -129,6 +129,22 @@ Puede pasar si cerraste la app, cambio el puerto o quedo una instancia antigua.
 .\verificar_app_windows.cmd
 ```
 
+## La subida asistida no detecta que CARM ha guardado
+
+La app intenta detectar el guardado por mensajes de Moodle y por el cambio de estado de la entrega, por ejemplo de `Sin calificar` a `Calificado`.
+
+Para depurar un caso:
+
+1. Activa `Guardar trace de diagnostico de subida` en la seccion de subida.
+2. Ejecuta la subida asistida solo con las correcciones que quieras revisar.
+3. El trace se guardara en:
+
+```text
+respuestas_extraidas\traces\
+```
+
+El trace puede contener nombres, notas, feedback y contenido de CARM. No lo compartas sin revisarlo o purgarlo despues.
+
 ## La API de OpenAI falla por cuota
 
 El flujo sin API sigue disponible:

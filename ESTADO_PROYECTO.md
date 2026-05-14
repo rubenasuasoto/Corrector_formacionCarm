@@ -9,6 +9,9 @@ Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-cur
 - Ajuste subida asistida: la interfaz ya no mantiene Chromium abierto al terminar; al finalizar el ultimo alumno debe volver el resultado al proceso y actualizar `revision_pendiente.csv`. Si CARM guardo pero Moodle no lo expone de forma detectable, el panel permite confirmacion manual explicita en vez de obligar a `Omitir`.
 - Verificacion local ampliada: `verificar_app.py` comprueba offline que varios `*_correccion.json` de distintas unidades importan a `revision_pendiente.csv` sin duplicar filas y que una reimportacion sustituye la correccion anterior.
 - Ajuste interfaz multi-cuenta: al guardar credenciales de una cuenta CARM distinta se limpia el curso activo y la seleccion de cursos anterior, se borra la sesion recordada y se recalculan rutas para evitar usar carpetas de otro docente. Al cambiar solo de curso activo, una seleccion simple de autoprompteo pasa al nuevo curso y cada ID conserva sus carpetas propias con `Separar carpetas por curso`.
+- Ajuste interfaz/autoprompteo: el panel permite preparar prompts de todo el curso desde el flujo principal y configurar autoprompteo periodico cada X minutos. Este autoprompteo solo genera prompts; no llama a API ni guarda en CARM.
+- Ajuste subida CARM: la publicacion directa queda bloqueada por seguridad. La deteccion de guardado asistido tambien observa si el estado `Sin calificar` desaparece/cambia o si aparece `Calificado` tras pulsar `Guardar cambios`.
+- Diagnostico subida: la interfaz permite activar un trace Playwright de subida asistida, guardado en `respuestas_extraidas\traces\`, desactivado por defecto por contener datos personales.
 - Ajuste de esperas: al promptear o subir, las actividades sin filas en `Requiere calificacion` se omiten rapido para evitar que Playwright quede esperando datos donde no hay casos practicos pendientes.
 - Revision de rendimiento local: se redujeron esperas basadas en `networkidle` en paginas de enunciado/formulario, se cachea la revision Git del panel y se evita solapar refrescos del navegador.
 - Limpieza operativa: Codex CLI integrado queda desactivado como ruta principal para evitar bloqueos/rutas obsoletas. El flujo sin API actual es `$C` externo o Codex/ChatGPT manual + `Importar JSON a revision`.
@@ -285,7 +288,7 @@ C:\temp\vscodec\
 1. Revisar `revision_pendiente.csv` (notas rÃ¡pidas)
 2. Explorar `temporal/<alumno>/` (correcciones por actividad)
 3. Validar `revision_pendiente.csv` como archivo principal de subida; en modo prompts/Codex se importan los `*_correccion.json` individuales
-4. Si todo OK â†’ subida asistida o `--publicar-carm`
+4. Si todo OK -> subida asistida con guardado humano.
 
 En modo API desde la interfaz, el flujo queda en dos fases: preparar prompts acumulados sin gastar API y, cuando el usuario lo confirme, ejecutar `--corregir-prompts-openai` para generar JSON, CSV revisable y salidas listas para subir.
 
@@ -431,7 +434,7 @@ Implementado:
 
 - `--subir-correcciones-carm RUTA_JSON`
 - Modo subida asistida con `--subida-asistida-carm`.
-- Modo publicacion con `--publicar-carm`.
+- Publicacion directa desactivada; la ruta operativa es subida asistida.
 - Rellena nota.
 - Rellena solo la seccion de retroalimentacion final, no el detalle completo de criterios.
 - Soporta editor Atto/Moodle escribiendo en el campo oculto y en el editor visible.
