@@ -33,6 +33,7 @@ Si la ruta del curso activo no existe o no contiene prompts pendientes, revisa `
 - `prompt_ud01cp02.md` -> `prompt_ud01cp02_correccion.json`
 - `prompt_ud01cp02_lote01.md` -> `prompt_ud01cp02_lote01_correccion.json`
 - `prompt_ud01cp02_lote02.md` -> `prompt_ud01cp02_lote02_correccion.json`
+- `prompt_ud01cp02_YYYYMMDD_HHMMSS.md` -> `prompt_ud01cp02_YYYYMMDD_HHMMSS_correccion.json`
 
 No generes `correcciones_codex_combinadas.json` salvo que el usuario lo pida expresamente. La aplicacion ya importa los JSON individuales `*_correccion.json`.
 

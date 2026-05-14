@@ -187,6 +187,8 @@ C:\temp\vscodec\cursos\<course_id>\temporal
 
 Si hay varios cursos seleccionados, el autoprompteo al iniciar los procesa de uno en uno. La app no llama a la API ni sube a CARM automaticamente.
 
+En configuracion puedes activar `Preparar prompts automaticamente` con un intervalo propio o una hora exacta diaria. El autoescaneo y el autoprompt son independientes: el primero actualiza/detecta estado; el segundo prepara prompts pendientes. Si pasan varios dias sin corregir, los prompts ya existentes no se pisan: las nuevas tandas usan un nombre nuevo con fecha/hora y se importan por separado cuando vuelvas a la revision.
+
 Si no hay curso activo todavia, `Escanear ahora` y el arranque de la app detectan cursos desde el area personal. Cuando elijas uno, ya podra actualizar cache, preparar prompts y mostrar el CSV de ese curso.
 
 En configuracion, `Estado por curso` muestra de un vistazo si cada curso seleccionado tiene cache, prompts, JSON de correccion, filas en CSV e incidencias que bloquearian la subida.
@@ -206,6 +208,8 @@ Salidas:
 - `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\prompt_ud01cp01.md`
 - `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\prompt_ud02cp03.md`
 - `C:\temp\vscodec\cursos\<course_id>\pendientes\prompts_codex\manifiesto_entregas.json`
+
+Si ya existe un prompt pendiente para esa actividad, la app no lo sobrescribe. Genera otro nombre compatible, por ejemplo `prompt_ud01cp01_20260514_090000.md`, y su correccion esperada sera `prompt_ud01cp01_20260514_090000_correccion.json`.
 
 Si `Separar carpetas por curso` esta desactivado, se usan las rutas globales antiguas `C:\temp\vscodec\pendientes` y `C:\temp\vscodec\temporal`.
 
@@ -370,7 +374,7 @@ python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\cursos\<cou
 ```
 
 La app rellena nota y feedback; el docente pulsa `Guardar cambios` en CARM. Las filas confirmadas o ya gestionadas se eliminan del CSV.
-En configuracion puedes activar el autoprompteo periodico cada X minutos. Ese modo solo prepara prompts; no llama a la API y no guarda calificaciones en CARM.
+En configuracion puedes activar el autoprompteo periodico por intervalo o a una hora exacta diaria. Ese modo solo prepara prompts; no llama a la API y no guarda calificaciones en CARM.
 TambiÃ©n puedes abrir la interfaz local:
 
 ```powershell

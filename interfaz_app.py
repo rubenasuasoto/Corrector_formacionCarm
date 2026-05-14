@@ -15,6 +15,7 @@ import threading
 import time
 import webbrowser
 import tkinter as tk
+from datetime import datetime
 from tkinter import filedialog
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -65,6 +66,7 @@ AUTO_CORRECT_AFTER_SCAN = False
 AUTO_CORRECT_ARGS = ["--preparar-carm-codex"]
 AUTO_COURSE_QUEUE: list[dict[str, str]] = []
 DEFAULT_SCAN_INTERVAL_MINUTES = 60
+DEFAULT_AUTO_PREPARE_INTERVAL_MINUTES = 0
 API_TOKEN = secrets.token_urlsafe(32)
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -174,6 +176,54 @@ def periodic_auto_prepare_enabled() -> bool:
     return bool(load_app_config().get("periodic_auto_prepare", False))
 
 
+def auto_prepare_interval_minutes() -> int:
+    config = load_app_config()
+    try:
+        value = int(config.get("auto_prepare_interval_minutes", DEFAULT_AUTO_PREPARE_INTERVAL_MINUTES))
+    except (TypeError, ValueError):
+        value = DEFAULT_AUTO_PREPARE_INTERVAL_MINUTES
+    return max(0, min(value, 10080))
+
+
+def auto_prepare_time_of_day() -> str:
+    value = str(load_app_config().get("auto_prepare_time", "") or "").strip()
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", value):
+        return ""
+    return value
+
+
+def auto_prepare_due(now: datetime | None = None) -> str:
+    if not periodic_auto_prepare_enabled():
+        return ""
+    now = now or datetime.now()
+    config = load_app_config()
+    exact_time = auto_prepare_time_of_day()
+    if exact_time:
+        hour, minute = [int(part) for part in exact_time.split(":", 1)]
+        current_minutes = now.hour * 60 + now.minute
+        scheduled_minutes = hour * 60 + minute
+        if str(config.get("auto_prepare_last_exact_date") or "") != now.date().isoformat():
+            if current_minutes >= scheduled_minutes:
+                return f"hora exacta {exact_time}"
+
+    interval = auto_prepare_interval_minutes()
+    if interval > 0:
+        try:
+            last_run = float(config.get("auto_prepare_last_run_at") or 0)
+        except (TypeError, ValueError):
+            last_run = 0.0
+        if last_run <= 0 or time.time() - last_run >= interval * 60:
+            return f"intervalo {interval} min"
+    return ""
+
+
+def mark_auto_prepare_run(reason: str) -> None:
+    updates = {"auto_prepare_last_run_at": time.time()}
+    if reason.startswith("hora exacta"):
+        updates["auto_prepare_last_exact_date"] = datetime.now().date().isoformat()
+    save_app_config(updates)
+
+
 def _normalize_dir(path: str | Path, fallback: Path) -> Path:
     raw = str(path or "").strip()
     if not raw:
@@ -245,7 +295,12 @@ def configure_work_dirs(pendientes: str | Path | None = None, temporal: str | Pa
         save_app_config({"pendientes_dir": str(BASE_PENDIENTES_DIR), "temporal_dir": str(BASE_TEMPORAL_DIR)})
 
 
-def save_automation_config(interval_minutes: str | int, periodic_auto_prepare: bool | None = None) -> int:
+def save_automation_config(
+    interval_minutes: str | int,
+    periodic_auto_prepare: bool | None = None,
+    auto_prepare_interval: str | int | None = None,
+    auto_prepare_time: str | None = None,
+) -> int:
     try:
         interval = int(interval_minutes)
     except (TypeError, ValueError):
@@ -255,6 +310,19 @@ def save_automation_config(interval_minutes: str | int, periodic_auto_prepare: b
     updates = {"auto_scan_interval_minutes": interval}
     if periodic_auto_prepare is not None:
         updates["periodic_auto_prepare"] = bool(periodic_auto_prepare)
+    if auto_prepare_interval is not None:
+        try:
+            prepare_interval = int(auto_prepare_interval)
+        except (TypeError, ValueError):
+            raise ValueError("El intervalo de autoprompt debe ser un numero de minutos.")
+        if prepare_interval < 0 or prepare_interval > 10080:
+            raise ValueError("El intervalo de autoprompt debe estar entre 0 y 10080 minutos. Usa 0 para desactivar.")
+        updates["auto_prepare_interval_minutes"] = prepare_interval
+    if auto_prepare_time is not None:
+        prepare_time = str(auto_prepare_time or "").strip()
+        if prepare_time and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", prepare_time):
+            raise ValueError("La hora exacta debe tener formato HH:MM.")
+        updates["auto_prepare_time"] = prepare_time
     save_app_config(updates)
     return interval
 
@@ -493,6 +561,16 @@ def _check_module(label: str, module_name: str, required: bool = True) -> dict:
 
 
 def _check_chromium_installed() -> dict:
+    ms_playwright = Path(os.getenv("LOCALAPPDATA", "")) / "ms-playwright"
+    local_chromiums = sorted(ms_playwright.glob("chromium-*")) if ms_playwright.exists() else []
+    local_chromiums = [path for path in local_chromiums if path.is_dir() and "headless" not in path.name.lower()]
+    if local_chromiums:
+        return {
+            "name": "Chromium de Playwright",
+            "ok": True,
+            "required": True,
+            "message": str(local_chromiums[-1]),
+        }
     try:
         proc = subprocess.run(
             [sys.executable, "-m", "playwright", "install", "--dry-run", "chromium"],
@@ -526,6 +604,21 @@ def _check_chromium_installed() -> dict:
             "required": True,
             "message": f"No se pudo comprobar Chromium: {exc}",
         }
+
+
+def _check_app_python_env() -> dict:
+    expected = ROOT / ".venv" / "Scripts"
+    current = Path(sys.executable).resolve()
+    try:
+        inside_venv = expected.resolve() in current.parents or current.parent.resolve() == expected.resolve()
+    except Exception:
+        inside_venv = False
+    return {
+        "name": "Python de la app",
+        "ok": inside_venv,
+        "required": True,
+        "message": str(current) if inside_venv else f"Arrancado con {current}. Reinicia con iniciar_app_windows.cmd para usar .venv.",
+    }
 
 
 def _check_playwright_lock() -> dict:
@@ -575,6 +668,7 @@ def _check_git_sensitive_index() -> dict:
 
 def local_health_status() -> dict:
     checks = [
+        _check_app_python_env(),
         _check_module("Playwright", "playwright"),
         _check_chromium_installed(),
         _check_playwright_lock(),
@@ -1605,6 +1699,8 @@ def project_state() -> dict:
         "startup_auto_correct_enabled": startup_auto_correct_enabled(),
         "auto_scan_interval_minutes": auto_scan_interval_minutes(),
         "periodic_auto_prepare": periodic_auto_prepare_enabled(),
+        "auto_prepare_interval_minutes": auto_prepare_interval_minutes(),
+        "auto_prepare_time": auto_prepare_time_of_day(),
         "json_options": json_options(),
         "prompts": [file_info(p) for p in prompts],
         "corrections": [file_info(p) for p in corrections],
@@ -2228,9 +2324,10 @@ HTML = r"""<!doctype html>
               Separar carpetas por curso
             </label>
             <p class="hint">Si se activa, este curso usa sus propias carpetas en C:\temp\vscodec\cursos\&lt;id&gt;\ para no mezclar prompts, CSV ni resumenes.</p>
+            <h3>Autoescaneo</h3>
             <div class="grid2">
               <div>
-                <label for="autoScanInterval">Comprobar cada (minutos)</label>
+                <label for="autoScanInterval">Revisar CARM cada (minutos)</label>
                 <input id="autoScanInterval" type="number" min="0" max="1440" step="5">
               </div>
               <div>
@@ -2238,11 +2335,23 @@ HTML = r"""<!doctype html>
                 <button id="saveAutomationBtn" type="button">Guardar automatizacion</button>
               </div>
             </div>
+            <p class="hint">Solo comprueba si hay que detectar cursos o actualizar cache. Usa 0 para desactivar el autoescaneo.</p>
+            <h3>Autoprompt</h3>
             <label class="check">
               <input type="checkbox" id="periodicAutoPrepare">
-              Preparar prompts automaticamente en cada comprobacion
+              Preparar prompts automaticamente
             </label>
-            <p class="hint">Usa 0 para desactivar la comprobacion periodica. Si activas autoprompteo periodico, la app revisa CARM y genera prompts; no llama a la API ni guarda notas en CARM.</p>
+            <div class="grid2">
+              <div>
+                <label for="autoPrepareInterval">Preparar prompts cada (minutos)</label>
+                <input id="autoPrepareInterval" type="number" min="0" max="10080" step="5">
+              </div>
+              <div>
+                <label for="autoPrepareTime">Hora exacta diaria</label>
+                <input id="autoPrepareTime" type="time">
+              </div>
+            </div>
+            <p class="hint">Usa 0 para desactivar intervalos. La hora exacta se ejecuta una vez al dia. El autoprompt no llama a la API, no guarda notas en CARM y no borra prompts pendientes sin corregir.</p>
             <div class="row">
               <button id="scanNowBtn" type="button">Escanear ahora</button>
               <button id="pauseScanBtn" type="button">Pausar autoescaneo</button>
@@ -2802,7 +2911,9 @@ HTML = r"""<!doctype html>
         method: 'POST',
         body: JSON.stringify({
           auto_scan_interval_minutes: $('autoScanInterval').value,
-          periodic_auto_prepare: $('periodicAutoPrepare').checked
+          periodic_auto_prepare: $('periodicAutoPrepare').checked,
+          auto_prepare_interval_minutes: $('autoPrepareInterval').value,
+          auto_prepare_time: $('autoPrepareTime').value
         })
       });
       $('courseMessage').textContent = result.message || (result.ok ? 'Automatizacion guardada.' : 'No se pudo guardar.');
@@ -2894,6 +3005,8 @@ HTML = r"""<!doctype html>
       if ($('courseScopedDirs')) $('courseScopedDirs').checked = Boolean(state.course_scoped_dirs);
       setInputValue('autoScanInterval', state.auto_scan_interval_minutes);
       if ($('periodicAutoPrepare')) $('periodicAutoPrepare').checked = Boolean(state.periodic_auto_prepare);
+      setInputValue('autoPrepareInterval', state.auto_prepare_interval_minutes);
+      setInputValue('autoPrepareTime', state.auto_prepare_time || '');
       $('pauseScanBtn').textContent = state.auto_scan_interval_minutes > 0 ? 'Pausar autoescaneo' : 'Autoescaneo pausado';
       if ($('startupEnabled')) $('startupEnabled').checked = Boolean(state.startup_installed);
       if ($('startupAutoCorrect')) $('startupAutoCorrect').checked = Boolean(state.startup_auto_correct_enabled);
@@ -3278,17 +3391,31 @@ class Handler(BaseHTTPRequestHandler):
                 interval = save_automation_config(
                     body.get("auto_scan_interval_minutes", DEFAULT_SCAN_INTERVAL_MINUTES),
                     periodic_auto_prepare=bool(body.get("periodic_auto_prepare")),
+                    auto_prepare_interval=body.get("auto_prepare_interval_minutes", DEFAULT_AUTO_PREPARE_INTERVAL_MINUTES),
+                    auto_prepare_time=body.get("auto_prepare_time", ""),
                 )
-                message = (
-                    "Autodeteccion periodica desactivada."
-                    if interval == 0
-                    else (
-                        f"Autoprompteo periodico guardado: cada {interval} minutos."
-                        if periodic_auto_prepare_enabled()
+                prepare_interval = auto_prepare_interval_minutes()
+                prepare_time = auto_prepare_time_of_day()
+                if periodic_auto_prepare_enabled():
+                    detalles = []
+                    if prepare_interval > 0:
+                        detalles.append(f"cada {prepare_interval} minutos")
+                    if prepare_time:
+                        detalles.append(f"a las {prepare_time}")
+                    message = "Autoprompteo periodico guardado: " + (", ".join(detalles) if detalles else "activo, sin horario configurado.")
+                else:
+                    message = (
+                        "Autodeteccion periodica desactivada."
+                        if interval == 0
                         else f"Autodeteccion guardada: cada {interval} minutos."
                     )
+                audit_ui_event(
+                    "configurar_autoescaneo",
+                    intervalo_minutos=interval,
+                    periodic_auto_prepare=periodic_auto_prepare_enabled(),
+                    auto_prepare_interval_minutes=prepare_interval,
+                    auto_prepare_time=prepare_time,
                 )
-                audit_ui_event("configurar_autoescaneo", intervalo_minutos=interval, periodic_auto_prepare=periodic_auto_prepare_enabled())
                 send_json(
                     self,
                     {
@@ -3296,6 +3423,8 @@ class Handler(BaseHTTPRequestHandler):
                         "message": message,
                         "auto_scan_interval_minutes": interval,
                         "periodic_auto_prepare": periodic_auto_prepare_enabled(),
+                        "auto_prepare_interval_minutes": prepare_interval,
+                        "auto_prepare_time": prepare_time,
                     },
                 )
             except Exception as exc:
@@ -3530,8 +3659,14 @@ def startup_cmd_path() -> Path:
 
 
 def install_startup(auto_correct: bool = False) -> Path:
-    pythonw = Path(sys.executable).with_name("pythonw.exe")
-    runner = pythonw if pythonw.exists() else Path(sys.executable)
+    venv_pythonw = ROOT / ".venv" / "Scripts" / "pythonw.exe"
+    venv_python = ROOT / ".venv" / "Scripts" / "python.exe"
+    current_pythonw = Path(sys.executable).with_name("pythonw.exe")
+    runner = (
+        venv_pythonw
+        if venv_pythonw.exists()
+        else (venv_python if venv_python.exists() else (current_pythonw if current_pythonw.exists() else Path(sys.executable)))
+    )
     cmd_path = startup_cmd_path()
     cmd_path.parent.mkdir(parents=True, exist_ok=True)
     auto_correct_arg = " --auto-correct" if auto_correct else ""
@@ -3625,20 +3760,26 @@ def start_periodic_scan(disabled: bool) -> None:
 
     def loop() -> None:
         while True:
+            time.sleep(60)
             interval = auto_scan_interval_minutes()
-            if interval <= 0:
-                time.sleep(60)
-                continue
-            time.sleep(max(60, interval * 60))
             if not carm_credentials_present():
                 continue
             snapshot = RUNNER.snapshot()
             if snapshot.get("running"):
                 continue
-            if periodic_auto_prepare_enabled():
+            prepare_reason = auto_prepare_due()
+            if prepare_reason:
                 ok, _ = start_auto_prepare()
                 if ok:
-                    notify("Corrector CARM", "Autoprompteo periodico iniciado.", target="activity")
+                    mark_auto_prepare_run(prepare_reason)
+                    notify("Corrector CARM", f"Autoprompteo periodico iniciado por {prepare_reason}.", target="activity")
+                continue
+            if interval <= 0:
+                continue
+            if RUNNER.last_detection_at <= 0:
+                RUNNER.last_detection_at = time.time()
+                continue
+            if time.time() - RUNNER.last_detection_at < interval * 60:
                 continue
             selected = selected_courses_for_auto()
             if len(selected) > 1 and course_scoped_dirs_enabled():

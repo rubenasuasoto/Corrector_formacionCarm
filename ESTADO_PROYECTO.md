@@ -9,10 +9,11 @@ Esta revision alinea estado, roadmap y arquitectura despues de la fase multi-cur
 - Ajuste subida asistida: la interfaz ya no mantiene Chromium abierto al terminar; al finalizar el ultimo alumno debe volver el resultado al proceso y actualizar `revision_pendiente.csv`. Si CARM guardo pero Moodle no lo expone de forma detectable, el panel permite confirmacion manual explicita en vez de obligar a `Omitir`.
 - Verificacion local ampliada: `verificar_app.py` comprueba offline que varios `*_correccion.json` de distintas unidades importan a `revision_pendiente.csv` sin duplicar filas y que una reimportacion sustituye la correccion anterior.
 - Ajuste interfaz multi-cuenta: al guardar credenciales de una cuenta CARM distinta se limpia el curso activo y la seleccion de cursos anterior, se borra la sesion recordada y se recalculan rutas para evitar usar carpetas de otro docente. Al cambiar solo de curso activo, una seleccion simple de autoprompteo pasa al nuevo curso y cada ID conserva sus carpetas propias con `Separar carpetas por curso`.
-- Ajuste interfaz/autoprompteo: el panel permite preparar prompts de todo el curso desde el flujo principal y configurar autoprompteo periodico cada X minutos. Este autoprompteo solo genera prompts; no llama a API ni guarda en CARM.
+- Ajuste interfaz/autoprompteo: el panel permite preparar prompts de todo el curso desde el flujo principal y configurar autoprompteo periodico por intervalo o a una hora exacta diaria. Este autoprompteo solo genera prompts; no llama a API ni guarda en CARM.
 - Ajuste subida CARM: la publicacion directa queda bloqueada por seguridad. La deteccion de guardado asistido tambien observa si el estado `Sin calificar` desaparece/cambia o si aparece `Calificado` tras pulsar `Guardar cambios`.
 - Diagnostico subida: la interfaz permite activar un trace Playwright de subida asistida, guardado en `respuestas_extraidas\traces\`, desactivado por defecto por contener datos personales.
 - Ajuste de esperas: al promptear o subir, las actividades sin filas en `Requiere calificacion` se omiten rapido para evitar que Playwright quede esperando datos donde no hay casos practicos pendientes.
+- Deteccion CARM: si el enlace de accion de la actividad indica `0 Sin calificar`, la actividad se omite antes de abrir la tabla de grading; si indica pendientes, se sigue validando dentro de la tabla con el filtro `Requiere calificacion`.
 - Revision de rendimiento local: se redujeron esperas basadas en `networkidle` en paginas de enunciado/formulario, se cachea la revision Git del panel y se evita solapar refrescos del navegador.
 - Limpieza operativa: Codex CLI integrado queda desactivado como ruta principal para evitar bloqueos/rutas obsoletas. El flujo sin API actual es `$C` externo o Codex/ChatGPT manual + `Importar JSON a revision`.
 - Ajuste inicio Windows: `iniciar_app_windows.ps1` no lanza otra instancia si el panel ya responde en el puerto configurado. El acceso de inicio instalado se reescribio sin `--auto-correct` y minimizado para evitar ventanas de comando repetidas.
@@ -44,6 +45,7 @@ Esta seccion prevalece sobre notas historicas anteriores cuando haya contradicci
 - No se recomienda publicacion automatica como flujo normal.
 - El CSV es la fuente fiable para rellenar CARM; los resumenes son lectura humana.
 - Los prompts/correcciones/resumenes usados se archivan para evitar duplicidades y gasto de API. En el flujo manual `$C`, la app no borra nada durante la correccion externa: archiva el prompt exacto y su JSON cuando el usuario importa el `*_correccion.json` a `revision_pendiente.csv`.
+- El autoprompt periodico tiene intervalo propio y hora exacta diaria opcional. Si hay prompts pendientes sin corregir, una nueva tanda no los sobrescribe: se genera un nombre con fecha/hora y el manifiesto de entregas se acumula.
 - `.env`, logs, cache, salidas y correcciones generadas quedan fuera de git.
 - Se crea `ARQUITECTURA_PROYECTO.md` como guia de orden profesional y refactor por fases.
 - Se eliminan pruebas y referencias antiguas (`prueba_correcciones.py`, `sincronizador_moodle.py`, `tmp_prueba`) para evitar rutas duplicadas u obsoletas.
