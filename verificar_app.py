@@ -238,6 +238,20 @@ def check_contexto_cursos_cuenta() -> bool:
             safe_print("ERROR: una misma cuenta no conserva correctamente su curso seleccionado.")
             return False
 
+        app.load_app_config = lambda: {
+            "carm_account_ref": same_ref,
+            "selected_course_ids": ["1592", "1600"],
+            "active_course_id": "1600",
+            "course_scoped_dirs": True,
+        }
+        if app.active_course_id() != "1600":
+            safe_print("ERROR: el curso activo no prevalece sobre la lista de autoprompteo.")
+            return False
+        pendientes, temporal = app._apply_course_scope(app.DEFAULT_PENDIENTES_DIR, app.DEFAULT_TEMPORAL_DIR)
+        if "1600" not in str(pendientes) or "1600" not in str(temporal):
+            safe_print("ERROR: las carpetas activas no cambian al curso seleccionado.")
+            return False
+
         safe_print("OK: cambio de cuenta bloquea cursos antiguos y misma cuenta conserva seleccion.")
         return True
     except Exception as exc:
