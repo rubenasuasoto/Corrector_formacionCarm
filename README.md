@@ -38,11 +38,18 @@ La version local esta en `VERSION`. La interfaz y `verificar_app.py` muestran ve
 ## InstalaciÃ³n
 
 ```powershell
-.\instalar_windows.cmd
-.\iniciar_app_windows.cmd
+.\INSTALAR_CORRECTOR_CARM.cmd
 ```
 
-El instalador crea `.venv`, instala dependencias, instala Chromium de Playwright y deja `.env` preparado si no existe.
+Es la entrada recomendada para una instalacion guiada en Windows. Crea `.venv`, instala dependencias, instala Chromium de Playwright si falta, deja `.env` preparado si no existe y crea accesos directos. Si faltan credenciales, el panel se bloquea y guia la configuracion desde la interfaz.
+
+Para abrir el panel despues de instalar:
+
+```powershell
+.\ABRIR_CORRECTOR_CARM.cmd
+```
+
+Los scripts tecnicos siguen disponibles:
 
 Opciones utiles:
 
@@ -73,6 +80,14 @@ Para preparar un release local con manifiesto:
 ```powershell
 .\preparar_release_windows.cmd
 ```
+
+Para crear un ZIP guiado para instalar en otro Windows:
+
+```powershell
+.\crear_paquete_windows.cmd
+```
+
+El paquete no incluye `.env`, `.venv`, cache, logs, entregas ni correcciones generadas.
 
 Dependencias opcionales para leer PDF, PPTX, XLSX, ZIP e imÃ¡genes con OCR:
 

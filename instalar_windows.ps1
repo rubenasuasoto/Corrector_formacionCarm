@@ -46,17 +46,26 @@ function Test-PythonVersion {
     }
 }
 
-function New-DesktopShortcut {
+function New-AppShortcut {
     param([string]$Target)
-    $Desktop = [Environment]::GetFolderPath("Desktop")
-    $ShortcutPath = Join-Path $Desktop "Corrector CARM.lnk"
+    $ShortcutPath = $Target
     $Shell = New-Object -ComObject WScript.Shell
     $Shortcut = $Shell.CreateShortcut($ShortcutPath)
-    $Shortcut.TargetPath = $Target
+    $Shortcut.TargetPath = Join-Path $Root "ABRIR_CORRECTOR_CARM.cmd"
     $Shortcut.WorkingDirectory = $Root
     $Shortcut.Description = "Iniciar Corrector CARM"
     $Shortcut.Save()
     Write-Host "Acceso directo creado: $ShortcutPath" -ForegroundColor Green
+}
+
+function New-AppShortcuts {
+    $Desktop = [Environment]::GetFolderPath("Desktop")
+    New-AppShortcut -Target (Join-Path $Desktop "Corrector CARM.lnk")
+
+    $Programs = [Environment]::GetFolderPath("Programs")
+    $StartFolder = Join-Path $Programs "Corrector CARM"
+    New-Item -ItemType Directory -Path $StartFolder -Force | Out-Null
+    New-AppShortcut -Target (Join-Path $StartFolder "Corrector CARM.lnk")
 }
 
 function Test-PlaywrightChromiumInstalled {
@@ -119,8 +128,8 @@ if ($InstalarArranque) {
 }
 
 if ($CrearAccesoDirecto) {
-    Write-Step "Creando acceso directo en el escritorio"
-    New-DesktopShortcut -Target (Join-Path $Root "iniciar_app_windows.cmd")
+    Write-Step "Creando accesos directos"
+    New-AppShortcuts
 }
 
 if (-not $OmitirVerificacion) {
@@ -130,5 +139,6 @@ if (-not $OmitirVerificacion) {
 
 Write-Host ""
 Write-Host "Instalacion completada." -ForegroundColor Green
-Write-Host "Para iniciar la app en bandeja: .\iniciar_app_windows.cmd"
+Write-Host "Para abrir el panel: .\ABRIR_CORRECTOR_CARM.cmd"
+Write-Host "Para iniciar solo en bandeja: .\iniciar_app_windows.cmd"
 Write-Host "Para verificar todo tras configurar CARM: .\verificar_app_windows.cmd"

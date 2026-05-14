@@ -1,0 +1,5 @@
+@echo off
+setlocal
+cd /d "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0iniciar_app_windows.ps1" -AbrirNavegador %*
+if errorlevel 1 pause
