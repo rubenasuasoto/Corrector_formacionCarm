@@ -1641,6 +1641,28 @@ class ExtractorCarm:
         q.pop("tdir", None)
         return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
 
+    @classmethod
+    def _extraer_resumen_accion_actividad(cls, texto: str) -> dict:
+        normalizado = cls._normalizar(texto)
+
+        def numero_antes_de(patron: str) -> int | None:
+            match = re.search(patron, normalizado)
+            if not match:
+                return None
+            try:
+                return int(match.group(1).replace(".", ""))
+            except ValueError:
+                return None
+
+        return {
+            "texto": texto.strip(),
+            "enviados": numero_antes_de(r"(\d[\d.]*)\s+(?:de\s+\d[\d.]*\s+)?enviad"),
+            "total": numero_antes_de(r"\d[\d.]*\s+de\s+(\d[\d.]*)\s+enviad"),
+            "sin_calificar": numero_antes_de(r"(\d[\d.]*)\s+sin\s+calificar"),
+            "menciona_enviados": "enviad" in normalizado,
+            "menciona_sin_calificar": "sin calificar" in normalizado,
+        }
+
     async def _login(self, page) -> None:
         await page.goto(CARM_MY_URL, wait_until="domcontentloaded")
         if not await page.locator("input[name='username'], #username").count():
@@ -1832,9 +1854,25 @@ class ExtractorCarm:
                 if enlace_require_grading is not None
                 else ""
             )
+            texto_require_grading = (
+                (await enlace_require_grading.text_content() or "").strip()
+                if enlace_require_grading is not None
+                else ""
+            )
             unidad = await self._obtener_nombre_unidad(enlace_actividad)
             codigo = self._inferir_codigo_actividad(nombre, unidad)
             if not self._actividad_permitida(codigo, self.unidades, self.actividades):
+                continue
+            resumen_accion = self._extraer_resumen_accion_actividad(texto_require_grading)
+            sin_calificar = resumen_accion.get("sin_calificar")
+            if sin_calificar is None and resumen_accion.get("menciona_enviados") and not resumen_accion.get("menciona_sin_calificar"):
+                sin_calificar = 0
+                resumen_accion["sin_calificar"] = 0
+            if sin_calificar == 0:
+                logger.info(
+                    "Se omite %s desde el contador de CARM: sin casos por calificar.",
+                    codigo,
+                )
                 continue
             unidad_codigo = self._unidad_desde_codigo_actividad(codigo)
             actividades.append(
@@ -1849,6 +1887,8 @@ class ExtractorCarm:
                         href_require_grading or self._agregar_action_grading(vista_url)
                     ),
                     "filtro": "require_grading",
+                    "resumen_carm": resumen_accion,
+                    "sin_calificar_carm": resumen_accion.get("sin_calificar"),
                 }
             )
         return sorted(
@@ -3607,6 +3647,47 @@ class GeneradorSalidas:
         return re.sub(r"\s+", " ", limpio)[:120] or "alumno"
 
     @staticmethod
+    def _ruta_prompt_disponible(prompts_dir: Path, nombre_archivo: str) -> Path:
+        base = prompts_dir / nombre_archivo
+        correccion = base.with_name(f"{base.stem}_correccion.json")
+        if not base.exists() and not correccion.exists():
+            return base
+        marca = datetime.now().strftime("%Y%m%d_%H%M%S")
+        for indice in range(1, 100):
+            sufijo = f"_{marca}" if indice == 1 else f"_{marca}_{indice:02d}"
+            candidata = base.with_name(f"{base.stem}{sufijo}{base.suffix}")
+            candidata_correccion = candidata.with_name(f"{candidata.stem}_correccion.json")
+            if not candidata.exists() and not candidata_correccion.exists():
+                return candidata
+        raise RuntimeError(f"No se pudo encontrar un nombre libre para {nombre_archivo}.")
+
+    @staticmethod
+    def _guardar_manifiesto_acumulado(manifiesto_path: Path, nuevos: list[dict]) -> None:
+        existentes: list[dict] = []
+        if manifiesto_path.exists():
+            try:
+                datos = json.loads(manifiesto_path.read_text(encoding="utf-8"))
+                if isinstance(datos, list):
+                    existentes = [item for item in datos if isinstance(item, dict)]
+            except Exception as exc:
+                logger.warning("No se pudo leer el manifiesto previo; se regenerara con las nuevas entregas: %s", exc)
+
+        acumulado: dict[tuple[str, str, str, str, str], dict] = {}
+        for item in [*existentes, *nuevos]:
+            clave = (
+                str(item.get("actividad", "")),
+                str(item.get("id", "")),
+                str(item.get("alumno", "")),
+                str(item.get("archivo", "")),
+                str(item.get("archivo_original", "")),
+            )
+            acumulado[clave] = item
+        manifiesto_path.write_text(
+            json.dumps(list(acumulado.values()), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    @staticmethod
     def _limpiar_bloque_carm_para_prompt(texto: str, max_chars: int = MAX_CONTEXTO_PROMPT_CHARS) -> str:
         texto = unescape(texto or "")
         texto = re.sub(r"//<!\[CDATA\[.*?//\]\]>", "\n", texto, flags=re.S)
@@ -4137,7 +4218,7 @@ class GeneradorSalidas:
 
             for numero_lote, entregas_lote in enumerate(lotes, start=1):
                 sufijo_lote = f"_lote{numero_lote:02d}" if len(lotes) > 1 else ""
-                prompt_path = prompts_dir / f"prompt_{actividad_codigo}{sufijo_lote}.md"
+                prompt_path = self._ruta_prompt_disponible(prompts_dir, f"prompt_{actividad_codigo}{sufijo_lote}.md")
                 lineas = [
                 f"# Prompt para Codex - {actividad_codigo}",
                 "",
@@ -4206,10 +4287,7 @@ class GeneradorSalidas:
                 rutas.append(prompt_path)
 
         manifiesto_path = prompts_dir / "manifiesto_entregas.json"
-        manifiesto_path.write_text(
-            json.dumps(manifiesto, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        self._guardar_manifiesto_acumulado(manifiesto_path, manifiesto)
         rutas.append(manifiesto_path)
         return rutas
 
