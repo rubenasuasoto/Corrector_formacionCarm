@@ -248,6 +248,45 @@ def check_contexto_cursos_cuenta() -> bool:
         app.load_app_config = original_load_config
 
 
+def check_interfaz_flujos_seguro() -> bool:
+    safe_print("\n==> Flujos seguros de interfaz")
+    import interfaz_app as app
+
+    original_allowed_units = app.allowed_units
+    original_revisar_publicacion_segura = app.revisar_publicacion_segura
+    try:
+        app.allowed_units = lambda: {"ud01"}
+        app.revisar_publicacion_segura = lambda: None
+        args = app.build_args("prepare", {"modo": "course", "max_entregas": "0"})
+        if "--unidad" in args or "--actividad" in args:
+            safe_print("ERROR: preparar todo el curso no debe forzar unidad ni actividad.")
+            return False
+        try:
+            app.build_args("publish", {"json_path": str(app.REVISION_CSV)})
+        except ValueError as exc:
+            if "desactivada" not in str(exc).lower():
+                safe_print(f"ERROR: publicacion directa bloqueada con mensaje inesperado: {exc}")
+                return False
+        else:
+            safe_print("ERROR: la interfaz todavia permite publicacion directa.")
+            return False
+        assisted_args = app.build_args(
+            "assist_publish",
+            {"json_path": str(app.REVISION_CSV), "guardar_trace_subida": True},
+        )
+        if "--subida-asistida-carm" not in assisted_args or "--guardar-trace-subida" not in assisted_args:
+            safe_print("ERROR: la subida asistida no propaga correctamente el trace de diagnostico.")
+            return False
+        safe_print("OK: preparar todo el curso no filtra unidad y publicacion directa esta bloqueada.")
+        return True
+    except Exception as exc:
+        safe_print(f"ERROR: prueba de flujos seguros fallo: {exc}")
+        return False
+    finally:
+        app.allowed_units = original_allowed_units
+        app.revisar_publicacion_segura = original_revisar_publicacion_segura
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verificacion local del Corrector CARM.")
     parser.add_argument(
@@ -282,6 +321,7 @@ def main() -> int:
     if not args.sin_prueba_offline:
         ok &= check_importacion_json_csv()
         ok &= check_contexto_cursos_cuenta()
+        ok &= check_interfaz_flujos_seguro()
     if not args.sin_endpoints:
         ok &= check_local_endpoints()
 

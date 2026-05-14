@@ -54,6 +54,7 @@ Superficie principal:
 - [ ] Verificar en una prueba real de fin de curso que la purga elimina datos de alumnos sin borrar recursos didacticos necesarios antes de tiempo.
 - [x] Redactar secretos, tokens, cookies y emails en logs/diagnosticos por defecto.
 - [ ] Revisar capturas o evidencias HTML antes de compartir diagnosticos fuera del equipo local.
+- [x] Trace de subida asistida desactivado por defecto y avisado como artefacto sensible.
 
 ### Prioridad Media
 
@@ -61,7 +62,7 @@ Superficie principal:
 - [x] Endurecer ZIP: limite de numero de ficheros, tamano total y proteccion contra zip-slip.
 - [x] Registrar auditoria local de acciones sensibles: descargar, corregir, previsualizar, publicar.
 - [x] Bloquear publicacion si hay `revision_manual_necesaria` o errores en CSV/JSON.
-- [ ] Confirmacion fuerte antes de `--publicar-carm` si se conserva como comando directo de administracion.
+- [x] Publicacion directa desactivada; el flujo operativo es subida asistida con guardado humano.
 - [x] Timeouts y reintentos controlados para Playwright en los flujos principales de CARM.
 - [x] Sanitizar feedback antes de insertarlo en editores Moodle.
 - [x] Chequeo local de dependencias y artefactos sensibles antes de operar/distribuir.

@@ -13,7 +13,7 @@ Para uso real, el camino normal es este:
 5. Revisar `revision_pendiente.csv` desde la interfaz.
 6. Usar subida asistida: la app rellena nota y feedback, pero el docente guarda en CARM.
 
-Evita usar comandos directos de publicacion salvo prueba controlada. La subida asistida es el flujo que mantiene revision humana y limpia el CSV al confirmar cada caso.
+No uses comandos directos de publicacion: esa ruta esta desactivada. La subida asistida es el flujo que mantiene revision humana y limpia el CSV al confirmar cada caso.
 
 ## Documentacion de apoyo
 
@@ -283,6 +283,8 @@ Para preparar la primera ejecuciÃ³n real solo con la unidad 1:
 python corrector_agente.py --solo-listar-carm --unidad ud01
 ```
 
+Desde la interfaz tambien puedes elegir `Todo el curso` en el filtro de preparacion. Ese modo recorre las actividades detectadas del curso y genera prompts para las que tengan entregas pendientes.
+
 ## 6. Cachear recursos estables del curso
 
 Para no releer en cada ejecuciÃ³n el contenido imprimible y los enunciados:
@@ -368,13 +370,14 @@ python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\cursos\<cou
 ```
 
 La app rellena nota y feedback; el docente pulsa `Guardar cambios` en CARM. Las filas confirmadas o ya gestionadas se eliminan del CSV.
+En configuracion puedes activar el autoprompteo periodico cada X minutos. Ese modo solo prepara prompts; no llama a la API y no guarda calificaciones en CARM.
 TambiÃ©n puedes abrir la interfaz local:
 
 ```powershell
 python interfaz_app.py
 ```
 
-La aplicaciÃ³n queda en `http://127.0.0.1:8765` y permite preparar, previsualizar y publicar desde una pantalla Ãºnica.
+La aplicaciÃ³n queda en `http://127.0.0.1:8765` y permite preparar, previsualizar y lanzar la subida asistida desde una pantalla Ãºnica.
 
 En la interfaz, el flujo con API estÃ¡ separado en dos pasos: primero `Preparar prompts`, que no gasta API, y despuÃ©s `Corregir prompts con API`, que envÃ­a los prompts acumulados y deja generado `revision_pendiente.csv` para la subida asistida.
 
@@ -412,17 +415,13 @@ python corrector_agente.py --subir-correcciones-carm C:\temp\vscodec\cursos\<cou
 
 El navegador queda abierto para revisar el formulario. Para terminar la previsualizaciÃ³n, cierra la pestaÃ±a de Chromium o detÃ©n la tarea desde la interfaz.
 
-El flujo recomendado no usa publicacion directa. Si aun necesitas una prueba controlada desde CLI, usa:
+La publicacion directa desde CLI esta desactivada. Usa `--subida-asistida-carm` desde la interfaz: la app rellena el formulario y el docente pulsa `Guardar cambios` en CARM.
 
-```powershell
-python corrector_agente.py --subir-correcciones-carm correcciones_ud01cp01.json --publicar-carm
-```
+Para diagnosticar un fallo concreto de subida asistida, activa `Guardar trace de diagnostico de subida` en la interfaz. El trace se guarda en `respuestas_extraidas\traces\` y puede contener datos personales, asi que revisalo antes de compartirlo.
 
-Con varias correcciones de la misma actividad, se intenta usar `Guardar cambios y mostrar siguiente` entre alumnos. En la Ãºltima correcciÃ³n del lote usa `Guardar cambios` para no avanzar de mÃ¡s. Para sesiones reales, prioriza `--subida-asistida-carm` desde la interfaz.
+Cada intento deja registro en `respuestas_extraidas\subida_carm_previsualizacion.json` o `respuestas_extraidas\subida_carm_asistida.json`.
 
-Cada intento deja registro en `respuestas_extraidas\subida_carm_previsualizacion.json` o `respuestas_extraidas\subida_carm_publicada.json`.
-
-Tras importar un JSON de Codex al CSV, el prompt exacto y su `*_correccion.json` se mueven a `pendientes\prompts_codex\archivados\...` para que no vuelvan a aparecer como pendientes. Tras una publicacion real o una subida asistida completada, tambien se archivan los resumenes usados. Una previsualizacion no archiva nada.
+Tras importar un JSON de Codex al CSV, el prompt exacto y su `*_correccion.json` se mueven a `pendientes\prompts_codex\archivados\...` para que no vuelvan a aparecer como pendientes. Tras una subida asistida completada, tambien se archivan los resumenes usados. Una previsualizacion no archiva nada.
 
 Tras generar prompts, las entregas usadas se mueven a `pendientes\archivados_prompt\...`. Si necesitas repetir exactamente el mismo lote para una prueba, usa `--conservar-pendientes`.
 

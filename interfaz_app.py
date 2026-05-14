@@ -45,7 +45,6 @@ COMBINED_JSON = PROMPTS_DIR / "correcciones_codex_combinadas.json"
 REVISION_CSV = TEMPORAL_DIR / "revision_pendiente.csv"
 AGENTE_LOG = ROOT / "logs_correcciones" / "agente.log"
 AUDIT_LOG = ROOT / "respuestas_extraidas" / "auditoria.jsonl"
-SUBIDA_PUBLICADA_JSON = ROOT / "respuestas_extraidas" / "subida_carm_publicada.json"
 SUBIDA_ASISTIDA_JSON = ROOT / "respuestas_extraidas" / "subida_carm_asistida.json"
 CURSOS_DETECTADOS_JSON = ROOT / "respuestas_extraidas" / "cursos_detectados.json"
 ENV_PATH = ROOT / ".env"
@@ -171,6 +170,10 @@ def auto_scan_interval_minutes() -> int:
     return max(0, min(value, 1440))
 
 
+def periodic_auto_prepare_enabled() -> bool:
+    return bool(load_app_config().get("periodic_auto_prepare", False))
+
+
 def _normalize_dir(path: str | Path, fallback: Path) -> Path:
     raw = str(path or "").strip()
     if not raw:
@@ -242,14 +245,17 @@ def configure_work_dirs(pendientes: str | Path | None = None, temporal: str | Pa
         save_app_config({"pendientes_dir": str(BASE_PENDIENTES_DIR), "temporal_dir": str(BASE_TEMPORAL_DIR)})
 
 
-def save_automation_config(interval_minutes: str | int) -> int:
+def save_automation_config(interval_minutes: str | int, periodic_auto_prepare: bool | None = None) -> int:
     try:
         interval = int(interval_minutes)
     except (TypeError, ValueError):
         raise ValueError("El intervalo debe ser un numero de minutos.")
     if interval < 0 or interval > 1440:
         raise ValueError("El intervalo debe estar entre 0 y 1440 minutos. Usa 0 para desactivar.")
-    save_app_config({"auto_scan_interval_minutes": interval})
+    updates = {"auto_scan_interval_minutes": interval}
+    if periodic_auto_prepare is not None:
+        updates["periodic_auto_prepare"] = bool(periodic_auto_prepare)
+    save_app_config(updates)
     return interval
 
 
@@ -1186,14 +1192,14 @@ def pending_publication_state() -> dict:
     revision = file_info(REVISION_CSV)
     source_path = default_correction_source_path()
     source = file_info(source_path)
-    published = file_info(SUBIDA_PUBLICADA_JSON)
     assisted = file_info(SUBIDA_ASISTIDA_JSON)
     revision_state = revision_csv_state(REVISION_CSV)
     rows = revision_state["rows"]
     blocking = revision_state["blocking"]
     activities = revision_state["activities"]
     base_modified = max(source["modified"], revision["modified"])
-    pending = bool(revision["exists"] and rows and published["modified"] < base_modified)
+    last_handled = assisted["modified"]
+    pending = bool(revision["exists"] and rows and last_handled < base_modified)
     return {
         "pending": pending,
         "rows": rows,
@@ -1205,7 +1211,6 @@ def pending_publication_state() -> dict:
         "source": source,
         "combined": combined,
         "revision_csv": revision,
-        "published": published,
         "assisted": assisted,
     }
 
@@ -1599,6 +1604,7 @@ def project_state() -> dict:
         "startup_installed": startup_cmd_path().exists(),
         "startup_auto_correct_enabled": startup_auto_correct_enabled(),
         "auto_scan_interval_minutes": auto_scan_interval_minutes(),
+        "periodic_auto_prepare": periodic_auto_prepare_enabled(),
         "json_options": json_options(),
         "prompts": [file_info(p) for p in prompts],
         "corrections": [file_info(p) for p in corrections],
@@ -1983,6 +1989,7 @@ HTML = r"""<!doctype html>
           <div class="field">
             <label for="prepareMode">Filtro</label>
             <select id="prepareMode">
+              <option value="course">Todo el curso</option>
               <option value="unit">Unidad completa</option>
               <option value="activity">Caso practico</option>
             </select>
@@ -2036,6 +2043,11 @@ HTML = r"""<!doctype html>
           <input type="checkbox" id="publishCheck">
           Confirmo que he revisado las correcciones
         </label>
+        <label class="check">
+          <input type="checkbox" id="uploadTraceCheck">
+          Guardar trace de diagnostico de subida
+        </label>
+        <p class="hint">El trace puede contener datos personales de CARM. Activalo solo para diagnosticar fallos y no lo compartas sin revisar.</p>
       </section>
 
       <section>
@@ -2218,7 +2230,7 @@ HTML = r"""<!doctype html>
             <p class="hint">Si se activa, este curso usa sus propias carpetas en C:\temp\vscodec\cursos\&lt;id&gt;\ para no mezclar prompts, CSV ni resumenes.</p>
             <div class="grid2">
               <div>
-                <label for="autoScanInterval">Autodetectar cada (minutos)</label>
+                <label for="autoScanInterval">Comprobar cada (minutos)</label>
                 <input id="autoScanInterval" type="number" min="0" max="1440" step="5">
               </div>
               <div>
@@ -2226,7 +2238,11 @@ HTML = r"""<!doctype html>
                 <button id="saveAutomationBtn" type="button">Guardar automatizacion</button>
               </div>
             </div>
-            <p class="hint">Usa 0 para desactivar la comprobacion periodica. Al iniciar, la app usa la cache existente y solo detecta CARM si no hay datos guardados.</p>
+            <label class="check">
+              <input type="checkbox" id="periodicAutoPrepare">
+              Preparar prompts automaticamente en cada comprobacion
+            </label>
+            <p class="hint">Usa 0 para desactivar la comprobacion periodica. Si activas autoprompteo periodico, la app revisa CARM y genera prompts; no llama a la API ni guarda notas en CARM.</p>
             <div class="row">
               <button id="scanNowBtn" type="button">Escanear ahora</button>
               <button id="pauseScanBtn" type="button">Pausar autoescaneo</button>
@@ -2624,6 +2640,7 @@ HTML = r"""<!doctype html>
         $('actividad').value
       );
       $('activityField').style.display = $('prepareMode').value === 'activity' ? '' : 'none';
+      $('unidad').disabled = $('prepareMode').value === 'course';
     }
 
     function updateAdvancedActivityOptions() {
@@ -2639,8 +2656,9 @@ HTML = r"""<!doctype html>
     function setBusy(running) {
       const locked = running || !authState.configured;
       const hasUnits = courseOptions.units.length > 0;
-      const hasSelectedActivity = $('prepareMode').value !== 'activity' || Boolean($('actividad').value);
-      $('prepareBtn').disabled = locked || !hasUnits || !hasSelectedActivity;
+      const mode = $('prepareMode').value;
+      const hasSelectedActivity = mode !== 'activity' || Boolean($('actividad').value);
+      $('prepareBtn').disabled = locked || (mode !== 'course' && !hasUnits) || !hasSelectedActivity;
       $('prepareBtn').textContent = 'Preparar prompts';
       $('solveApiBtn').disabled = locked || !authState.openai_api_configured;
       $('importCodexBtn').disabled = locked || !window.__selectedCorrectionIsImportable;
@@ -2782,7 +2800,10 @@ HTML = r"""<!doctype html>
       $('courseMessage').textContent = 'Guardando automatizacion...';
       const result = await api('/api/config/automation', {
         method: 'POST',
-        body: JSON.stringify({auto_scan_interval_minutes: $('autoScanInterval').value})
+        body: JSON.stringify({
+          auto_scan_interval_minutes: $('autoScanInterval').value,
+          periodic_auto_prepare: $('periodicAutoPrepare').checked
+        })
       });
       $('courseMessage').textContent = result.message || (result.ok ? 'Automatizacion guardada.' : 'No se pudo guardar.');
       $('saveAutomationBtn').disabled = false;
@@ -2872,6 +2893,7 @@ HTML = r"""<!doctype html>
       setInputValue('temporalDir', state.base_temporal_dir || state.temporal_dir);
       if ($('courseScopedDirs')) $('courseScopedDirs').checked = Boolean(state.course_scoped_dirs);
       setInputValue('autoScanInterval', state.auto_scan_interval_minutes);
+      if ($('periodicAutoPrepare')) $('periodicAutoPrepare').checked = Boolean(state.periodic_auto_prepare);
       $('pauseScanBtn').textContent = state.auto_scan_interval_minutes > 0 ? 'Pausar autoescaneo' : 'Autoescaneo pausado';
       if ($('startupEnabled')) $('startupEnabled').checked = Boolean(state.startup_installed);
       if ($('startupAutoCorrect')) $('startupAutoCorrect').checked = Boolean(state.startup_auto_correct_enabled);
@@ -2994,7 +3016,7 @@ HTML = r"""<!doctype html>
     $('importCodexBtn').onclick = () => run('import_codex', {json_path: $('jsonPath').value});
     $('assistPublishBtn').onclick = () => {
       if (!$('publishCheck').checked) return alert('Marca la confirmación antes de iniciar la subida asistida.');
-      run('assist_publish', {json_path: $('jsonPath').value});
+      run('assist_publish', {json_path: $('jsonPath').value, guardar_trace_subida: $('uploadTraceCheck').checked});
     };
     $('stopBtn').onclick = async () => { await api('/api/stop', {method:'POST'}); await safeRefresh(); };
     $('refreshBtn').onclick = safeRefresh;
@@ -3253,14 +3275,29 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/config/automation":
             try:
                 body = read_json_body(self)
-                interval = save_automation_config(body.get("auto_scan_interval_minutes", DEFAULT_SCAN_INTERVAL_MINUTES))
+                interval = save_automation_config(
+                    body.get("auto_scan_interval_minutes", DEFAULT_SCAN_INTERVAL_MINUTES),
+                    periodic_auto_prepare=bool(body.get("periodic_auto_prepare")),
+                )
                 message = (
                     "Autodeteccion periodica desactivada."
                     if interval == 0
-                    else f"Autodeteccion guardada: cada {interval} minutos."
+                    else (
+                        f"Autoprompteo periodico guardado: cada {interval} minutos."
+                        if periodic_auto_prepare_enabled()
+                        else f"Autodeteccion guardada: cada {interval} minutos."
+                    )
                 )
-                audit_ui_event("configurar_autoescaneo", intervalo_minutos=interval)
-                send_json(self, {"ok": True, "message": message, "auto_scan_interval_minutes": interval})
+                audit_ui_event("configurar_autoescaneo", intervalo_minutos=interval, periodic_auto_prepare=periodic_auto_prepare_enabled())
+                send_json(
+                    self,
+                    {
+                        "ok": True,
+                        "message": message,
+                        "auto_scan_interval_minutes": interval,
+                        "periodic_auto_prepare": periodic_auto_prepare_enabled(),
+                    },
+                )
             except Exception as exc:
                 send_json(self, {"ok": False, "message": str(exc)}, 400)
             return
@@ -3357,6 +3394,8 @@ def build_args(action: str, body: dict) -> list[str]:
             "--max-entregas-por-prompt",
             max_entregas,
         ]
+        if modo == "course":
+            return args
         if modo == "activity":
             require_allowed(actividad, allowed_activities(), "Actividad")
             args.extend(["--actividad", actividad])
@@ -3377,11 +3416,12 @@ def build_args(action: str, body: dict) -> list[str]:
         if action == "preview":
             args.extend(["--solo-primera-previsualizacion-carm", "--mantener-navegador"])
         if action == "publish":
-            revisar_publicacion_segura()
-            args.append("--publicar-carm")
+            raise ValueError("La publicacion automatica directa esta desactivada. Usa subida asistida con guardado humano.")
         if action == "assist_publish":
             revisar_publicacion_segura()
             args.append("--subida-asistida-carm")
+            if bool(body.get("guardar_trace_subida")):
+                args.append("--guardar-trace-subida")
         return args
 
     if action == "diagnose":
@@ -3594,6 +3634,11 @@ def start_periodic_scan(disabled: bool) -> None:
                 continue
             snapshot = RUNNER.snapshot()
             if snapshot.get("running"):
+                continue
+            if periodic_auto_prepare_enabled():
+                ok, _ = start_auto_prepare()
+                if ok:
+                    notify("Corrector CARM", "Autoprompteo periodico iniciado.", target="activity")
                 continue
             selected = selected_courses_for_auto()
             if len(selected) > 1 and course_scoped_dirs_enabled():

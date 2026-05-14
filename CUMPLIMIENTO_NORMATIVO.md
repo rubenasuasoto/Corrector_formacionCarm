@@ -105,10 +105,12 @@ Esta purga es manual para evitar perdidas accidentales antes de cerrar una evalu
 - Sanitizado de feedback.
 - Bloqueo de publicacion con incidencias.
 - Autoprompteo al inicio sin gasto automatico de API.
+- Autoprompteo periodico opcional: prepara prompts, no llama a la API y no guarda notas en CARM.
 - Archivado de prompts, correcciones y resumenes usados para evitar duplicidades.
 - Purga manual fuerte de salidas con datos personales.
 - Retencion automatica de logs/auditoria antiguos.
 - Chequeo local de preparacion del equipo antes de operar o distribuir.
+- Trace Playwright de subida solo bajo activacion explicita y con aviso de datos personales.
 
 ## Pendientes por fase
 
