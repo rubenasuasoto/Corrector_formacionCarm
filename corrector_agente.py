@@ -23,6 +23,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import unicodedata
 import zipfile
 from dataclasses import dataclass
@@ -92,6 +93,19 @@ CACHE_DIR = Path("cache_carm")
 CARM_RECORDAR_CUENTA = os.getenv("CARM_RECORDAR_CUENTA", "1").strip().lower() not in {"0", "false", "no"}
 CARM_STORAGE_STATE = CACHE_DIR / "carm_storage_state.json"
 AUDIT_LOG = RESPUESTAS_DIR / "auditoria.jsonl"
+PLACEHOLDER_ENV_VALUES = {
+    "",
+    "tu_usuario_carm",
+    "tu_contrasena_carm",
+    "usuario",
+    "contrasena",
+    "contraseña",
+    "password",
+    "changeme",
+    "cambiar",
+    "none",
+    "null",
+}
 
 
 def _env_int(nombre: str, defecto: int) -> int:
@@ -113,8 +127,8 @@ def redactar_texto_sensible(texto: object) -> str:
     texto = re.sub(r"[\w.\-+%]+@[\w.\-]+\.[A-Za-z]{2,}", "[email-redactado]", texto)
     texto = re.sub(r"(sesskey=)[^&\"'>\s]+", r"\1[redactado]", texto, flags=re.I)
     texto = re.sub(r'("sesskey"\s*:\s*")[^"]+', r'\1[redactado]', texto, flags=re.I)
-    texto = re.sub(r"(password|contrasena|contraseña|contraseÃ±a)(=|%3D)[^&\"'>\s]+", r"\1\2[redactado]", texto, flags=re.I)
-    texto = re.sub(r"(api[_-]?key|token|authorization|cookie)(\s*[=:]\s*)[^&\"'>\s]+", r"\1\2[redactado]", texto, flags=re.I)
+    texto = re.sub(r"(password|contrasena|contraseña|contraseña)(=|%3D)[^&\"'>\s]+", r"\1\2[redactado]", texto, flags=re.I)
+    texto = re.sub(r"(api[_-]key|token|authorization|cookie)(\s*[=:]\s*)[^&\"'>\s]+", r"\1\2[redactado]", texto, flags=re.I)
     texto = re.sub(r"(CARM_CONTRASENA|OPENAI_API_KEY|X-Corrector-Token)=\S+", r"\1=[redactado]", texto, flags=re.I)
     return texto
 
@@ -140,11 +154,27 @@ def escribir_env_valores(updates: dict[str, str]) -> None:
     env_path.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
 
 
+def es_valor_env_real(valor: str | None) -> bool:
+    limpio = str(valor or "").strip()
+    if not limpio:
+        return False
+    bajo = limpio.lower()
+    if bajo in PLACEHOLDER_ENV_VALUES:
+        return False
+    if bajo.startswith("tu_") or bajo.startswith("your_"):
+        return False
+    return True
+
+
 def obtener_credenciales_carm_interactivo(motivo: str) -> tuple[str, str] | None:
     usuario = os.getenv("CARM_USUARIO", "").strip()
     contrasena = os.getenv("CARM_CONTRASENA", "").strip()
-    if usuario and contrasena:
+    if es_valor_env_real(usuario) and es_valor_env_real(contrasena):
         return usuario, contrasena
+    if not es_valor_env_real(usuario):
+        usuario = ""
+    if not es_valor_env_real(contrasena):
+        contrasena = ""
     if not sys.stdin.isatty():
         logger.error("Faltan CARM_USUARIO/CARM_CONTRASENA. Abre la interfaz para introducir credenciales CARM.")
         registrar_auditoria("credenciales_carm_requeridas", "bloqueado_sin_consola", motivo=motivo)
@@ -192,10 +222,10 @@ def sanitizar_feedback(texto: str, max_chars: int = 6000) -> str:
     }.items():
         limpio = limpio.replace(origen, destino)
     limpio = re.sub(r"\S*[\u10A0-\u10FF]+\S*", "texto", limpio)
-    limpio = re.sub(r"\s+([,.;:!?])", r"\1", limpio)
+    limpio = re.sub(r"\s+([,.;:!])", r"\1", limpio)
     limpio = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", limpio)
-    limpio = re.sub(r"</?(script|iframe|object|embed|style|link|meta)[^>]*>", "", limpio, flags=re.I)
-    limpio = re.sub(r"\son\w+\s*=\s*(['\"]).*?\1", "", limpio, flags=re.I | re.S)
+    limpio = re.sub(r"</(script|iframe|object|embed|style|link|meta)[^>]*>", "", limpio, flags=re.I)
+    limpio = re.sub(r"\son\w+\s*=\s*(['\"]).*\1", "", limpio, flags=re.I | re.S)
     limpio = re.sub(r"\s(href|src)\s*=\s*(['\"])\s*javascript:[^'\"]*\2", "", limpio, flags=re.I)
     limpio = redactar_texto_sensible(limpio)
     limpio = limpio.strip()
@@ -676,6 +706,7 @@ Evalúa en escala de 0 a 10. Devuelve JSON con este formato exacto:
 MAX_CONTEXTO_PROMPT_CHARS = 14000
 MAX_CONTEXTO_API_CHARS = 12000
 MAX_CONTEXTO_CACHE_CHARS = 24000
+MAX_RESUMEN_DIDACTICO_CHARS = _env_int("MAX_RESUMEN_DIDACTICO_CHARS", 5000)
 OPENAI_PROMPT_TOKEN_WARN = _env_int("OPENAI_PROMPT_TOKEN_WARN", 100000)
 OPENAI_PROMPT_TOKEN_MAX = _env_int("OPENAI_PROMPT_TOKEN_MAX", 180000)
 
@@ -691,8 +722,8 @@ def _normalizar_linea_comparable(valor: str) -> str:
 
 def limpiar_bloque_carm_para_prompt(texto: str, max_chars: int = MAX_CONTEXTO_PROMPT_CHARS) -> str:
     texto = unescape(texto or "")
-    texto = re.sub(r"//<!\[CDATA\[.*?//\]\]>", "\n", texto, flags=re.S)
-    texto = re.sub(r"<script\b.*?</script>", "\n", texto, flags=re.S | re.I)
+    texto = re.sub(r"//<!\[CDATA\[.*//\]\]>", "\n", texto, flags=re.S)
+    texto = re.sub(r"<script\b.*</script>", "\n", texto, flags=re.S | re.I)
     texto = texto.replace("\r", "\n")
 
     patrones_ruido = (
@@ -751,7 +782,7 @@ def limpiar_bloque_carm_para_prompt(texto: str, max_chars: int = MAX_CONTEXTO_PR
         normalizada = _normalizar_linea_comparable(linea)
         if any(patron in normalizada for patron in patrones_normalizados):
             continue
-        if re.fullmatch(r"[{}()[\];,./\\|:_\-*=+<>!Â¡Â¿?\"'`~0-9\s]+", linea):
+        if re.fullmatch(r"[{}()[\];,./\\|:_\-*=+<>!¡¿\"'`~0-9\s]+", linea):
             continue
         if normalizada in vistas:
             continue
@@ -761,7 +792,7 @@ def limpiar_bloque_carm_para_prompt(texto: str, max_chars: int = MAX_CONTEXTO_PR
     casos_o_recursos = sum(
         1
         for linea in lineas_limpias
-        if re.search(r"\bud\d{2}\b|\bcaso pr[Ã¡a]ctico\b|contenido imprimible|contenido multimedia", linea, flags=re.I)
+        if re.search(r"\bud\d{2}\b|\bcaso pr[áa]ctico\b|contenido imprimible|contenido multimedia", linea, flags=re.I)
     )
     if casos_o_recursos >= 8 and len("\n".join(lineas_limpias)) < 8000:
         return (
@@ -780,6 +811,122 @@ def limpiar_bloque_carm_para_prompt(texto: str, max_chars: int = MAX_CONTEXTO_PR
         limpio = recortado or limpio[:max_chars].strip()
         limpio += "\n\n[Contexto didactico recortado para ahorrar tokens.]"
     return limpio or "No hay contexto didactico limpio disponible en cache."
+
+
+def es_contexto_didactico_util(texto: str) -> bool:
+    limpio = str(texto or "").strip()
+    if len(limpio) < 400:
+        return False
+    normalizado = _normalizar_linea_comparable(limpio)
+    fallbacks = (
+        "no hay contexto didactico limpio suficiente en cache",
+        "no hay contexto didactico limpio disponible en cache",
+        "la cache contiene una pagina indice de moodle",
+    )
+    return not any(fallback in normalizado for fallback in fallbacks)
+
+
+def hash_contenido_didactico(texto: str) -> str:
+    return hashlib.sha256(str(texto or "").encode("utf-8", errors="ignore")).hexdigest()
+
+
+def generar_resumen_didactico_local(
+    contenido: str,
+    codigo: str = "",
+    nombre: str = "",
+    max_chars: int = MAX_RESUMEN_DIDACTICO_CHARS,
+) -> str:
+    contenido_limpio = limpiar_bloque_carm_para_prompt(contenido, max_chars=MAX_CONTEXTO_CACHE_CHARS)
+    if not es_contexto_didactico_util(contenido_limpio):
+        return ""
+
+    lineas = [
+        re.sub(r"\s+", " ", linea).strip()
+        for linea in contenido_limpio.splitlines()
+        if re.sub(r"\s+", " ", linea).strip()
+    ]
+    if not lineas:
+        return ""
+
+    keywords = (
+        "objetivo",
+        "concepto",
+        "definicion",
+        "definición",
+        "importante",
+        "clave",
+        "ejemplo",
+        "aplicacion",
+        "aplicación",
+        "herramienta",
+        "riesgo",
+        "seguridad",
+        "etica",
+        "ética",
+        "privacidad",
+        "dato",
+        "turistico",
+        "turístico",
+        "visitante",
+        "promocion",
+        "promoción",
+        "recomendacion",
+        "recomendación",
+        "buenas practicas",
+        "buenas prácticas",
+        "debe",
+        "evitar",
+    )
+
+    seleccionadas: list[str] = []
+    vistas: set[str] = set()
+
+    def add(linea: str) -> None:
+        normalizada = _normalizar_linea_comparable(linea)
+        if not normalizada or normalizada in vistas:
+            return
+        vistas.add(normalizada)
+        seleccionadas.append(linea)
+
+    encabezado = f"Resumen didactico local {codigo.upper()}".strip()
+    if nombre:
+        encabezado += f" - {nombre}"
+    add(encabezado)
+
+    for linea in lineas[:18]:
+        add(linea)
+
+    for linea in lineas:
+        normalizada = _normalizar_linea_comparable(linea)
+        parece_titulo = len(linea) <= 120 and linea.upper() == linea and any(c.isalpha() for c in linea)
+        relevante = any(keyword in normalizada for keyword in (_normalizar_linea_comparable(k) for k in keywords))
+        if parece_titulo or relevante:
+            add(linea)
+        if len("\n".join(seleccionadas)) >= max_chars * 1.4:
+            break
+
+    resumen = "\n".join(seleccionadas)
+    if len(resumen) > max_chars:
+        resumen = resumen[:max_chars].rsplit("\n", 1)[0].strip() or resumen[:max_chars].strip()
+        resumen += "\n\n[Resumen didactico local recortado para ahorrar tokens.]"
+    return resumen.strip()
+
+
+def seleccionar_contexto_para_actividad(contexto: str, actividad_codigo: str) -> str:
+    texto = str(contexto or "").strip()
+    unidad = re.match(r"^(ud\d{2})cp\d{2}$", str(actividad_codigo or "").strip().lower())
+    if not texto or not unidad:
+        return texto
+    unidad_codigo = unidad.group(1).upper()
+    patron = re.compile(r"^##\s+(UD\d{2})\b.*$", flags=re.I | re.M)
+    matches = list(patron.finditer(texto))
+    for idx, match in enumerate(matches):
+        if match.group(1).upper() != unidad_codigo:
+            continue
+        inicio = match.start()
+        fin = matches[idx + 1].start() if idx + 1 < len(matches) else len(texto)
+        return texto[inicio:fin].strip()
+    return texto
 
 
 @dataclass
@@ -882,6 +1029,8 @@ class CacheCursoCarm:
                     codigo TEXT NOT NULL,
                     nombre TEXT,
                     contenido_imprimible TEXT,
+                    resumen_didactico TEXT,
+                    hash_contenido TEXT,
                     actualizado_en TEXT NOT NULL,
                     PRIMARY KEY (course_id, codigo)
                 );
@@ -907,13 +1056,21 @@ class CacheCursoCarm:
             }
             if "fecha_fin" not in columnas:
                 con.execute("ALTER TABLE curso ADD COLUMN fecha_fin TEXT")
+            columnas_unidad = {
+                row[1]
+                for row in con.execute("PRAGMA table_info(unidad)").fetchall()
+            }
+            if "resumen_didactico" not in columnas_unidad:
+                con.execute("ALTER TABLE unidad ADD COLUMN resumen_didactico TEXT")
+            if "hash_contenido" not in columnas_unidad:
+                con.execute("ALTER TABLE unidad ADD COLUMN hash_contenido TEXT")
 
     def guardar_curso(self, titulo: str = "") -> None:
         with self._conectar() as con:
             con.execute(
                 """
                 INSERT INTO curso (course_id, url, titulo, fecha_fin, actualizado_en)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (, , , , )
                 ON CONFLICT(course_id) DO UPDATE SET
                     url=excluded.url,
                     titulo=excluded.titulo,
@@ -951,17 +1108,31 @@ class CacheCursoCarm:
             if str(contenido_imprimible or "").strip()
             else ""
         )
+        if contenido_limpio and not es_contexto_didactico_util(contenido_limpio):
+            logger.info("No se guarda contenido imprimible de %s porque no contiene contexto didactico util.", codigo)
+            contenido_limpio = ""
+        resumen_didactico = (
+            generar_resumen_didactico_local(contenido_limpio, codigo=codigo, nombre=nombre)
+            if contenido_limpio
+            else ""
+        )
+        hash_contenido = hash_contenido_didactico(contenido_limpio) if contenido_limpio else ""
         with self._conectar() as con:
             con.execute(
                 """
-                INSERT INTO unidad (course_id, codigo, nombre, contenido_imprimible, actualizado_en)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO unidad (
+                    course_id, codigo, nombre, contenido_imprimible,
+                    resumen_didactico, hash_contenido, actualizado_en
+                )
+                VALUES (, , , , , , )
                 ON CONFLICT(course_id, codigo) DO UPDATE SET
                     nombre=COALESCE(NULLIF(excluded.nombre, ''), unidad.nombre),
                     contenido_imprimible=COALESCE(NULLIF(excluded.contenido_imprimible, ''), unidad.contenido_imprimible),
+                    resumen_didactico=COALESCE(NULLIF(excluded.resumen_didactico, ''), unidad.resumen_didactico),
+                    hash_contenido=COALESCE(NULLIF(excluded.hash_contenido, ''), unidad.hash_contenido),
                     actualizado_en=excluded.actualizado_en
                 """,
-                (self.course_id, codigo, nombre, contenido_limpio, self._ahora()),
+                (self.course_id, codigo, nombre, contenido_limpio, resumen_didactico, hash_contenido, self._ahora()),
             )
         if contenido_imprimible and len(contenido_limpio) + 1000 < len(contenido_imprimible):
             logger.info(
@@ -982,7 +1153,7 @@ class CacheCursoCarm:
                     course_id, codigo, unidad_codigo, nombre, tipo, url, url_grading,
                     filtro, enunciado, actualizado_en
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (, , , , , , , , , )
                 ON CONFLICT(course_id, codigo) DO UPDATE SET
                     unidad_codigo=excluded.unidad_codigo,
                     nombre=excluded.nombre,
@@ -1010,55 +1181,79 @@ class CacheCursoCarm:
     def obtener_contexto_unidades(self, unidades: set[str] | None = None) -> str:
         unidades = unidades or set()
         with self._conectar() as con:
+            columnas_unidad = {
+                row[1]
+                for row in con.execute("PRAGMA table_info(unidad)").fetchall()
+            }
+            tiene_resumen = "resumen_didactico" in columnas_unidad
             if unidades:
-                placeholders = ",".join("?" for _ in unidades)
+                placeholders = ",".join("" for _ in unidades)
+                select_cols = (
+                    "codigo, nombre, contenido_imprimible, COALESCE(resumen_didactico, ''), COALESCE(hash_contenido, '')"
+                    if tiene_resumen
+                    else "codigo, nombre, contenido_imprimible, '', ''"
+                )
                 rows = con.execute(
                     f"""
-                    SELECT codigo, nombre, contenido_imprimible
+                    SELECT {select_cols}
                     FROM unidad
-                    WHERE course_id = ? AND codigo IN ({placeholders})
+                    WHERE course_id =  AND codigo IN ({placeholders})
                     ORDER BY codigo
                     """,
                     (self.course_id, *sorted(unidades)),
                 ).fetchall()
             else:
+                select_cols = (
+                    "codigo, nombre, contenido_imprimible, COALESCE(resumen_didactico, ''), COALESCE(hash_contenido, '')"
+                    if tiene_resumen
+                    else "codigo, nombre, contenido_imprimible, '', ''"
+                )
                 rows = con.execute(
-                    """
-                    SELECT codigo, nombre, contenido_imprimible
+                    f"""
+                    SELECT {select_cols}
                     FROM unidad
-                    WHERE course_id = ?
+                    WHERE course_id = 
                     ORDER BY codigo
                     """,
                     (self.course_id,),
                 ).fetchall()
         partes = []
-        actualizaciones: list[tuple[str, str]] = []
-        for codigo, nombre, contenido in rows:
+        actualizaciones: list[tuple[str, str, str, str]] = []
+        for codigo, nombre, contenido, resumen, hash_guardado in rows:
             if contenido:
                 contenido_limpio = limpiar_bloque_carm_para_prompt(
                     contenido,
                     max_chars=MAX_CONTEXTO_CACHE_CHARS,
                 )
-                if contenido_limpio != contenido:
-                    actualizaciones.append((contenido_limpio, codigo))
+                if not es_contexto_didactico_util(contenido_limpio):
+                    actualizaciones.append(("", "", "", codigo))
+                    logger.info("Contexto didactico cache descartado para %s por ser fallback o ruido.", codigo)
+                    continue
+                hash_actual = hash_contenido_didactico(contenido_limpio)
+                resumen_limpio = str(resumen or "").strip()
+                if not resumen_limpio or hash_guardado != hash_actual:
+                    resumen_limpio = generar_resumen_didactico_local(contenido_limpio, codigo=codigo, nombre=nombre)
+                if contenido_limpio != contenido or resumen_limpio != resumen or hash_guardado != hash_actual:
+                    actualizaciones.append((contenido_limpio, resumen_limpio, hash_actual, codigo))
                     logger.info(
-                        "Contexto didactico cache optimizado para %s: %s -> %s caracteres.",
+                        "Contexto didactico cache preparado para %s: completo %s chars, resumen %s chars.",
                         codigo,
-                        len(contenido),
                         len(contenido_limpio),
+                        len(resumen_limpio),
                     )
-                partes.append(f"## {codigo.upper()} - {nombre or 'Contenido imprimible'}\n{contenido_limpio}")
+                contexto_para_prompt = resumen_limpio or contenido_limpio
+                partes.append(f"## {codigo.upper()} - {nombre or 'Contenido imprimible'}\n{contexto_para_prompt}")
         if actualizaciones:
             with self._conectar() as con:
                 con.executemany(
                     """
                     UPDATE unidad
-                    SET contenido_imprimible = ?, actualizado_en = ?
-                    WHERE course_id = ? AND codigo = ?
+                    SET contenido_imprimible = , resumen_didactico = , hash_contenido = , actualizado_en = 
+                    WHERE course_id =  AND codigo = 
                     """,
                     [
-                        (contenido_limpio, self._ahora(), self.course_id, codigo)
-                        for contenido_limpio, codigo in actualizaciones
+                        (contenido_limpio, resumen_limpio, hash_actual, self._ahora(), self.course_id, codigo)
+                        for contenido_limpio, resumen_limpio, hash_actual, codigo in actualizaciones
                     ],
                 )
         return "\n\n".join(partes)
@@ -1072,7 +1267,7 @@ class CacheCursoCarm:
                 """
                 SELECT unidad_codigo, nombre, url, url_grading, filtro, enunciado
                 FROM actividad
-                WHERE course_id = ? AND codigo = ?
+                WHERE course_id =  AND codigo = 
                 """,
                 (self.course_id, codigo),
             ).fetchone()
@@ -1160,7 +1355,8 @@ class CorrectorIA:
             return self._correccion_respaldo()
 
         prompt_cfg = self.prompts.obtener(actividad_codigo)
-        contexto_api = limpiar_bloque_carm_para_prompt(contexto_unidad, max_chars=MAX_CONTEXTO_API_CHARS)
+        contexto_relevante = seleccionar_contexto_para_actividad(contexto_unidad, actividad_codigo)
+        contexto_api = limpiar_bloque_carm_para_prompt(contexto_relevante, max_chars=MAX_CONTEXTO_API_CHARS)
         enunciado_api = limpiar_bloque_carm_para_prompt(enunciado_actividad, max_chars=5000) if enunciado_actividad else ""
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
@@ -1230,7 +1426,8 @@ class CorrectorIA:
         enunciado_actividad = next((envio.actividad_enunciado for envio, _ in entregas if envio.actividad_enunciado), "")
 
         prompt_cfg = self.prompts.obtener(actividad_codigo)
-        contexto_api = limpiar_bloque_carm_para_prompt(contexto_unidad, max_chars=MAX_CONTEXTO_API_CHARS)
+        contexto_relevante = seleccionar_contexto_para_actividad(contexto_unidad, actividad_codigo)
+        contexto_api = limpiar_bloque_carm_para_prompt(contexto_relevante, max_chars=MAX_CONTEXTO_API_CHARS)
         enunciado_api = limpiar_bloque_carm_para_prompt(enunciado_actividad, max_chars=5000) if enunciado_actividad else ""
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
@@ -1448,7 +1645,7 @@ class ExtractorCarm:
 
     @staticmethod
     def _sanitizar_nombre(nombre: str) -> str:
-        limpio = re.sub(r"[\\/:*?\"<>|]", "_", nombre.strip())
+        limpio = re.sub(r"[\\/:*\"<>|]", "_", nombre.strip())
         return re.sub(r"\s+", " ", limpio)[:120] or "alumno"
 
     @staticmethod
@@ -1458,7 +1655,7 @@ class ExtractorCarm:
     @staticmethod
     def _normalizar_codigo_unidad(valor: str) -> str:
         texto = (valor or "").strip().lower()
-        m = re.search(r"(?:ud|unidad)?\s*0*(\d{1,2})", texto)
+        m = re.search(r"(:ud|unidad)\s*0*(\d{1,2})", texto)
         if not m:
             return texto
         return f"ud{int(m.group(1)):02d}"
@@ -1543,7 +1740,7 @@ class ExtractorCarm:
         for patron in (
             r"\bcp\s*0*(\d{1,2})\b",
             r"\bcaso\s+practico\s*0*(\d{1,2})\b",
-            r"\bcaso\s+practico\b.*?\b0*(\d{1,2})\b",
+            r"\bcaso\s+practico\b.*\b0*(\d{1,2})\b",
         ):
             m = re.search(patron, texto)
             if m:
@@ -1577,7 +1774,7 @@ class ExtractorCarm:
                     const heading = section.querySelector(
                         '.sectionname, .section-title, h2, h3, h4, [role="heading"]'
                     );
-                    return heading ? heading.textContent.trim() : '';
+                    return heading  heading.textContent.trim() : '';
                 }"""
             )
         except Exception:
@@ -1667,7 +1864,7 @@ class ExtractorCarm:
 
         return {
             "texto": texto.strip(),
-            "enviados": numero_antes_de(r"(\d[\d.]*)\s+(?:de\s+\d[\d.]*\s+)?enviad"),
+            "enviados": numero_antes_de(r"(\d[\d.]*)\s+(:de\s+\d[\d.]*\s+)enviad"),
             "total": numero_antes_de(r"\d[\d.]*\s+de\s+(\d[\d.]*)\s+enviad"),
             "sin_calificar": numero_antes_de(r"(\d[\d.]*)\s+sin\s+calificar"),
             "menciona_enviados": "enviad" in normalizado,
@@ -1703,9 +1900,9 @@ class ExtractorCarm:
                     for (const check of checks) {
                         const id = check.id || '';
                         const name = check.name || '';
-                        const label = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
+                        const label = id  document.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
                         const wrap = check.closest('label');
-                        const text = normalizar(`${id} ${name} ${label ? label.textContent : ''} ${wrap ? wrap.textContent : ''}`);
+                        const text = normalizar(`${id} ${name} ${label  label.textContent : ''} ${wrap  wrap.textContent : ''}`);
                         if (/(recordar|remember|mantener|sesion|session|cuenta|usuario)/.test(text)) {
                             check.checked = true;
                             check.dispatchEvent(new Event('change', {bubbles: true}));
@@ -1752,6 +1949,100 @@ class ExtractorCarm:
         except Exception as e:
             logger.warning(f"No se pudo guardar captura de diagnóstico {nombre}: {e}")
 
+    @staticmethod
+    def _extension_contexto_desde_url(url: str, headers: dict | None = None, nombre: str = "") -> str:
+        headers = headers or {}
+        candidates = [nombre, urlparse(url).path]
+        disposition = str(headers.get("content-disposition") or headers.get("Content-Disposition") or "")
+        filename_match = re.search(r"filename\*=(:UTF-8''|\")([^\";]+)", disposition, flags=re.I)
+        if filename_match:
+            candidates.insert(0, filename_match.group(1))
+        for candidate in candidates:
+            suffix = Path(urlparse(candidate).path).suffix.lower()
+            if suffix:
+                return suffix
+        content_type = str(headers.get("content-type") or headers.get("Content-Type") or "").lower()
+        if "pdf" in content_type:
+            return ".pdf"
+        if "presentation" in content_type or "powerpoint" in content_type:
+            return ".pptx"
+        if "spreadsheet" in content_type or "excel" in content_type:
+            return ".xlsx"
+        if "wordprocessingml" in content_type or "msword" in content_type:
+            return ".docx"
+        if "html" in content_type:
+            return ".html"
+        if "text" in content_type or "json" in content_type or "xml" in content_type:
+            return ".txt"
+        return ""
+
+    async def _extraer_texto_url_contexto(self, page, url: str, nombre: str = "") -> str:
+        try:
+            response = await page.request.get(url, timeout=CARM_NAV_TIMEOUT_MS)
+            if not response.ok:
+                return ""
+            headers = response.headers
+            data = await response.body()
+        except Exception as exc:
+            logger.warning("No se pudo descargar recurso de contenido imprimible %s: %s", url, exc)
+            return ""
+
+        ext = self._extension_contexto_desde_url(url, headers, nombre)
+        content_type = str(headers.get("content-type") or "").lower()
+        if ext in {".html", ".htm", ".txt", ".md", ".csv", ".json", ".xml"} or "text" in content_type or "html" in content_type:
+            for enc in ("utf-8", "utf-8-sig", "cp1252", "latin-1"):
+                try:
+                    return data.decode(enc, errors="replace")
+                except Exception:
+                    continue
+            return ""
+
+        if ext not in {".pdf", ".docx", ".odt", ".rtf", ".pptx", ".xlsx", ".zip"}:
+            return ""
+
+        with tempfile.TemporaryDirectory(prefix="carm_contexto_") as tmp:
+            path = Path(tmp) / f"contenido{ext}"
+            path.write_bytes(data)
+            try:
+                lector = GeneradorSalidas(Path(tmp), Path(tmp))
+                lectura = lector.leer_entrega(path)
+                if lectura.requiere_revision_manual:
+                    logger.warning("Recurso didactico %s requiere revision manual: %s", url, lectura.motivo)
+                return lectura.texto
+            except Exception as exc:
+                logger.warning("No se pudo extraer texto de recurso didactico %s: %s", url, exc)
+                return ""
+
+    async def _urls_archivos_embebidos_contexto(self, page) -> list[str]:
+        urls: list[str] = []
+        for selector, attr in (
+            ("a[href]", "href"),
+            ("iframe[src]", "src"),
+            ("object[data]", "data"),
+            ("embed[src]", "src"),
+        ):
+            try:
+                elementos = await page.query_selector_all(selector)
+            except Exception:
+                continue
+            for elemento in elementos:
+                try:
+                    raw = await elemento.get_attribute(attr)
+                except Exception:
+                    continue
+                if not raw:
+                    continue
+                url = urljoin(page.url, raw)
+                normalizada = url.lower()
+                if (
+                    "pluginfile.php" in normalizada
+                    or "forcedownload=1" in normalizada
+                    or re.search(r"\.(pdf|docx|odt|rtf|pptx|xlsx|txt|html)(:[#]|$)", normalizada)
+                ):
+                    if url not in urls:
+                        urls.append(url)
+        return urls
+
     async def _extraer_contexto_imprimible(self, page) -> str:
         if self.usar_cache and self.cache:
             contexto_cache = self.cache.obtener_contexto_unidades(self.unidades)
@@ -1786,23 +2077,37 @@ class ExtractorCarm:
 
         for href, unidad_codigo, nombre in urls_contexto:
             try:
-                await page.goto(href, wait_until="domcontentloaded")
+                url_contexto = urljoin(CARM_COURSE_URL or page.url, href)
+                await page.goto(url_contexto, wait_until="domcontentloaded")
                 body = await page.text_content("body")
-                if body and body.strip():
+                textos_candidatos: list[str] = [body or ""]
+                for archivo_url in await self._urls_archivos_embebidos_contexto(page):
+                    texto_archivo = await self._extraer_texto_url_contexto(page, archivo_url, nombre)
+                    if texto_archivo:
+                        textos_candidatos.append(texto_archivo)
+                if len(textos_candidatos) == 1:
+                    texto_directo = await self._extraer_texto_url_contexto(page, url_contexto, nombre)
+                    if texto_directo:
+                        textos_candidatos.append(texto_directo)
+
+                mejor_contexto = ""
+                for candidato in textos_candidatos:
                     contexto_limpio = limpiar_bloque_carm_para_prompt(
-                        body.strip(),
+                        candidato.strip(),
                         max_chars=MAX_CONTEXTO_CACHE_CHARS,
                     )
-                    contexto_partes.append(contexto_limpio)
+                    if es_contexto_didactico_util(contexto_limpio) and len(contexto_limpio) > len(mejor_contexto):
+                        mejor_contexto = contexto_limpio
+
+                if mejor_contexto:
+                    contexto_partes.append(mejor_contexto)
                     if self.cache and unidad_codigo:
-                        self.cache.guardar_unidad(
-                            unidad_codigo,
-                            nombre=nombre,
-                            contenido_imprimible=contexto_limpio,
-                        )
+                        self.cache.guardar_unidad(unidad_codigo, nombre=nombre, contenido_imprimible=mejor_contexto)
+                else:
+                    logger.warning("No se encontro contenido didactico util en %s (%s).", nombre, url_contexto)
             except Exception as e:
                 logger.warning(f"No se pudo leer contenido imprimible {href}: {e}")
-        await page.goto(CARM_COURSE_URL, wait_until="domcontentloaded")
+        await page.goto(CARM_COURSE_URL or CARM_MY_URL, wait_until="domcontentloaded")
         return "\n\n".join(contexto_partes)
 
     async def _extraer_enunciado_actividad(self, page, actividad_url: str) -> str:
@@ -2344,7 +2649,7 @@ class ExtractorCarm:
 
                 const visibles = Array.from(document.querySelectorAll('[contenteditable="true"], .editor_atto_content')).filter(el => {
                     const key = `${el.id || ''} ${el.className || ''} ${el.getAttribute('aria-label') || ''}`.toLowerCase();
-                    const parent = `${el.closest('[id], [class]')?.id || ''} ${el.closest('[id], [class]')?.className || ''}`.toLowerCase();
+                    const parent = `${el.closest('[id], [class]').id || ''} ${el.closest('[id], [class]').className || ''}`.toLowerCase();
                     return (
                         key.includes('assignfeedbackcomments') ||
                         key.includes('feedbackcomments') ||
@@ -2356,7 +2661,7 @@ class ExtractorCarm:
 
                 for (const textarea of textareas) {
                     const key = `${textarea.name || ''} ${textarea.id || ''}`.toLowerCase();
-                    const payload = key.includes('_editor') ? (html || value.replace(/\\n/g, '<br>')) : value;
+                    const payload = key.includes('_editor')  (html || value.replace(/\\n/g, '<br>')) : value;
                     textarea.value = payload;
                     textarea.textContent = payload;
                     textarea.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value}));
@@ -2364,7 +2669,7 @@ class ExtractorCarm:
 
                     const explicitEditable = document.getElementById(`${textarea.id}editable`)
                         || document.getElementById(textarea.id.replace(/_editor$/, '_editable'))
-                        || textarea.closest('.fitem, .form-group, .felement')?.querySelector('[contenteditable="true"], .editor_atto_content');
+                        || textarea.closest('.fitem, .form-group, .felement').querySelector('[contenteditable="true"], .editor_atto_content');
                     if (explicitEditable) {
                         explicitEditable.innerHTML = html || value.replace(/\\n/g, '<br>');
                         explicitEditable.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value}));
@@ -2481,7 +2786,7 @@ class ExtractorCarm:
                             tag: el.tagName.toLowerCase(),
                             name: el.getAttribute('name') || '',
                             id: el.id || '',
-                            class: typeof el.className === 'string' ? el.className : '',
+                            class: typeof el.className === 'string'  el.className : '',
                             aria: el.getAttribute('aria-label') || '',
                             visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
                             muestra: text
@@ -2537,7 +2842,7 @@ class ExtractorCarm:
                     return selector
             except Exception:
                 continue
-        raise RuntimeError("No se encontrÃ³ botÃ³n de guardado en el formulario de calificaciÃ³n.")
+        raise RuntimeError("No se encontró botón de guardado en el formulario de calificación.")
 
     @staticmethod
     async def _mostrar_guia_subida_asistida(
@@ -2570,7 +2875,7 @@ class ExtractorCarm:
             )
         await page.evaluate(
             """({message, detail, invalid, allowManual}) => {
-                const signature = `${message}\\n${detail}\\n${invalid ? 'invalid' : ''}\\n${allowManual ? 'manual' : ''}`;
+                const signature = `${message}\\n${detail}\\n${invalid  'invalid' : ''}\\n${allowManual  'manual' : ''}`;
                 const previous = document.getElementById('corrector-carm-assisted-banner');
                 if (previous && previous.dataset.signature === signature) return;
                 if (previous) previous.remove();
@@ -2584,9 +2889,9 @@ class ExtractorCarm:
                 banner.style.maxWidth = '420px';
                 banner.style.zIndex = '2147483647';
                 banner.style.padding = '12px 14px';
-                banner.style.background = invalid ? '#fff1f1' : '#fff8ea';
-                banner.style.border = invalid ? '1px solid #c94c4c' : '1px solid #d6a84f';
-                banner.style.color = invalid ? '#5a1111' : '#3f2a00';
+                banner.style.background = invalid  '#fff1f1' : '#fff8ea';
+                banner.style.border = invalid  '1px solid #c94c4c' : '1px solid #d6a84f';
+                banner.style.color = invalid  '#5a1111' : '#3f2a00';
                 banner.style.font = '14px Segoe UI, Arial, sans-serif';
                 banner.style.boxShadow = '0 8px 28px rgba(0,0,0,.18)';
                 banner.style.borderRadius = '8px';
@@ -2609,14 +2914,14 @@ class ExtractorCarm:
                 actions.style.justifyContent = 'flex-end';
                 const next = document.createElement('button');
                 next.type = 'button';
-                next.textContent = allowManual ? 'Confirmar guardado manual' : 'Ya he guardado en CARM';
+                next.textContent = allowManual  'Confirmar guardado manual' : 'Ya he guardado en CARM';
                 next.style.padding = '7px 12px';
                 next.style.border = '1px solid #6f520f';
                 next.style.borderRadius = '6px';
                 next.style.background = '#6f520f';
                 next.style.color = '#fff';
                 next.style.cursor = 'pointer';
-                next.onclick = () => { window.__correctorCarmDecision = allowManual ? 'confirmar_manual' : 'continuar'; };
+                next.onclick = () => { window.__correctorCarmDecision = allowManual  'confirmar_manual' : 'continuar'; };
                 const skip = document.createElement('button');
                 skip.type = 'button';
                 skip.textContent = 'Omitir';
@@ -2832,7 +3137,7 @@ class ExtractorCarm:
                 "alumno": alumno,
                 "actividad": actividad_codigo,
                 "estado": "no_encontrado",
-                "mensaje": "No se encontrÃ³ enlace de calificaciÃ³n para el alumno en la tabla.",
+                "mensaje": "No se encontró enlace de calificación para el alumno en la tabla.",
             }
 
         apertura_calificador = await self._abrir_formulario_calificacion(page, url_calificador, alumno)
@@ -2864,11 +3169,11 @@ class ExtractorCarm:
 
         if not grade_selector:
             resultado["estado"] = "error"
-            resultado["mensaje"] = "No se encontrÃ³ campo de nota."
+            resultado["mensaje"] = "No se encontró campo de nota."
             return resultado
         if not feedback_selector:
             resultado["estado"] = "error"
-            resultado["mensaje"] = "No se encontrÃ³ campo de retroalimentaciÃ³n."
+            resultado["mensaje"] = "No se encontró campo de retroalimentación."
             return resultado
 
         if publicar:
@@ -2943,7 +3248,8 @@ class ExtractorCarm:
             resultados: list[dict] = []
             try:
                 await self._login(page)
-                await page.goto(CARM_COURSE_URL, wait_until="domcontentloaded")
+                destino = CARM_COURSE_URL or CARM_MY_URL
+                await page.goto(destino, wait_until="domcontentloaded")
                 actividades = await self._obtener_actividades_obligatorias(page)
                 actividades_por_codigo = {act["codigo"]: act for act in actividades}
                 if self.cache:
@@ -2972,7 +3278,7 @@ class ExtractorCarm:
                                 "alumno": correccion.get("alumno", ""),
                                 "actividad": actividad_codigo,
                                 "estado": "no_encontrado",
-                                "mensaje": "No se encontrÃ³ la actividad en CARM.",
+                                "mensaje": "No se encontró la actividad en CARM.",
                             }
                         )
                         continue
@@ -3139,7 +3445,8 @@ class ExtractorCarm:
             self._configurar_page(page)
             try:
                 await self._login(page)
-                await page.goto(CARM_COURSE_URL, wait_until="domcontentloaded")
+                destino = CARM_COURSE_URL or CARM_MY_URL
+                await page.goto(destino, wait_until="domcontentloaded")
                 if await page.locator("input[name='username'], #username").count():
                     raise RuntimeError("CARM volvió a mostrar el formulario de login.")
                 logger.info("Credenciales CARM verificadas correctamente.")
@@ -3179,7 +3486,7 @@ class ExtractorCarm:
                                 await enlace.evaluate(
                                     """(el) => {
                                         const card = el.closest('.coursebox, .card, li, article, .dashboard-card');
-                                        return card ? card.textContent : el.textContent;
+                                        return card  card.textContent : el.textContent;
                                     }"""
                                 )
                             )
@@ -3389,8 +3696,8 @@ class GeneradorSalidas:
         raw = GeneradorSalidas._leer_archivo_texto(path)
         if not raw:
             return ""
-        raw = re.sub(r"<!--.*?-->", " ", raw, flags=re.S)
-        raw = re.sub(r"<(script|style|noscript|svg|canvas|template|head)\b[^>]*>.*?</\1>", " ", raw, flags=re.I | re.S)
+        raw = re.sub(r"<!--.*-->", " ", raw, flags=re.S)
+        raw = re.sub(r"<(script|style|noscript|svg|canvas|template|head)\b[^>]*>.*</\1>", " ", raw, flags=re.I | re.S)
         parser = TextoVisibleHTMLParser()
         try:
             parser.feed(raw)
@@ -3446,7 +3753,7 @@ class GeneradorSalidas:
             idx = texto.find(marca)
             if idx >= 0:
                 inicio = idx if inicio < 0 else min(inicio, idx)
-        actividad = re.search(r"\bUD\s*0?\d+\s*-\s*CASO\s+PR[ÁA]CTICO\s+\d+", texto, flags=re.I)
+        actividad = re.search(r"\bUD\s*0\d+\s*-\s*CASO\s+PR[ÁA]CTICO\s+\d+", texto, flags=re.I)
         if actividad:
             inicio = actividad.start() if inicio < 0 else min(inicio, actividad.start())
         if inicio > 0:
@@ -3537,11 +3844,11 @@ class GeneradorSalidas:
         try:
             size = path.stat().st_size
         except OSError:
-            return "No se pudo leer el tamaÃ±o del archivo; requiere revisiÃ³n manual."
+            return "No se pudo leer el tamaño del archivo; requiere revisión manual."
         if size > self.MAX_ARCHIVO_BYTES:
             return (
                 f"Archivo demasiado grande ({size} bytes, limite {self.MAX_ARCHIVO_BYTES}); "
-                "requiere revisiÃ³n manual."
+                "requiere revisión manual."
             )
         permitidas = (
             self.EXTENSIONES_TEXTO
@@ -3552,7 +3859,7 @@ class GeneradorSalidas:
             | {".pdf", ".pptx", ".xlsx", ".zip", ""}
         )
         if ext not in permitidas:
-            return f"Extension no permitida ({ext or 'sin extensiÃ³n'}); requiere revisiÃ³n manual."
+            return f"Extension no permitida ({ext or 'sin extensión'}); requiere revisión manual."
         return ""
 
     @staticmethod
@@ -3579,7 +3886,7 @@ class GeneradorSalidas:
     def _leer_rtf(path: Path) -> str:
         raw = GeneradorSalidas._leer_archivo_texto(path)
         texto = re.sub(r"\\'[0-9a-fA-F]{2}", " ", raw)
-        texto = re.sub(r"\\[a-zA-Z]+\d* ?", " ", texto)
+        texto = re.sub(r"\\[a-zA-Z]+\d* ", " ", texto)
         texto = texto.replace("{", " ").replace("}", " ").replace("\\", " ")
         return unescape(re.sub(r"\s+", " ", texto)).strip()
 
@@ -3645,7 +3952,7 @@ class GeneradorSalidas:
                 if info.is_dir():
                     continue
                 if info.file_size > self.MAX_ZIP_ENTRADA_BYTES:
-                    textos.append(f"[{info.filename}: omitido por tamaÃ±o excesivo]")
+                    textos.append(f"[{info.filename}: omitido por tamaño excesivo]")
                     continue
                 nombre = Path(nombre_zip.name)
                 ext = nombre.suffix.lower()
@@ -3680,7 +3987,7 @@ class GeneradorSalidas:
 
     @staticmethod
     def _sanitizar(nombre: str) -> str:
-        limpio = re.sub(r"[\\/:*?\"<>|]", "_", nombre.strip())
+        limpio = re.sub(r"[\\/:*\"<>|]", "_", nombre.strip())
         return re.sub(r"\s+", " ", limpio)[:120] or "alumno"
 
     @staticmethod
@@ -3727,8 +4034,8 @@ class GeneradorSalidas:
     @staticmethod
     def _limpiar_bloque_carm_para_prompt(texto: str, max_chars: int = MAX_CONTEXTO_PROMPT_CHARS) -> str:
         texto = unescape(texto or "")
-        texto = re.sub(r"//<!\[CDATA\[.*?//\]\]>", "\n", texto, flags=re.S)
-        texto = re.sub(r"<script\b.*?</script>", "\n", texto, flags=re.S | re.I)
+        texto = re.sub(r"//<!\[CDATA\[.*//\]\]>", "\n", texto, flags=re.S)
+        texto = re.sub(r"<script\b.*</script>", "\n", texto, flags=re.S | re.I)
         texto = texto.replace("\r", "\n")
 
         def normalizar_linea(valor: str) -> str:
@@ -3800,7 +4107,7 @@ class GeneradorSalidas:
             normalizada = normalizar_linea(linea)
             if any(normalizar_linea(patron) in normalizada for patron in patrones_ruido):
                 continue
-            if re.fullmatch(r"[{}()[\];,./\\|:_\-*=+<>!¡¿?\"'`~0-9\s]+", linea):
+            if re.fullmatch(r"[{}()[\];,./\\|:_\-*=+<>!¡¿\"'`~0-9\s]+", linea):
                 continue
             if normalizada in vistas:
                 continue
@@ -3927,7 +4234,7 @@ class GeneradorSalidas:
         for crit in criterios:
             nombre = crit.get("nombre", "Criterio")
             p = crit.get("puntuacion", 0)
-            m = crit.get("maximo", "?")
+            m = crit.get("maximo", "")
             c = crit.get("comentario", "")
             lineas.append(f"- {nombre}: {p}/{m}. {c}")
 
@@ -4048,7 +4355,7 @@ class GeneradorSalidas:
                 correcciones_csv.append(self._normalizar_correccion_importada(correccion))
             return correcciones_csv
 
-        match = re.search(r"```(?:json)?\s*(.*?)```", texto, flags=re.S | re.I)
+        match = re.search(r"```(:json)\s*(.*)```", texto, flags=re.S | re.I)
         if match:
             texto = match.group(1).strip()
 
@@ -4202,6 +4509,9 @@ class GeneradorSalidas:
         contexto_limpio = self._limpiar_bloque_carm_para_prompt(contexto_unidad)
 
         for actividad_codigo, envios in sorted(pendientes_por_actividad.items()):
+            contexto_actividad = self._limpiar_bloque_carm_para_prompt(
+                seleccionar_contexto_para_actividad(contexto_limpio, actividad_codigo)
+            )
             entregas: list[dict] = []
             revision_manual: list[dict] = []
             enunciado = self._limpiar_bloque_carm_para_prompt(
@@ -4259,8 +4569,6 @@ class GeneradorSalidas:
                 lineas = [
                 f"# Prompt para Codex - {actividad_codigo}",
                 "",
-                f"Lote {numero_lote} de {len(lotes)}. Entregas en este lote: {len(entregas_lote)}.",
-                "",
                 "## Instrucciones de sistema",
                 "",
                 prompt_cfg["sistema"],
@@ -4275,7 +4583,7 @@ class GeneradorSalidas:
                 "",
                 "## Contexto didactico limpio desde cache",
                 "",
-                contexto_limpio,
+                contexto_actividad,
                 "",
                 "## Tarea",
                 "",
@@ -4305,6 +4613,8 @@ class GeneradorSalidas:
                 "```",
                 "",
                 "No incluyas en `correcciones` las entregas marcadas como revisión manual.",
+                "",
+                f"Lote {numero_lote} de {len(lotes)}. Entregas en este lote: {len(entregas_lote)}.",
                 "",
                 "## Entregas legibles",
                 "",
@@ -4717,7 +5027,7 @@ async def ejecutar_flujo(args) -> None:
         if asistida:
             logger.info("Modo subida asistida: solo se eliminan del CSV las filas confirmadas por el usuario.")
         elif not publicar:
-            logger.info("Modo previsualizaciÃ³n: no se ha pulsado guardar en CARM.")
+            logger.info("Modo previsualización: no se ha pulsado guardar en CARM.")
         return
 
     usar_cache = (

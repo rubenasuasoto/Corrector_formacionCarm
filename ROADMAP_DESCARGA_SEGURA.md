@@ -4,6 +4,8 @@ Este documento aterriza el material de despliegue seguro al estado real del Corr
 
 ## Decision actual
 
+Actualizacion 2026-05-14: Fase 4 queda implementada como instalacion local guiada en primera version. El proyecto esta en la puerta pre-Fase 5: toca cerrar la app local, verificar release, mantener subida asistida con revision humana y evitar meter infraestructura cloud/multiusuario antes de que el flujo local sea estable.
+
 Actualizacion 2026-05-12: la app ya ha avanzado hacia un flujo mas directo de autoprompteo y subida asistida. La interfaz de descarga clasica sigue siendo una referencia de seguridad y usabilidad, pero no bloquea el flujo actual si la app ya detecta, descarga y genera prompts de forma comprensible para el docente.
 
 La siguiente fase del proyecto es completar la interfaz y logica de descarga desde CARM. Antes de invertir en Docker, Kubernetes, Terraform, CI/CD avanzada o despliegue cloud, conviene cerrar bien el flujo local:
@@ -28,7 +30,7 @@ Objetivo: que la app sepa donde esta, que curso corrige y si tiene permisos para
 - No mostrar unidades/casos que no existan en CARM.
 - Separar cache didactica de datos personales siempre que sea posible.
 
-Estado: implementado en primera version; pendiente de pruebas reales repetidas con varios cursos y permisos Windows/Chromium.
+Estado: implementado en primera version. La app crea carpetas, detecta cursos, separa rutas por curso por defecto y reescanea tras credenciales/seleccion de curso. Pendiente de pruebas reales repetidas con varios cursos y permisos Windows/Chromium.
 
 ## Fase 1: Interfaz de descarga CARM
 
@@ -80,6 +82,7 @@ Cache:
 
 - `cache_carm\curso_<course_id>.sqlite` sigue siendo cache didactica por curso.
 - La cache no guarda entregas ni CSV.
+- La cache didactica guarda enunciados, contenido imprimible util, resumen local por unidad y hash del contenido para evitar meter todo el material en cada peticion.
 - La interfaz debe mostrar si cada curso tiene cache didactica, unidades y casos detectados.
 
 Autoprompteo multi-curso:
@@ -103,7 +106,7 @@ Implementacion por pasos:
 2. Guardar seleccion de cursos en `.corrector_app.json`. Estado: implementado desde la configuracion de la interfaz.
 3. Mostrar selector de curso activo en la cabecera. Estado: implementado para cambiar el curso visible desde la interfaz.
 4. Separar cache/opciones visibles por curso.
-5. Migrar rutas de trabajo a `cursos/<course_id>/`. Estado: implementado como opcion activable "Separar carpetas por curso"; por defecto se mantienen las rutas globales para no romper instalaciones existentes.
+5. Migrar rutas de trabajo a `cursos/<course_id>/`. Estado: implementado y activado por defecto; las rutas globales quedan como compatibilidad si se desactiva la separacion por curso.
 6. Activar autoprompteo secuencial para cursos seleccionados. Estado: primera version implementada; solo se activa de forma segura cuando hay varios cursos seleccionados y carpetas por curso activadas.
 7. Hacer que el arranque sin curso activo detecte cursos desde el area personal. Estado: implementado.
 8. Mostrar estado por curso en la interfaz. Estado: implementado con cache, fecha de cache, prompts, JSON, filas CSV, actividades e incidencias bloqueantes.
@@ -178,6 +181,8 @@ Objetivo: no saltar a infraestructura futura antes de que la herramienta local s
 - Probar cambio de curso y carpetas por curso si hay varios cursos reales.
 - Confirmar que la subida asistida mantiene guardado humano.
 - Confirmar que no se duplican prompts, pendientes ni CSV al repetir ejecuciones.
+- Confirmar que la cache didactica usa contenido imprimible/resumenes utiles y no mapas de Moodle.
+- Generar paquete guiado actualizado y manifiesto de release.
 - Revisar `CIERRE_APP_LOCAL.md` y aceptar explicitamente cualquier punto pendiente.
 
 Estado: abierto. Es el punto actual del proyecto.
