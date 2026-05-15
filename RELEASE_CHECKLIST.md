@@ -9,6 +9,7 @@ Este checklist se usa antes de compartir una version, reinstalar en otro equipo 
 - [ ] `.env`, logs, caches, salidas, entregas y correcciones generadas no aparecen en `git ls-files`.
 - [ ] `.env.example` esta actualizado, no contiene secretos reales y cubre variables nuevas.
 - [ ] `ESTADO_PROYECTO.md`, `ROADMAP_DESCARGA_SEGURA.md` y `ARQUITECTURA_PROYECTO.md` reflejan el estado real.
+- [ ] `assets/corrector_carm.ico` y `assets/corrector_carm.png` estan incluidos para panel, bandeja, accesos directos y paquete Windows.
 
 ## 2. Verificacion tecnica
 
@@ -27,6 +28,7 @@ Debe validar:
 - importacion offline de JSON de varias unidades a `revision_pendiente.csv` sin duplicados;
 - aislamiento offline de cursos seleccionados cuando cambia la cuenta CARM;
 - endpoints locales con token;
+- assets del icono servidos por el panel local;
 - pruebas offline de importacion y contexto cuenta/curso;
 - bloqueo offline de publicacion directa y preparacion de curso completo sin filtro de unidad;
 - credenciales CARM, curso activo y carpetas de trabajo.

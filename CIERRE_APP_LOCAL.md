@@ -16,7 +16,9 @@ La app local debe poder usarse en Windows por un docente con:
 
 ## Estado 2026-05-14
 
-La puerta pre-Fase 5 esta muy avanzada. Ya hay instalacion guiada, paquete ZIP local, carpetas por curso por defecto, cache didactica con resumenes por unidad y verificacion anti-mojibake. Antes de entrar en Fase 5 queda cerrar una verificacion de release actualizada y decidir si se hace una prueba multi-curso real.
+La puerta pre-Fase 5 esta muy avanzada. Ya hay instalacion guiada, paquete ZIP local, carpetas por curso por defecto, cache didactica con resumenes por unidad y verificacion anti-mojibake. La prueba multi-curso real queda confirmada; antes de entrar en Fase 5 toca regenerar release/paquete con los ultimos cambios visuales y de verificacion.
+
+Actualizacion 2026-05-15: el docente confirma que multi-curso funciona. Tambien queda corregido un bloqueo del panel local por JavaScript embebido roto y `verificar_app.py` ya comprueba ese caso. El icono propio de la app se valida como asset de release.
 
 ## Checklist obligatoria
 
@@ -69,8 +71,11 @@ La puerta pre-Fase 5 esta muy avanzada. Ya hay instalacion guiada, paquete ZIP l
 - [x] `preparar_release_windows.cmd` genera manifiesto.
 - [x] Etiqueta local `v0.3.0-local` creada.
 - [x] Verificacion anti-mojibake incorporada a `verificar_app.py`.
+- [x] Verificacion de JavaScript embebido incorporada a `verificar_app.py`.
+- [x] Verificacion de iconos propios incorporada a `verificar_app.py`.
 - [x] Limpiar o archivar notas historicas con codificacion rota si molestan al mantenimiento.
 - [x] Ejecutar `preparar_release_windows.cmd` completo tras los cambios de 2026-05-14.
+- [x] Ejecutar `preparar_release_windows.cmd` y `crear_paquete_windows.cmd` tras los cambios de icono/verificacion de 2026-05-15.
 
 ## Criterio para abrir Fase 5
 

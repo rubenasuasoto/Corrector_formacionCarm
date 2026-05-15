@@ -4,6 +4,13 @@
 
 Estado actual: seguimos en la puerta pre-Fase 5. La prioridad ya no es abrir infraestructura cloud, sino cerrar la app local instalable y dejarla suficientemente estable para uso real en Windows.
 
+- Actualizacion 2026-05-15: el docente confirma que el flujo multi-curso funciona. Se corrige un bloqueo de la interfaz provocado por operadores ternarios rotos dentro del JavaScript embebido del panel; el sintoma era que el selector de correcciones quedaba en `Cargando fuentes de correccion...` y el log aparecia vacio. La instancia local se reinicio y se valido con Playwright contra `http://127.0.0.1:8765` sin errores de pagina ni consola.
+- Mejora visual 2026-05-15: se actualizan icono de bandeja, favicon, marca del panel y avisos internos por tipo. Las notificaciones de Windows pasan a clasificar `info`, `success`, `warning` y `error`, con deduplicacion temporal para evitar avisos repetidos.
+- Icono Windows 2026-05-15: se anade `assets/corrector_carm.ico` y `assets/corrector_carm.png` con libreta, lapiz y marca de revision. El panel, la bandeja y los accesos directos usan el icono propio de la app.
+- Icono interfaz 2026-05-15: la cabecera y el favicon del panel ya cargan directamente `/assets/corrector_carm.png` y `/assets/corrector_carm.ico`; antes la cabecera aun usaba un dibujo CSS antiguo.
+- Notificaciones Windows 2026-05-15: se prioriza `pystray` para notificar desde la bandeja de la propia app y evitar que Windows muestre `Windows PowerShell` como origen. La ruta PowerShell queda solo como fallback si no existe icono de bandeja. Para eliminar por completo cualquier branding de Python/launcher en una version distribuible, el siguiente paso seria empaquetar en `.exe` con AppUserModelID propio.
+- Verificacion preventiva: `verificar_app.py` incorpora una comprobacion del JavaScript embebido para detectar ternarios rotos antes de que vuelvan a congelar el panel.
+- Release 2026-05-15: `preparar_release.py` pasa completo y genera `release_manifest_0.3.0-local_20260515_054606.json`. `crear_paquete_windows.cmd` genera `Corrector_CARM_0.3.0-local_guiado_20260515_074603.zip` con los iconos propios incluidos.
 - Instalacion guiada: existen `INSTALAR_CORRECTOR_CARM.cmd`, `ABRIR_CORRECTOR_CARM.cmd` y `crear_paquete_windows.cmd`. El paquete guiado excluye `.env`, `.venv`, logs, cache, entregas y correcciones generadas.
 - Primer paquete local guiado preparado para otro Windows: `Corrector_CARM_0.3.0-local_guiado_*.zip`.
 - Credenciales: `.env.example` deja `CARM_USUARIO` y `CARM_CONTRASENA` vacios para que la app no confunda valores de plantilla con credenciales reales.

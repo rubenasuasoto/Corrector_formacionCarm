@@ -86,6 +86,86 @@ def check_textos_sin_mojibake() -> bool:
     return True
 
 
+def check_javascript_panel_embebido() -> bool:
+    safe_print("\n==> JavaScript del panel local")
+    try:
+        lines = (ROOT / "interfaz_app.py").read_text(encoding="utf-8").splitlines()
+    except Exception as exc:
+        safe_print(f"ERROR: no se pudo leer interfaz_app.py: {exc}")
+        return False
+
+    incidencias: list[str] = []
+    for index, line in enumerate(lines, start=1):
+        if not (2600 <= index <= 3400):
+            continue
+        stripped = line.strip()
+        next_line = lines[index].strip() if index < len(lines) else ""
+        if next_line.startswith(":"):
+            contexto: list[str] = []
+            cursor = index - 1
+            while cursor >= 1 and len(contexto) < 4:
+                candidate = lines[cursor - 1].strip()
+                if candidate:
+                    contexto.append(candidate)
+                cursor -= 1
+            if not any(item == "?" or "?" in item for item in contexto):
+                incidencias.append(f"{index}: posible ternario sin '?': {stripped}")
+        patrones_rotos = (
+            "  ''",
+            "  '",
+            "  `",
+            "exists  ",
+            "length  ",
+            "checked  ",
+            "current  ",
+            "running  ",
+            "checkOnly  ",
+            "settingsOpen  ",
+            "pending_publication  ",
+        )
+        if any(patron in stripped for patron in patrones_rotos):
+            incidencias.append(f"{index}: posible operador JS perdido: {stripped}")
+
+    if incidencias:
+        safe_print("ERROR: posibles roturas de JavaScript embebido:")
+        for item in incidencias[:12]:
+            safe_print(f"- {item}")
+        return False
+    safe_print("OK: no se detectan ternarios rotos en el JavaScript embebido.")
+    return True
+
+
+def check_iconos_app() -> bool:
+    safe_print("\n==> Iconos de la app")
+    ico = ROOT / "assets" / "corrector_carm.ico"
+    png = ROOT / "assets" / "corrector_carm.png"
+    incidencias: list[str] = []
+    if not ico.exists() or ico.stat().st_size < 1024:
+        incidencias.append("assets/corrector_carm.ico no existe o es demasiado pequeno.")
+    if not png.exists() or png.stat().st_size < 1024:
+        incidencias.append("assets/corrector_carm.png no existe o es demasiado pequeno.")
+    if png.exists():
+        try:
+            if png.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+                incidencias.append("assets/corrector_carm.png no parece un PNG valido.")
+        except Exception as exc:
+            incidencias.append(f"No se pudo leer assets/corrector_carm.png: {exc}")
+    if ico.exists():
+        try:
+            if ico.read_bytes()[:4] != b"\x00\x00\x01\x00":
+                incidencias.append("assets/corrector_carm.ico no parece un ICO valido.")
+        except Exception as exc:
+            incidencias.append(f"No se pudo leer assets/corrector_carm.ico: {exc}")
+
+    if incidencias:
+        safe_print("ERROR: iconos de la app con incidencias:")
+        for item in incidencias:
+            safe_print(f"- {item}")
+        return False
+    safe_print("OK: iconos propios disponibles para panel, bandeja y accesos directos.")
+    return True
+
+
 def print_health(operacion: bool) -> bool:
     safe_print("\n==> Estado local")
     import interfaz_app as app
@@ -146,6 +226,20 @@ def check_local_endpoints() -> bool:
         if status != 200 or "checks" not in health:
             safe_print(f"ERROR: /api/health con token devolvio {status}.")
             return False
+        with urllib.request.urlopen(f"{base_url}/assets/corrector_carm.png?v=verificar", timeout=10) as response:
+            if response.status != 200 or response.headers.get("Content-Type") != "image/png":
+                safe_print("ERROR: el PNG del icono no se sirve correctamente.")
+                return False
+            if response.read(8) != b"\x89PNG\r\n\x1a\n":
+                safe_print("ERROR: el PNG del icono servido no tiene cabecera PNG valida.")
+                return False
+        with urllib.request.urlopen(f"{base_url}/assets/corrector_carm.ico?v=verificar", timeout=10) as response:
+            if response.status != 200 or response.headers.get("Content-Type") != "image/x-icon":
+                safe_print("ERROR: el ICO del icono no se sirve correctamente.")
+                return False
+            if response.read(4) != b"\x00\x00\x01\x00":
+                safe_print("ERROR: el ICO del icono servido no tiene cabecera ICO valida.")
+                return False
         safe_print("OK: token local y endpoints basicos responden correctamente.")
         return True
     finally:
@@ -379,6 +473,8 @@ def main() -> int:
         ],
     )
     ok &= check_textos_sin_mojibake()
+    ok &= check_javascript_panel_embebido()
+    ok &= check_iconos_app()
     ok &= print_health(operacion=not args.instalacion)
     if not args.sin_prueba_offline:
         ok &= check_importacion_json_csv()

@@ -76,7 +76,9 @@ $ExtraReleaseFiles = @(
     "INSTALAR_CORRECTOR_CARM.cmd",
     "ABRIR_CORRECTOR_CARM.cmd",
     "crear_paquete_windows.cmd",
-    "crear_paquete_windows.ps1"
+    "crear_paquete_windows.ps1",
+    "assets/corrector_carm.ico",
+    "assets/corrector_carm.png"
 )
 
 $Files = @($TrackedFiles + $ExtraReleaseFiles) |

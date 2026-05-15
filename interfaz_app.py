@@ -50,6 +50,8 @@ SUBIDA_ASISTIDA_JSON = ROOT / "respuestas_extraidas" / "subida_carm_asistida.jso
 CURSOS_DETECTADOS_JSON = ROOT / "respuestas_extraidas" / "cursos_detectados.json"
 ENV_PATH = ROOT / ".env"
 CARM_STORAGE_STATE = ROOT / "cache_carm" / "carm_storage_state.json"
+APP_ICON_ICO = ROOT / "assets" / "corrector_carm.ico"
+APP_ICON_PNG = ROOT / "assets" / "corrector_carm.png"
 ALLOWED_UNITS = {f"ud{i:02d}" for i in range(1, 16)}
 ALLOWED_MAX_ENTREGAS = {"0", *{str(i) for i in range(1, 21)}}
 ALLOWED_ACTIVITIES = {f"ud{unit:02d}cp{case:02d}" for unit in range(1, 16) for case in range(1, 16)}
@@ -62,6 +64,8 @@ DEFAULT_CARM_COURSE_URL = ""
 TRAY_ICON = None
 APP_SERVER: ThreadingHTTPServer | None = None
 APP_URL = ""
+NOTIFY_DEDUP_SECONDS = 90
+_NOTIFY_CACHE: dict[tuple[str, str, str], float] = {}
 AUTO_CORRECT_AFTER_SCAN = False
 AUTO_CORRECT_ARGS = ["--preparar-carm-codex"]
 AUTO_COURSE_QUEUE: list[dict[str, str]] = []
@@ -441,17 +445,71 @@ def interface_url(fragment: str = "") -> str:
     return f"{base}{fragment}"
 
 
-def notify(title: str, message: str, target: str = "") -> None:
+def notification_kind(title: str, message: str, kind: str = "") -> str:
+    value = str(kind or "").strip().lower()
+    if value in {"info", "success", "warning", "error"}:
+        return value
+    lowered = f"{title} {message}".lower()
+    if any(term in lowered for term in ("error", "fallo", "bloqueo", "no se pudo", "denegado")):
+        return "error"
+    if any(term in lowered for term in ("revision manual", "incidencia", "pendiente", "faltan credenciales")):
+        return "warning"
+    if any(term in lowered for term in ("guardado", "preparado", "recuperados", "completado", "listo")):
+        return "success"
+    return "info"
+
+
+def notification_icon(kind: str) -> str:
+    return {
+        "error": "Error",
+        "warning": "Warning",
+        "success": "Info",
+        "info": "Info",
+    }.get(kind, "Info")
+
+
+def should_send_notification(title: str, message: str, kind: str) -> bool:
+    now = time.time()
+    key = (title.strip(), message.strip()[:220], kind)
+    last = _NOTIFY_CACHE.get(key, 0)
+    if now - last < NOTIFY_DEDUP_SECONDS:
+        return False
+    _NOTIFY_CACHE[key] = now
+    for cache_key, timestamp in list(_NOTIFY_CACHE.items()):
+        if now - timestamp > NOTIFY_DEDUP_SECONDS * 3:
+            _NOTIFY_CACHE.pop(cache_key, None)
+    return True
+
+
+def notify(title: str, message: str, target: str = "", kind: str = "") -> None:
     text = message[:240]
+    kind = notification_kind(title, text, kind)
+    if not should_send_notification(title, text, kind):
+        return
     url = interface_url(target)
+    if TRAY_ICON is not None:
+        try:
+            TRAY_ICON.notify(text, title)
+            return
+        except Exception:
+            pass
     try:
+        icon = notification_icon(kind)
         script = (
             "Add-Type -AssemblyName System.Windows.Forms; "
             "Add-Type -AssemblyName System.Drawing; "
             "$n=New-Object System.Windows.Forms.NotifyIcon; "
-            "$n.Icon=[System.Drawing.SystemIcons]::Information; "
             "$n.Visible=$true; "
         )
+        if APP_ICON_ICO.exists():
+            script += (
+                f"$iconPath={json.dumps(str(APP_ICON_ICO))}; "
+                "if (Test-Path -LiteralPath $iconPath) { "
+                "$n.Icon=New-Object System.Drawing.Icon($iconPath); "
+                "} else { $n.Icon=[System.Drawing.SystemIcons]::Information; }; "
+            )
+        else:
+            script += "$n.Icon=[System.Drawing.SystemIcons]::Information; "
         if url:
             script += (
                 f"$url={json.dumps(url)}; "
@@ -460,7 +518,7 @@ def notify(title: str, message: str, target: str = "") -> None:
                 "$n.add_Click($open); "
             )
         script += (
-            f"$n.ShowBalloonTip(9000, {json.dumps(title)}, {json.dumps(text)}, 'Info'); "
+            f"$n.ShowBalloonTip(9000, {json.dumps(title)}, {json.dumps(text)}, {json.dumps(icon)}); "
             "Start-Sleep -Seconds 10; $n.Dispose()"
         )
         subprocess.Popen(
@@ -480,11 +538,6 @@ def notify(title: str, message: str, target: str = "") -> None:
         return
     except Exception:
         pass
-    if TRAY_ICON is not None:
-        try:
-            TRAY_ICON.notify(text, title)
-        except Exception:
-            pass
 
 
 def read_env_values() -> dict[str, str]:
@@ -1140,9 +1193,9 @@ class TaskRunner:
             if self.action == "auto_prepare":
                 AUTO_COURSE_QUEUE = []
             if self.permission_error:
-                notify("Corrector CARM", "Windows bloqueo Playwright/Chromium. Ejecuta la app con permisos permitidos.", target="activity")
+                notify("Corrector CARM", "Windows bloqueo Playwright/Chromium. Ejecuta la app con permisos permitidos.", target="activity", kind="error")
             else:
-                notify("Corrector CARM", "Hay errores en la ultima tarea. Abre la interfaz para revisar el log.", target="activity")
+                notify("Corrector CARM", "Hay errores en la ultima tarea. Abre la interfaz para revisar el log.", target="activity", kind="error")
         elif self.action in {"auto_prepare", "prepare"}:
             notify_prompts_prepared()
         elif self.action in {"prepare_carm_api", "solve_prompts_api", "import_codex"}:
@@ -1159,7 +1212,7 @@ class TaskRunner:
         lowered = line.lower()
         if (" - error - " in lowered or lowered.startswith("error")) and not self.error_notified:
             self.error_notified = True
-            notify("Corrector CARM - error", line, target="activity")
+            notify("Corrector CARM - error", line, target="activity", kind="error")
         manual_markers = (
             "requiere revisión manual",
             "requiere revision manual",
@@ -1171,7 +1224,7 @@ class TaskRunner:
         )
         if any(marker in lowered for marker in manual_markers) and not self.manual_notified:
             self.manual_notified = True
-            notify("Corrector CARM - revision manual", line, target="activity")
+            notify("Corrector CARM - revision manual", line, target="activity", kind="warning")
 
     @staticmethod
     def _is_permission_error(line: str) -> bool:
@@ -1385,12 +1438,14 @@ def notify_pending_publication() -> None:
             "Corrector CARM",
             f"Hay {pending['rows']} calificaciones preparadas, pero {pending['blocking']} requieren revision antes de subir.",
             target="upload",
+            kind="warning",
         )
         return
     notify(
         "Corrector CARM",
         f"Hay {pending['rows']} calificaciones revisadas pendientes de subir. Abre la interfaz para iniciar subida asistida.",
         target="upload",
+        kind="success",
     )
 
 
@@ -1401,6 +1456,7 @@ def notify_prompts_prepared() -> None:
             "Corrector CARM",
             f"Hay {len(prompts)} prompt(s) preparados. Abre la interfaz y pulsa Corregir prompts con API.",
             target="prepare",
+            kind="success",
         )
 
 
@@ -1839,6 +1895,7 @@ HTML = r"""<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Corrector CARM</title>
+  <link rel="icon" href="/assets/corrector_carm.ico?v=20260515">
   <style>
     :root {
       --bg: #eef2ef;
@@ -1900,12 +1957,18 @@ HTML = r"""<!doctype html>
       width: 38px;
       height: 38px;
       border-radius: 8px;
-      background: var(--green);
-      color: #fff;
-      display: grid;
-      place-items: center;
-      font-weight: 800;
+      background: #1f7a5b;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       box-shadow: 0 10px 18px rgba(31, 122, 91, .2);
+      overflow: hidden;
+      flex: 0 0 auto;
+    }
+    .brand-mark img {
+      width: 38px;
+      height: 38px;
+      display: block;
     }
     .brand small { display: block; color: var(--muted); margin-top: 2px; }
     .topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
@@ -2026,6 +2089,43 @@ HTML = r"""<!doctype html>
       border-radius: 8px;
       padding: 10px 12px;
       line-height: 1.45;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .system-notice > div::before {
+      content: "i";
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      display: inline-grid;
+      place-items: center;
+      font-weight: 800;
+      background: #ffe9b6;
+      color: #7a4a00;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+    .system-notice.success > div {
+      border-color: #b8dfc9;
+      background: #edf8f1;
+      color: #17533e;
+    }
+    .system-notice.success > div::before {
+      content: "OK";
+      background: #d7f0df;
+      color: #1f7a5b;
+      font-size: 10px;
+    }
+    .system-notice.error > div {
+      border-color: #f2b8b2;
+      background: #fff1f0;
+      color: #8f1d14;
+    }
+    .system-notice.error > div::before {
+      content: "!";
+      background: #ffd7d4;
+      color: #b42318;
     }
     .path {
       font-family: Consolas, "Courier New", monospace;
@@ -2147,7 +2247,9 @@ HTML = r"""<!doctype html>
 <body>
   <header>
     <div class="brand">
-      <div class="brand-mark">C</div>
+      <div class="brand-mark" aria-hidden="true">
+        <img src="/assets/corrector_carm.png?v=20260515" alt="">
+      </div>
       <div>
         <h1>Corrector CARM</h1>
         <small id="releaseInfo">Panel local de preparacion, revision y subida</small>
@@ -2160,7 +2262,7 @@ HTML = r"""<!doctype html>
       <button id="refreshBtn">Actualizar</button>
       <button id="restartBtn">Reiniciar app</button>
       <button id="logoutBtn">Borrar credenciales CARM</button>
-      <button id="settingsBtn" class="icon" title="Configuracion" aria-label="Configuracion">⚙</button>
+      <button id="settingsBtn" class="icon" title="Configuracion" aria-label="Configuracion">&#9881;</button>
     </div>
   </header>
   <div id="systemNotice" class="system-notice" role="status" aria-live="polite">
@@ -2460,7 +2562,9 @@ HTML = r"""<!doctype html>
               </div>
             </div>
             <p class="hint">Usa 0 para desactivar intervalos. La hora exacta se ejecuta una vez al dia. El autoprompt no llama a la API, no guarda notas en CARM y no borra prompts pendientes sin corregir.</p>
+            <div class="path" id="autoPrepareMessage">Horario de autoprompt pendiente de guardar.</div>
             <div class="row">
+              <button class="primary" id="saveAutoPrepareTimeBtn" type="button">Guardar hora de autoprompt</button>
               <button id="scanNowBtn" type="button">Escanear ahora</button>
               <button id="pauseScanBtn" type="button">Pausar autoescaneo</button>
               <button id="resumeScanBtn" type="button">Reactivar 60 min</button>
@@ -2649,13 +2753,25 @@ HTML = r"""<!doctype html>
     let authState = {configured: false, session_saved: false};
     let coursePickSelectionOverride = null;
 
-    function showSystemNotice(message) {
+    function noticeType(message, type = '') {
+      if (type) return type;
+      const lowered = String(message || '').toLowerCase();
+      if (lowered.includes('error') || lowered.includes('no se puede') || lowered.includes('no se pudo') || lowered.includes('caducado')) return 'error';
+      if (lowered.includes('guardad') || lowered.includes('listo') || lowered.includes('preparad') || lowered.includes('activo')) return 'success';
+      return 'warning';
+    }
+
+    function showSystemNotice(message, type = '') {
+      const kind = noticeType(message, type);
       $('systemNoticeText').textContent = message;
+      $('systemNotice').classList.remove('success', 'warning', 'error');
+      $('systemNotice').classList.add(kind);
       $('systemNotice').classList.add('open');
     }
 
     function clearSystemNotice() {
       $('systemNotice').classList.remove('open');
+      $('systemNotice').classList.remove('success', 'warning', 'error');
       $('systemNoticeText').textContent = '';
     }
 
@@ -2714,12 +2830,12 @@ HTML = r"""<!doctype html>
 
     function fmtFile(file) {
       const name = file.path.split(/[\\/]/).pop();
-      const kb = file.exists  Math.max(1, Math.round(file.size / 1024)) + ' KB' : 'no existe';
+      const kb = file.exists ? Math.max(1, Math.round(file.size / 1024)) + ' KB' : 'no existe';
       return `<div class="item"><span>${escapeHtml(name)}<br><small>${escapeHtml(file.path)}</small></span><small>${escapeHtml(kb)}</small></div>`;
     }
 
     function escapeHtml(value) {
-      return String(value  '').replace(/[&<>"']/g, (char) => ({
+      return String(value || '').replace(/[&<>"']/g, (char) => ({
         '&': '&amp;',
         '<': '&lt;',
         '>': '&gt;',
@@ -2737,20 +2853,20 @@ HTML = r"""<!doctype html>
     }
 
     function jsonOptionHtml(item) {
-      const suffix = item.exists  '' : ' · pendiente';
+      const suffix = item.exists ? '' : ' · pendiente';
       return optionHtml(item.path, `${item.label}${suffix}`);
     }
 
     function courseOptionHtml(item) {
-      const suffix = item.current  ' · actual' : '';
+      const suffix = item.current ? ' · actual' : '';
       return optionHtml(item.url, `${item.id} · ${item.titulo}${suffix}`);
     }
 
     function courseCheckboxHtml(item) {
       const selectedIds = coursePickSelectionOverride || courseOptions.selected_course_ids || [];
       const selected = selectedIds.includes(String(item.id));
-      const suffix = item.current  ' · activo' : '';
-      return `<label class="check"><input type="checkbox" class="coursePick" value="${escapeAttr(item.id)}" ${selected  'checked' : ''}> ${escapeHtml(item.id + ' · ' + item.titulo + suffix)}</label>`;
+      const suffix = item.current ? ' · activo' : '';
+      return `<label class="check"><input type="checkbox" class="coursePick" value="${escapeAttr(item.id)}" ${selected ? 'checked' : ''}> ${escapeHtml(item.id + ' · ' + item.titulo + suffix)}</label>`;
     }
 
     function checkedCourseIds() {
@@ -2758,25 +2874,26 @@ HTML = r"""<!doctype html>
     }
 
     function selectedCourseSummaryHtml(item) {
-      const cache = item.cache_exists  'cache OK' : 'sin cache';
+      const cache = item.cache_exists ? 'cache OK' : 'sin cache';
       const csv = item.revision_csv && item.revision_csv.exists
+        ?
          `${item.revision_rows || 0} fila(s) CSV`
         : 'sin CSV';
-      const blocking = item.revision_blocking  ` · ${item.revision_blocking} incidencia(s)` : '';
-      const activities = item.revision_activities  Object.entries(item.revision_activities).map(([key, value]) => `${key}:${value}`).join(', ') : '';
-      const cacheDate = item.cache && item.cache.modified  new Date(item.cache.modified * 1000).toLocaleString() : 'cache sin fecha';
+      const blocking = item.revision_blocking ? ` · ${item.revision_blocking} incidencia(s)` : '';
+      const activities = item.revision_activities ? Object.entries(item.revision_activities).map(([key, value]) => `${key}:${value}`).join(', ') : '';
+      const cacheDate = item.cache && item.cache.modified ? new Date(item.cache.modified * 1000).toLocaleString() : 'cache sin fecha';
       const detail = `${cache} · ${cacheDate} · ${item.prompts} prompt(s) · ${item.corrections} JSON · ${csv}${blocking}`;
-      const extra = activities  `<br><small>${escapeHtml(activities)}</small>` : '';
+      const extra = activities ? `<br><small>${escapeHtml(activities)}</small>` : '';
       return `<div class="item"><span>${escapeHtml(item.id + ' · ' + item.titulo)}<br><small>${escapeHtml(detail)}</small>${extra}</span></div>`;
     }
 
     function healthCheckHtml(item) {
-      const status = item.ok  'OK' : (item.required  'Pendiente' : 'Opcional');
+      const status = item.ok ? 'OK' : (item.required ? 'Pendiente' : 'Opcional');
       return `<div class="item"><span>${escapeHtml(item.name)}<br><small>${escapeHtml(item.message || '')}</small></span><small>${escapeHtml(status)}</small></div>`;
     }
 
     function activityLabel(act) {
-      const tipo = act.tipo  ` · ${act.tipo}` : '';
+      const tipo = act.tipo ? ` · ${act.tipo}` : '';
       return `${act.codigo} · ${act.nombre}${tipo}`;
     }
 
@@ -2802,7 +2919,7 @@ HTML = r"""<!doctype html>
     function setInputValue(id, value) {
       const el = $(id);
       if (document.activeElement === el) return;
-      if (el.value !== String(value  '')) el.value = String(value  '');
+      if (el.value !== String(value || '')) el.value = String(value || '');
     }
 
     function isEditingControl() {
@@ -2817,6 +2934,7 @@ HTML = r"""<!doctype html>
     async function loadOptions() {
       courseOptions = await api('/api/options');
       const unitHtml = courseOptions.units.length
+        ?
          courseOptions.units.map((unit) => optionHtml(unit.codigo, `${unit.codigo} · ${unit.nombre}`)).join('')
         : '<option value="">Sin unidades detectadas</option>';
       fillSelect($('unidad'), unitHtml, $('unidad').value || 'ud01');
@@ -2824,7 +2942,8 @@ HTML = r"""<!doctype html>
       updateActivityOptions();
       updateAdvancedActivityOptions();
       const source = courseOptions.source === 'cache_didactica'
-         (courseOptions.didactic_units < courseOptions.units.length  'cache parcial' : 'cache didactica')
+        ?
+         (courseOptions.didactic_units < courseOptions.units.length ? 'cache parcial' : 'cache didactica')
         : 'valores base';
       $('courseSummary').textContent = `${courseOptions.units.length} unidades · ${courseOptions.activities.length} casos · ${source}`;
     }
@@ -2838,6 +2957,7 @@ HTML = r"""<!doctype html>
       if ($('settingsOpenaiModel')) $('settingsOpenaiModel').value = authState.openai_model || 'gpt-5-mini';
       if ($('openaiMessage')) {
         $('openaiMessage').textContent = authState.openai_api_configured
+          ?
            `API configurada. Modo: ${authState.correction_mode || 'api'}. Modelo: ${authState.openai_model || 'gpt-5-mini'}.`
           : `Sin API key. Modo: ${authState.correction_mode || 'prompt'}.`;
       }
@@ -2852,11 +2972,12 @@ HTML = r"""<!doctype html>
       fillSelect(
         $('actividad'),
         source.length
+          ?
            source.map((act) => optionHtml(act.codigo, activityLabel(act))).join('')
           : '<option value="">Sin casos detectados para esta unidad</option>',
         $('actividad').value
       );
-      $('activityField').style.display = $('prepareMode').value === 'activity'  '' : 'none';
+      $('activityField').style.display = $('prepareMode').value === 'activity' ? '' : 'none';
       $('unidad').disabled = $('prepareMode').value === 'course';
     }
 
@@ -2864,6 +2985,7 @@ HTML = r"""<!doctype html>
       fillSelect(
         $('advancedActividad'),
         courseOptions.activities.length
+          ?
            courseOptions.activities.map((act) => optionHtml(act.codigo, activityLabel(act))).join('')
           : '<option value="">Sin casos detectados</option>',
         $('advancedActividad').value || $('actividad').value
@@ -2888,6 +3010,7 @@ HTML = r"""<!doctype html>
       $('scanNowBtn').disabled = locked;
       $('detectCoursesBtn').disabled = locked;
       $('saveSelectedCoursesBtn').disabled = locked;
+      if ($('saveAutoPrepareTimeBtn')) $('saveAutoPrepareTimeBtn').disabled = locked;
       $('activeCourseSelect').disabled = locked;
       $('pauseScanBtn').disabled = !authState.configured;
       $('resumeScanBtn').disabled = running || !authState.configured;
@@ -2895,9 +3018,9 @@ HTML = r"""<!doctype html>
 
     function setWorkflow(status, state) {
       const hasReviewFiles = state.revision_csv.exists && (state.pending_publication.rows > 0 || state.correction_source.exists);
-      $('stepPrepare').className = 'step ' + (hasReviewFiles  'done' : 'active');
-      $('stepReview').className = 'step ' + (hasReviewFiles  'active' : '');
-      $('stepPublish').className = 'step ' + ($('publishCheck').checked  'active' : '');
+      $('stepPrepare').className = 'step ' + (hasReviewFiles ? 'done' : 'active');
+      $('stepReview').className = 'step ' + (hasReviewFiles ? 'active' : '');
+      $('stepPublish').className = 'step ' + ($('publishCheck').checked ? 'active' : '');
       if (status.running) {
         $('stepPrepare').className = 'step active';
         $('stepReview').className = 'step';
@@ -2907,14 +3030,14 @@ HTML = r"""<!doctype html>
 
     function toggleAuth(open) {
       $('authModal').classList.toggle('open', open);
-      $('authModal').setAttribute('aria-hidden', open  'false' : 'true');
+      $('authModal').setAttribute('aria-hidden', open ? 'false' : 'true');
     }
 
     function setAuthLocked(locked) {
       document.body.classList.toggle('auth-locked', locked);
       $('authModal').classList.toggle('locked', locked);
       toggleAuth(locked);
-      $('authSubtitle').textContent = locked  'Acceso requerido' : 'Credenciales configuradas';
+      $('authSubtitle').textContent = locked ? 'Acceso requerido' : 'Credenciales configuradas';
       if (locked) {
         $('authMessage').textContent = 'Introduce CARM y elige API o solo prompts para usar el panel.';
         showSystemNotice('Panel bloqueado: falta configuracion inicial.');
@@ -2927,7 +3050,7 @@ HTML = r"""<!doctype html>
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([activity, count]) => `${activity.toUpperCase()}: ${count}`)
         .join(' · ');
-      return `Subir ${pending.rows} pendiente(s) a CARM${activities  ` · ${activities}` : ''}`;
+      return `Subir ${pending.rows} pendiente(s) a CARM${activities ? ` · ${activities}` : ''}`;
     }
 
     function pendingUploadDetail(pending) {
@@ -2937,6 +3060,7 @@ HTML = r"""<!doctype html>
         .map(([activity, count]) => `${activity.toUpperCase()} (${count})`)
         .join(', ');
       const blocked = pending.blocking
+        ?
          ` Hay ${pending.blocking} fila(s) con incidencia; revisa el CSV antes de subir.`
         : '';
       return `Pendiente por subir: ${activities || `${pending.rows} fila(s)`}.${blocked}`;
@@ -2944,7 +3068,7 @@ HTML = r"""<!doctype html>
 
     function toggleSettings(open) {
       $('settingsModal').classList.toggle('open', open);
-      $('settingsModal').setAttribute('aria-hidden', open  'false' : 'true');
+      $('settingsModal').setAttribute('aria-hidden', open ? 'false' : 'true');
       if (open) updateAdvancedForm();
     }
 
@@ -2979,7 +3103,7 @@ HTML = r"""<!doctype html>
           temporal_dir: $('temporalDir').value
         })
       });
-      $('foldersMessage').textContent = result.message || (result.ok  'Carpetas guardadas.' : 'No se pudieron guardar.');
+      $('foldersMessage').textContent = result.message || (result.ok ? 'Carpetas guardadas.' : 'No se pudieron guardar.');
       $('saveFoldersBtn').disabled = false;
       await refresh();
     }
@@ -2994,7 +3118,7 @@ HTML = r"""<!doctype html>
           course_scoped_dirs: $('courseScopedDirs').checked
         })
       });
-      $('courseMessage').textContent = result.message || (result.ok  'Curso guardado.' : 'No se pudo guardar.');
+      $('courseMessage').textContent = result.message || (result.ok ? 'Curso guardado.' : 'No se pudo guardar.');
       $('saveCourseBtn').disabled = false;
       if (result.ok && result.pendientes_dir) {
         $('foldersMessage').textContent = `Carpeta activa del curso: ${result.pendientes_dir}`;
@@ -3014,13 +3138,14 @@ HTML = r"""<!doctype html>
         method: 'POST',
         body: JSON.stringify({course_ids: ids})
       });
-      $('courseMessage').textContent = result.message || (result.ok  'Seleccion guardada.' : 'No se pudo guardar la seleccion.');
+      $('courseMessage').textContent = result.message || (result.ok ? 'Seleccion guardada.' : 'No se pudo guardar la seleccion.');
       $('saveSelectedCoursesBtn').disabled = false;
       await refresh();
     }
 
     async function saveAutomation() {
       $('saveAutomationBtn').disabled = true;
+      if ($('saveAutoPrepareTimeBtn')) $('saveAutoPrepareTimeBtn').disabled = true;
       $('courseMessage').textContent = 'Guardando automatizacion...';
       const result = await api('/api/config/automation', {
         method: 'POST',
@@ -3031,8 +3156,40 @@ HTML = r"""<!doctype html>
           auto_prepare_time: $('autoPrepareTime').value
         })
       });
-      $('courseMessage').textContent = result.message || (result.ok  'Automatizacion guardada.' : 'No se pudo guardar.');
+      $('courseMessage').textContent = result.message || (result.ok ? 'Automatizacion guardada.' : 'No se pudo guardar.');
+      if ($('autoPrepareMessage')) $('autoPrepareMessage').textContent = autopromptScheduleMessage(result);
       $('saveAutomationBtn').disabled = false;
+      if ($('saveAutoPrepareTimeBtn')) $('saveAutoPrepareTimeBtn').disabled = false;
+      await refresh();
+    }
+
+    function autopromptScheduleMessage(result) {
+      if (!result || !result.ok) return (result && result.message) || 'No se pudo guardar el horario de autoprompt.';
+      const time = result.auto_prepare_time || $('autoPrepareTime').value || '';
+      const interval = Number(result.auto_prepare_interval_minutes || $('autoPrepareInterval').value || 0);
+      if (time && interval > 0) return `Autoprompt guardado: cada ${interval} minuto(s) y a las ${time}.`;
+      if (time) return `Hora de autoprompt guardada: ${time}.`;
+      if (interval > 0) return `Autoprompt guardado cada ${interval} minuto(s), sin hora exacta.`;
+      return 'Autoprompt guardado sin horario activo.';
+    }
+
+    async function saveAutoPrepareTime() {
+      $('saveAutoPrepareTimeBtn').disabled = true;
+      if ($('saveAutomationBtn')) $('saveAutomationBtn').disabled = true;
+      $('autoPrepareMessage').textContent = 'Guardando hora de autoprompt...';
+      const result = await api('/api/config/automation', {
+        method: 'POST',
+        body: JSON.stringify({
+          auto_scan_interval_minutes: $('autoScanInterval').value,
+          periodic_auto_prepare: $('periodicAutoPrepare').checked,
+          auto_prepare_interval_minutes: $('autoPrepareInterval').value,
+          auto_prepare_time: $('autoPrepareTime').value
+        })
+      });
+      $('autoPrepareMessage').textContent = autopromptScheduleMessage(result);
+      $('courseMessage').textContent = result.message || (result.ok ? 'Horario de autoprompt guardado.' : 'No se pudo guardar.');
+      $('saveAutoPrepareTimeBtn').disabled = false;
+      if ($('saveAutomationBtn')) $('saveAutomationBtn').disabled = false;
       await refresh();
     }
 
@@ -3046,7 +3203,7 @@ HTML = r"""<!doctype html>
           auto_correct: $('startupAutoCorrect').checked
         })
       });
-      $('startupMessage').textContent = result.message || (result.ok  'Arranque guardado.' : 'No se pudo guardar el arranque.');
+      $('startupMessage').textContent = result.message || (result.ok ? 'Arranque guardado.' : 'No se pudo guardar el arranque.');
       $('saveStartupBtn').disabled = false;
       await refresh();
     }
@@ -3055,7 +3212,7 @@ HTML = r"""<!doctype html>
       $('checkHealthBtn').disabled = true;
       $('healthMessage').textContent = 'Comprobando equipo...';
       const result = await api('/api/health');
-      $('healthMessage').textContent = result.message || (result.ok  'Equipo listo.' : 'Hay puntos pendientes.');
+      $('healthMessage').textContent = result.message || (result.ok ? 'Equipo listo.' : 'Hay puntos pendientes.');
       $('healthChecks').innerHTML = (result.checks || []).map(healthCheckHtml).join('');
       $('checkHealthBtn').disabled = false;
     }
@@ -3063,17 +3220,17 @@ HTML = r"""<!doctype html>
     async function saveOpenAIConfig(checkOnly = false) {
       $('saveOpenaiBtn').disabled = true;
       $('checkOpenaiBtn').disabled = true;
-      $('openaiMessage').textContent = checkOnly  'Comprobando API...' : 'Guardando OpenAI...';
+      $('openaiMessage').textContent = checkOnly ? 'Comprobando API...' : 'Guardando OpenAI...';
       const result = await api('/api/config/openai', {
         method: 'POST',
         body: JSON.stringify({
-          correction_mode: checkOnly  'api' : $('settingsCorrectionMode').value,
+          correction_mode: checkOnly ? 'api' : $('settingsCorrectionMode').value,
           openai_api_key: $('settingsOpenaiKey').value,
           openai_model: $('settingsOpenaiModel').value,
           check_only: checkOnly
         })
       });
-      $('openaiMessage').textContent = result.message || (result.ok  'OpenAI configurado.' : 'No se pudo comprobar OpenAI.');
+      $('openaiMessage').textContent = result.message || (result.ok ? 'OpenAI configurado.' : 'No se pudo comprobar OpenAI.');
       $('saveOpenaiBtn').disabled = false;
       $('checkOpenaiBtn').disabled = false;
       if (result.ok && !checkOnly) {
@@ -3112,30 +3269,49 @@ HTML = r"""<!doctype html>
       const state = await api('/api/state');
       await loadOptions();
       if (state.release) {
-        const dirty = state.release.dirty  ' · cambios locales' : '';
+        const dirty = state.release.dirty ? ' · cambios locales' : '';
         setText('releaseInfo', `Panel local · v${state.release.version} · ${state.release.commit}${dirty}`);
       }
       setInputValue('pendientesDir', state.base_pendientes_dir || state.pendientes_dir);
       setInputValue('temporalDir', state.base_temporal_dir || state.temporal_dir);
       if ($('courseScopedDirs')) $('courseScopedDirs').checked = Boolean(state.course_scoped_dirs);
       setText('activeFoldersMessage', state.course_scoped_dirs && state.course_id
+        ?
          `Carpeta activa del curso ${state.course_id}: ${state.pendientes_dir} | ${state.temporal_dir}`
         : `Carpeta activa: ${state.pendientes_dir} | ${state.temporal_dir}`);
       setInputValue('autoScanInterval', state.auto_scan_interval_minutes);
       if ($('periodicAutoPrepare')) $('periodicAutoPrepare').checked = Boolean(state.periodic_auto_prepare);
       setInputValue('autoPrepareInterval', state.auto_prepare_interval_minutes);
       setInputValue('autoPrepareTime', state.auto_prepare_time || '');
-      $('pauseScanBtn').textContent = state.auto_scan_interval_minutes > 0  'Pausar autoescaneo' : 'Autoescaneo pausado';
+      if ($('autoPrepareMessage')) {
+        const time = state.auto_prepare_time || '';
+        const interval = Number(state.auto_prepare_interval_minutes || 0);
+        const enabled = Boolean(state.periodic_auto_prepare);
+        if (!enabled) {
+          setText('autoPrepareMessage', 'Autoprompt periodico desactivado.');
+        } else if (time && interval > 0) {
+          setText('autoPrepareMessage', `Autoprompt activo: cada ${interval} minuto(s) y a las ${time}.`);
+        } else if (time) {
+          setText('autoPrepareMessage', `Autoprompt activo a las ${time}.`);
+        } else if (interval > 0) {
+          setText('autoPrepareMessage', `Autoprompt activo cada ${interval} minuto(s), sin hora exacta.`);
+        } else {
+          setText('autoPrepareMessage', 'Autoprompt activo, sin horario configurado.');
+        }
+      }
+      $('pauseScanBtn').textContent = state.auto_scan_interval_minutes > 0 ? 'Pausar autoescaneo' : 'Autoescaneo pausado';
       if ($('startupEnabled')) $('startupEnabled').checked = Boolean(state.startup_installed);
       if ($('startupAutoCorrect')) $('startupAutoCorrect').checked = Boolean(state.startup_auto_correct_enabled);
       if ($('startupMessage')) {
         $('startupMessage').textContent = state.startup_installed
-           (state.startup_auto_correct_enabled  'Arranque instalado con autopreparacion de prompts.' : 'Arranque instalado sin autopreparacion de prompts.')
+          ?
+           (state.startup_auto_correct_enabled ? 'Arranque instalado con autopreparacion de prompts.' : 'Arranque instalado sin autopreparacion de prompts.')
           : 'Arranque automatico no instalado.';
       }
       const jsonHtml = state.json_options.map(jsonOptionHtml).join('');
       const selectedCorrectionSource = state.json_options.find((item) => item.path === $('jsonPath').value);
       const correctionSourceValue = selectedCorrectionSource && selectedCorrectionSource.exists
+        ?
          selectedCorrectionSource.path
         : state.correction_source.path;
       fillSelect($('jsonPath'), jsonHtml, correctionSourceValue);
@@ -3147,30 +3323,35 @@ HTML = r"""<!doctype html>
         setInputValue('courseUrl', courseOptions.course_url || courseOptions.dashboard_url || '');
       }
       const detectedHtml = courseOptions.detected_courses.length
+        ?
          courseOptions.detected_courses.map(courseOptionHtml).join('')
         : '<option value="">Sin cursos detectados todavia</option>';
-      fillSelect($('detectedCourse'), detectedHtml, settingsOpen  previousDetectedCourse : (courseOptions.course_url || ''));
+      fillSelect($('detectedCourse'), detectedHtml, settingsOpen ? previousDetectedCourse : (courseOptions.course_url || ''));
       const activeCourseHtml = courseOptions.detected_courses.length
+        ?
          courseOptions.detected_courses.map(courseOptionHtml).join('')
         : `<option value="${escapeAttr(courseOptions.course_url || '')}">Curso ${escapeHtml(courseOptions.course_id || 'actual')}</option>`;
       fillSelect($('activeCourseSelect'), activeCourseHtml, courseOptions.course_url || '');
-      coursePickSelectionOverride = settingsOpen && hadCoursePicks  previousCoursePicks : null;
+      coursePickSelectionOverride = settingsOpen && hadCoursePicks ? previousCoursePicks : null;
       $('selectedCoursesList').innerHTML = courseOptions.detected_courses.length
+        ?
          courseOptions.detected_courses.map(courseCheckboxHtml).join('')
         : '<div class="item"><span>Detecta cursos CARM para elegir varios.</span></div>';
       coursePickSelectionOverride = null;
       $('selectedCoursesSummary').innerHTML = state.selected_courses && state.selected_courses.length
+        ?
          state.selected_courses.map(selectedCourseSummaryHtml).join('')
         : '<div class="item"><span>Sin cursos seleccionados para autoprompteo.</span></div>';
       $('useDetectedCourseBtn').disabled = !courseOptions.detected_courses.length;
       setText('courseMessage', courseOptions.cache_path
+        ?
          `Curso ${courseOptions.course_id} · cache: ${courseOptions.cache_path} · trabajo: ${state.pendientes_dir}`
         : `Curso ${courseOptions.course_id || 'sin ID'} · sin cache didactica · trabajo: ${state.pendientes_dir}`);
       const badge = $('statusBadge');
       const failed = status.has_error || (status.exit_code && status.exit_code !== 0);
-      badge.className = 'badge ' + (status.running  '' : (failed  'err' : 'idle'));
-      setText('statusBadge', status.running  'Ejecutando' : (status.permission_error  'Permisos Windows' : (failed  'Error' : 'Parado')));
-      setText('elapsed', status.running  `${status.action} · ${status.elapsed}s` : '');
+      badge.className = 'badge ' + (status.running ? '' : (failed ? 'err' : 'idle'));
+      setText('statusBadge', status.running ? 'Ejecutando' : (status.permission_error ? 'Permisos Windows' : (failed ? 'Error' : 'Parado')));
+      setText('elapsed', status.running ? `${status.action} · ${status.elapsed}s` : '');
       const logBox = $('logBox');
       const wasAtLogBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 24;
       const nextLog = (status.lines || []).join('\n') || (state.agent_log || []).join('\n');
@@ -3179,6 +3360,7 @@ HTML = r"""<!doctype html>
       if (state.pending_publication && state.pending_publication.pending) {
         const pending = state.pending_publication;
         const extra = pending.blocking
+          ?
            `Hay ${pending.blocking} incidencia(s); revisa el CSV antes de subir.`
           : 'Puedes usar Subida asistida para rellenar CARM y guardar manualmente.';
         showSystemNotice(`Hay ${pending.rows} calificacion(es) preparadas pendientes de subir. ${extra}`);
@@ -3186,15 +3368,15 @@ HTML = r"""<!doctype html>
       if (state.prompts.length && authState.openai_api_configured && !(state.pending_publication && state.pending_publication.pending)) {
         showSystemNotice(`Hay ${state.prompts.length} prompt(s) preparados. Pulsa "Corregir prompts con API" cuando quieras gastar la API.`);
       }
-      window.__pendingUploadRows = state.pending_publication  state.pending_publication.rows : 0;
-      window.__pendingUploadBlocking = state.pending_publication  state.pending_publication.blocking : 0;
+      window.__pendingUploadRows = state.pending_publication ? state.pending_publication.rows : 0;
+      window.__pendingUploadBlocking = state.pending_publication ? state.pending_publication.blocking : 0;
       setText('assistPublishBtn', pendingUploadLabel(state.pending_publication));
       setText('uploadPendingDetail', pendingUploadDetail(state.pending_publication));
-      setText('combinedPath', `${state.correction_source.path} · ${state.correction_source.exists  'listo' : 'pendiente'}`);
-      setText('revisionPath', `${state.revision_csv.path} · ${state.revision_csv.exists  'listo' : 'pendiente'}`);
-      setHtml('promptsList', state.prompts.length  state.prompts.map(fmtFile).join('') : '<span class="muted">Sin prompts</span>');
-      setHtml('correctionsList', state.corrections.length  state.corrections.map(fmtFile).join('') : '<span class="muted">Sin correcciones</span>');
-      setHtml('summariesList', state.summaries.length  state.summaries.map(fmtFile).join('') : '<span class="muted">Sin resumenes</span>');
+      setText('combinedPath', `${state.correction_source.path} · ${state.correction_source.exists ? 'listo' : 'pendiente'}`);
+      setText('revisionPath', `${state.revision_csv.path} · ${state.revision_csv.exists ? 'listo' : 'pendiente'}`);
+      setHtml('promptsList', state.prompts.length ? state.prompts.map(fmtFile).join('') : '<span class="muted">Sin prompts</span>');
+      setHtml('correctionsList', state.corrections.length ? state.corrections.map(fmtFile).join('') : '<span class="muted">Sin correcciones</span>');
+      setHtml('summariesList', state.summaries.length ? state.summaries.map(fmtFile).join('') : '<span class="muted">Sin resumenes</span>');
       setText('promptCount', String(state.prompts.length));
       setText('correctionCount', String(state.pending_publication.rows || state.corrections.length));
       setWorkflow(status, state);
@@ -3271,7 +3453,7 @@ HTML = r"""<!doctype html>
           openai_model: $('openaiModel').value
         })
       });
-      $('authMessage').textContent = result.message || (result.ok  'Guardado.' : 'No se pudo guardar.');
+      $('authMessage').textContent = result.message || (result.ok ? 'Guardado.' : 'No se pudo guardar.');
       $('saveAuthBtn').disabled = false;
       if (result.ok) {
         $('carmPass').value = '';
@@ -3300,6 +3482,7 @@ HTML = r"""<!doctype html>
     $('saveCourseBtn').onclick = () => saveCourse();
     $('saveSelectedCoursesBtn').onclick = saveSelectedCourses;
     $('saveAutomationBtn').onclick = saveAutomation;
+    $('saveAutoPrepareTimeBtn').onclick = saveAutoPrepareTime;
     $('saveStartupBtn').onclick = saveStartup;
     $('checkHealthBtn').onclick = checkHealth;
     $('saveOpenaiBtn').onclick = () => saveOpenAIConfig(false);
@@ -3359,6 +3542,24 @@ class Handler(BaseHTTPRequestHandler):
             data = HTML.replace("__LOCAL_API_TOKEN__", API_TOKEN).encode("utf-8")
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if parsed.path == "/assets/corrector_carm.png" and APP_ICON_PNG.exists():
+            data = APP_ICON_PNG.read_bytes()
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if parsed.path == "/assets/corrector_carm.ico" and APP_ICON_ICO.exists():
+            data = APP_ICON_ICO.read_bytes()
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "image/x-icon")
+            self.send_header("Cache-Control", "no-cache")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
@@ -3851,10 +4052,18 @@ def uninstall_startup() -> bool:
 def tray_image():
     if Image is None or ImageDraw is None:
         return None
-    img = Image.new("RGB", (64, 64), "#1f7a5b")
+    if APP_ICON_PNG.exists():
+        try:
+            return Image.open(APP_ICON_PNG).convert("RGBA")
+        except Exception:
+            pass
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    draw.rectangle((10, 10, 54, 54), outline="#ffffff", width=4)
-    draw.text((21, 20), "C", fill="#ffffff")
+    draw.rounded_rectangle((4, 4, 60, 60), radius=14, fill="#1f7a5b")
+    draw.rounded_rectangle((17, 19, 48, 45), radius=5, outline="#ffffff", width=7)
+    draw.rectangle((35, 23, 55, 40), fill="#1f7a5b")
+    draw.rounded_rectangle((43, 9, 56, 22), radius=6, fill="#e8f4ee")
+    draw.rounded_rectangle((48, 14, 52, 18), radius=2, fill="#1f7a5b")
     return img
 
 
