@@ -4,6 +4,7 @@ param(
     [string]$DataDir,
     [switch]$NoAccesoDirecto,
     [switch]$NoInicioWindows,
+    [switch]$NoInstalarOCR,
     [switch]$NoAbrirAlFinal
 )
 
@@ -38,7 +39,7 @@ function Show-InstallerForm {
     $form.FormBorderStyle = "FixedDialog"
     $form.MaximizeBox = $false
     $form.MinimizeBox = $false
-    $form.ClientSize = New-Object System.Drawing.Size(640, 390)
+    $form.ClientSize = New-Object System.Drawing.Size(640, 420)
 
     $title = New-Object System.Windows.Forms.Label
     $title.Text = "Corrector CARM"
@@ -104,31 +105,38 @@ function Show-InstallerForm {
     $startupCheck.Size = New-Object System.Drawing.Size(420, 24)
     $form.Controls.Add($startupCheck)
 
+    $ocrCheck = New-Object System.Windows.Forms.CheckBox
+    $ocrCheck.Text = "Instalar OCR para leer PDF escaneados e imagenes"
+    $ocrCheck.Checked = -not $NoInstalarOCR
+    $ocrCheck.Location = New-Object System.Drawing.Point(32, 288)
+    $ocrCheck.Size = New-Object System.Drawing.Size(470, 24)
+    $form.Controls.Add($ocrCheck)
+
     $openCheck = New-Object System.Windows.Forms.CheckBox
     $openCheck.Text = "Abrir la app al terminar"
     $openCheck.Checked = -not $NoAbrirAlFinal
-    $openCheck.Location = New-Object System.Drawing.Point(32, 288)
+    $openCheck.Location = New-Object System.Drawing.Point(32, 316)
     $openCheck.Size = New-Object System.Drawing.Size(420, 24)
     $form.Controls.Add($openCheck)
 
     $hint = New-Object System.Windows.Forms.Label
-    $hint.Text = "La carpeta de datos no se versiona ni se incluye en paquetes. Puede contener datos personales de alumnos."
+    $hint.Text = "El OCR requiere instalar Tesseract con winget. Si falla, la app seguira instalada y esos archivos pasaran a revision manual."
     $hint.ForeColor = [System.Drawing.Color]::DimGray
-    $hint.Location = New-Object System.Drawing.Point(30, 318)
+    $hint.Location = New-Object System.Drawing.Point(30, 346)
     $hint.Size = New-Object System.Drawing.Size(580, 24)
     $form.Controls.Add($hint)
 
     $cancel = New-Object System.Windows.Forms.Button
     $cancel.Text = "Cancelar"
     $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $cancel.Location = New-Object System.Drawing.Point(420, 350)
+    $cancel.Location = New-Object System.Drawing.Point(420, 382)
     $cancel.Size = New-Object System.Drawing.Size(90, 30)
     $form.Controls.Add($cancel)
 
     $install = New-Object System.Windows.Forms.Button
     $install.Text = "Instalar"
     $install.DialogResult = [System.Windows.Forms.DialogResult]::OK
-    $install.Location = New-Object System.Drawing.Point(520, 350)
+    $install.Location = New-Object System.Drawing.Point(520, 382)
     $install.Size = New-Object System.Drawing.Size(90, 30)
     $form.Controls.Add($install)
     $form.AcceptButton = $install
@@ -160,6 +168,7 @@ function Show-InstallerForm {
         DataDir = $dataBox.Text
         CrearAccesoDirecto = $shortcutCheck.Checked
         InstalarArranque = $startupCheck.Checked
+        InstalarOCR = $ocrCheck.Checked
         AbrirAlFinal = $openCheck.Checked
     }
 }
@@ -222,6 +231,7 @@ if ($SinInterfaz) {
         DataDir = if ($DataDir) { $DataDir } else { $DefaultDataDir }
         CrearAccesoDirecto = -not $NoAccesoDirecto
         InstalarArranque = -not $NoInicioWindows
+        InstalarOCR = -not $NoInstalarOCR
         AbrirAlFinal = -not $NoAbrirAlFinal
     }
 } else {
@@ -255,6 +265,9 @@ if ($choices.CrearAccesoDirecto) {
 }
 if ($choices.InstalarArranque) {
     $installArgs += "-InstalarArranque"
+}
+if ($choices.InstalarOCR) {
+    $installArgs += "-InstalarOCR"
 }
 
 Write-Step "Instalando dependencias y accesos"

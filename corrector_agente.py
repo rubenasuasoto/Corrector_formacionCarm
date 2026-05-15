@@ -86,6 +86,50 @@ def requiere_curso_carm_configurado(accion: str) -> bool:
     )
     return False
 
+
+def resolver_tesseract_cmd() -> str:
+    candidatos = [
+        os.getenv("TESSERACT_CMD", "").strip(),
+        shutil.which("tesseract") or "",
+        str(Path.home() / "AppData" / "Local" / "Programs" / "Tesseract-OCR" / "tesseract.exe"),
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    ]
+    for candidato in candidatos:
+        if candidato and Path(candidato).exists():
+            return candidato
+    return "tesseract"
+
+
+def idiomas_tesseract_disponibles(tesseract_cmd: str | None = None) -> set[str]:
+    cmd = tesseract_cmd or resolver_tesseract_cmd()
+    try:
+        proc = subprocess.run(
+            [cmd, "--list-langs"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+        if proc.returncode != 0:
+            return set()
+        return {line.strip() for line in proc.stdout.splitlines() if line.strip() and not line.lower().startswith("list of")}
+    except Exception:
+        return set()
+
+
+def idioma_ocr_preferido(tesseract_cmd: str | None = None) -> str:
+    disponibles = idiomas_tesseract_disponibles(tesseract_cmd)
+    if {"spa", "eng"}.issubset(disponibles):
+        return "spa+eng"
+    if "spa" in disponibles:
+        return "spa"
+    if "eng" in disponibles:
+        return "eng"
+    return "spa+eng"
+
 LOG_DIR = Path("logs_correcciones")
 RESPUESTAS_DIR = Path("respuestas_extraidas")
 CORRECCIONES_DIR = Path("correcciones_validadas")
@@ -228,6 +272,38 @@ def sanitizar_feedback(texto: str, max_chars: int = 6000) -> str:
     limpio = re.sub(r"\son\w+\s*=\s*(['\"]).*\1", "", limpio, flags=re.I | re.S)
     limpio = re.sub(r"\s(href|src)\s*=\s*(['\"])\s*javascript:[^'\"]*\2", "", limpio, flags=re.I)
     limpio = redactar_texto_sensible(limpio)
+    reemplazos_tildes = {
+        "ademas": "además",
+        "tambien": "también",
+        "seria": "sería",
+        "podria": "podría",
+        "deberia": "debería",
+        "practica": "práctica",
+        "practicas": "prácticas",
+        "aplicacion": "aplicación",
+        "adecuacion": "adecuación",
+        "presentacion": "presentación",
+        "revision": "revisión",
+        "calificacion": "calificación",
+        "correccion": "corrección",
+        "automatizacion": "automatización",
+        "informacion": "información",
+        "atencion": "atención",
+        "gestion": "gestión",
+        "conclusion": "conclusión",
+        "decision": "decisión",
+        "analisis": "análisis",
+        "util": "útil",
+        "basico": "básico",
+        "especifico": "específico",
+        "generica": "genérica",
+        "generico": "genérico",
+        "logica": "lógica",
+        "linea": "línea",
+        "mas": "más",
+    }
+    for origen, destino in reemplazos_tildes.items():
+        limpio = re.sub(rf"\b{origen}\b", destino, limpio, flags=re.I)
     limpio = limpio.strip()
     if max_chars > 0 and len(limpio) > max_chars:
         limpio = limpio[:max_chars].rstrip() + "\n\n[Feedback recortado por limite de seguridad.]"
@@ -687,6 +763,13 @@ PROMPT_SISTEMA = (
     "Eres un corrector experto en inteligencia artificial aplicada al turismo de Murcia. "
     "Responde SIEMPRE en JSON válido y en español con acentos. "
     "Sé justo: evalúa solo lo que el alumno ha escrito y no inventes méritos."
+)
+
+REGLA_IDIOMA_CORRECCION = (
+    "REGLA DE IDIOMA Y ORTOGRAFÍA: redacta todo el feedback en español natural de España, "
+    "con tildes, eñes y signos correctos. No sustituyas palabras acentuadas por versiones sin tilde "
+    "(por ejemplo: usa 'está', 'también', 'práctica', 'adecuación', 'aplicación' y 'revisión'). "
+    "Usa solo alfabeto latino, números y puntuación común; no uses caracteres de otros alfabetos."
 )
 
 PROMPT_CRITERIOS = """
@@ -1360,8 +1443,7 @@ class CorrectorIA:
         enunciado_api = limpiar_bloque_carm_para_prompt(enunciado_actividad, max_chars=5000) if enunciado_actividad else ""
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
-            "REGLA DE IDIOMA: redacta todo el feedback en espanol usando solo alfabeto latino, numeros y puntuacion comun. "
-            "No uses caracteres de otros alfabetos.\n\n"
+            f"{REGLA_IDIOMA_CORRECCION}\n\n"
             f"ACTIVIDAD: {actividad_codigo}\n\n"
             f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_api or 'No disponible'}\n\n"
             f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_api}\n\n"
@@ -1431,8 +1513,7 @@ class CorrectorIA:
         enunciado_api = limpiar_bloque_carm_para_prompt(enunciado_actividad, max_chars=5000) if enunciado_actividad else ""
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
-            "REGLA DE IDIOMA: redacta todo el feedback en espanol usando solo alfabeto latino, numeros y puntuacion comun. "
-            "No uses caracteres de otros alfabetos.\n\n"
+            f"{REGLA_IDIOMA_CORRECCION}\n\n"
             f"ACTIVIDAD: {actividad_codigo}\n\n"
             f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_api or 'No disponible'}\n\n"
             f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_api}\n\n"
@@ -1503,12 +1584,26 @@ class CorrectorIA:
 
     @classmethod
     def _normalizar_correccion(cls, correccion: dict) -> dict:
+        criterios = correccion.get("criterios", [])
+        if isinstance(criterios, list):
+            criterios = [
+                {
+                    **crit,
+                    "nombre": sanitizar_feedback(str(crit.get("nombre", "")), max_chars=200) or crit.get("nombre", ""),
+                    "comentario": sanitizar_feedback(str(crit.get("comentario", "")), max_chars=1200),
+                }
+                if isinstance(crit, dict)
+                else crit
+                for crit in criterios
+            ]
         return {
             "nota": cls._normalizar_nota(correccion.get("nota", 0)),
-            "criterios": correccion.get("criterios", []),
-            "retroalimentacion": correccion.get(
-                "retroalimentacion",
-                "Sin retroalimentación generada.",
+            "criterios": criterios,
+            "retroalimentacion": sanitizar_feedback(
+                correccion.get(
+                    "retroalimentacion",
+                    "Sin retroalimentación generada.",
+                )
             ),
         }
 
@@ -3612,7 +3707,7 @@ class GeneradorSalidas:
         ".htm",
         ".log",
     }
-    EXTENSIONES_OFFICE_TEXTO = {".docx", ".odt", ".rtf"}
+    EXTENSIONES_OFFICE_TEXTO = {".docx", ".docm", ".odt", ".ods", ".odp", ".rtf"}
     EXTENSIONES_REVISION_MANUAL = {
         ".doc",
         ".ppt",
@@ -3622,10 +3717,6 @@ class GeneradorSalidas:
     }
     EXTENSIONES_MULTIMEDIA = {
         ".gif",
-        ".webp",
-        ".bmp",
-        ".tif",
-        ".tiff",
         ".svg",
         ".mp3",
         ".wav",
@@ -3639,7 +3730,7 @@ class GeneradorSalidas:
         ".rar",
         ".7z",
     }
-    EXTENSIONES_OCR = {".jpg", ".jpeg", ".png"}
+    EXTENSIONES_OCR = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
     def __init__(self, pendientes_dir: Path, temporal_dir: Path, actividad_codigo: str = DEFAULT_ACTIVIDAD_CODIGO):
         self.pendientes_dir = pendientes_dir
@@ -3821,20 +3912,22 @@ class GeneradorSalidas:
                     advertencia = f"HTML limpiado automaticamente desde {raw_size} bytes."
             elif ext in self.EXTENSIONES_TEXTO or not ext:
                 texto = self._leer_archivo_texto(path)
-            elif ext == ".docx":
+            elif ext in {".docx", ".docm"}:
                 texto = self._leer_docx(path)
-            elif ext == ".odt":
-                texto = self._leer_odt(path)
+            elif ext in {".odt", ".ods", ".odp"}:
+                texto = self._leer_odf(path)
             elif ext == ".rtf":
                 texto = self._leer_rtf(path)
             elif ext == ".pdf":
                 texto = self._leer_pdf(path)
-            elif ext == ".pptx":
+            elif ext in {".pptx", ".pptm"}:
                 texto = self._leer_pptx(path)
-            elif ext == ".xlsx":
+            elif ext in {".xlsx", ".xlsm"}:
                 texto = self._leer_xlsx(path)
             elif ext == ".zip":
                 texto = self._leer_zip(path)
+            elif ext == ".epub":
+                texto = self._leer_epub(path)
             elif ext in self.EXTENSIONES_OCR:
                 texto = self._leer_imagen_ocr(path)
             else:
@@ -3881,7 +3974,7 @@ class GeneradorSalidas:
             | self.EXTENSIONES_REVISION_MANUAL
             | self.EXTENSIONES_MULTIMEDIA
             | self.EXTENSIONES_OCR
-            | {".pdf", ".pptx", ".xlsx", ".zip", ""}
+            | {".pdf", ".pptx", ".pptm", ".xlsx", ".xlsm", ".zip", ".epub", ""}
         )
         if ext not in permitidas:
             return f"Extension no permitida ({ext or 'sin extensión'}); requiere revisión manual."
@@ -3900,7 +3993,7 @@ class GeneradorSalidas:
         return "\n".join(textos)
 
     @staticmethod
-    def _leer_odt(path: Path) -> str:
+    def _leer_odf(path: Path) -> str:
         with zipfile.ZipFile(path) as z:
             xml = z.read("content.xml")
         root = ElementTree.fromstring(xml)
@@ -3926,6 +4019,61 @@ class GeneradorSalidas:
         textos = []
         for page in reader.pages:
             textos.append(page.extract_text() or "")
+        texto = "\n".join(textos)
+        if not GeneradorSalidas._texto_extraido_insuficiente(texto):
+            return texto
+
+        texto_ocr = GeneradorSalidas._leer_pdf_ocr(path, max_paginas=len(reader.pages))
+        if texto_ocr.strip():
+            return texto_ocr
+        return texto
+
+    @staticmethod
+    def _leer_pdf_ocr(path: Path, max_paginas: int | None = None) -> str:
+        try:
+            import pypdfium2 as pdfium
+        except ImportError as e:
+            raise RuntimeError(
+                "El PDF parece contener texto como imagen. Instala pypdfium2 para renderizarlo antes de OCR."
+            ) from e
+        try:
+            from PIL import Image
+            import pytesseract
+        except ImportError as e:
+            raise RuntimeError("Instala pillow y pytesseract para OCR de PDF escaneados") from e
+
+        tesseract_cmd = resolver_tesseract_cmd()
+        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+        try:
+            pytesseract.get_tesseract_version()
+        except Exception as e:
+            raise RuntimeError(
+                "El PDF parece contener texto como imagen, pero falta el motor Tesseract OCR de Windows."
+            ) from e
+        idioma = idioma_ocr_preferido(tesseract_cmd)
+
+        try:
+            limite = int(os.getenv("PDF_OCR_MAX_PAGES", "12"))
+        except ValueError:
+            limite = 12
+        if max_paginas is not None:
+            limite = min(limite, max_paginas)
+
+        textos: list[str] = []
+        pdf = pdfium.PdfDocument(str(path))
+        try:
+            paginas = min(len(pdf), limite)
+            for indice in range(paginas):
+                page = pdf[indice]
+                bitmap = page.render(scale=2.0)
+                image = bitmap.to_pil()
+                if not isinstance(image, Image.Image):
+                    image = Image.open(image)
+                textos.append(pytesseract.image_to_string(image, lang=idioma) or "")
+            if len(pdf) > paginas:
+                textos.append(f"[OCR limitado a {paginas} de {len(pdf)} paginas]")
+        finally:
+            pdf.close()
         return "\n".join(textos)
 
     @staticmethod
@@ -3981,10 +4129,15 @@ class GeneradorSalidas:
                     continue
                 nombre = Path(nombre_zip.name)
                 ext = nombre.suffix.lower()
-                if ext in self.EXTENSIONES_MULTIMEDIA or ext in self.EXTENSIONES_OCR:
+                if ext in self.EXTENSIONES_MULTIMEDIA:
                     textos.append(f"[{info.filename}: omitido, requiere revisión manual]")
                     continue
-                if ext not in self.EXTENSIONES_TEXTO and ext not in self.EXTENSIONES_OFFICE_TEXTO and ext not in {".pdf", ".pptx", ".xlsx"}:
+                if (
+                    ext not in self.EXTENSIONES_TEXTO
+                    and ext not in self.EXTENSIONES_OFFICE_TEXTO
+                    and ext not in self.EXTENSIONES_OCR
+                    and ext not in {".pdf", ".pptx", ".pptm", ".xlsx", ".xlsm", ".epub"}
+                ):
                     textos.append(f"[{info.filename}: formato no soportado dentro del ZIP]")
                     continue
 
@@ -4000,6 +4153,43 @@ class GeneradorSalidas:
                 textos.append(lectura.texto or lectura.motivo)
         return "\n".join(textos)
 
+    def _leer_epub(self, path: Path) -> str:
+        textos = []
+        with zipfile.ZipFile(path) as z:
+            infos = z.infolist()
+            if len(infos) > self.MAX_ZIP_ENTRADAS * 4:
+                raise RuntimeError(f"EPUB con demasiados archivos ({len(infos)}).")
+            total = sum(info.file_size for info in infos)
+            if total > self.MAX_ZIP_TOTAL_BYTES:
+                raise RuntimeError(f"EPUB demasiado grande al descomprimir ({total} bytes).")
+
+            for info in infos:
+                nombre_zip = PurePosixPath(info.filename.replace("\\", "/"))
+                if nombre_zip.is_absolute() or ".." in nombre_zip.parts or info.is_dir():
+                    continue
+                ext = Path(nombre_zip.name).suffix.lower()
+                if ext not in {".html", ".htm", ".xhtml", ".xml", ".txt"}:
+                    continue
+                if info.file_size > self.MAX_ZIP_ENTRADA_BYTES:
+                    textos.append(f"[{info.filename}: omitido por tamaño excesivo]")
+                    continue
+                raw = z.read(info)
+                texto = ""
+                for enc in ("utf-8", "utf-8-sig", "cp1252", "latin-1"):
+                    try:
+                        texto = raw.decode(enc)
+                        break
+                    except Exception:
+                        continue
+                if ext in {".html", ".htm", ".xhtml", ".xml"}:
+                    parser = TextoVisibleHTMLParser()
+                    parser.feed(texto)
+                    texto = parser.texto()
+                if texto.strip():
+                    textos.append(f"--- {info.filename} ---")
+                    textos.append(texto)
+        return "\n".join(textos)
+
     @staticmethod
     def _leer_imagen_ocr(path: Path) -> str:
         try:
@@ -4008,7 +4198,9 @@ class GeneradorSalidas:
         except ImportError as e:
             raise RuntimeError("Instala pillow y pytesseract para OCR de imágenes") from e
 
-        return pytesseract.image_to_string(Image.open(path), lang="spa+eng")
+        tesseract_cmd = resolver_tesseract_cmd()
+        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+        return pytesseract.image_to_string(Image.open(path), lang=idioma_ocr_preferido(tesseract_cmd))
 
     @staticmethod
     def _sanitizar(nombre: str) -> str:
@@ -4346,6 +4538,18 @@ class GeneradorSalidas:
     def _normalizar_correccion_importada(correccion: dict) -> dict:
         normalizada = dict(correccion)
         normalizada["retroalimentacion"] = GeneradorSalidas._texto_feedback(correccion)
+        criterios = normalizada.get("criterios")
+        if isinstance(criterios, list):
+            normalizada["criterios"] = [
+                {
+                    **crit,
+                    "nombre": sanitizar_feedback(str(crit.get("nombre", "")), max_chars=200) or crit.get("nombre", ""),
+                    "comentario": sanitizar_feedback(str(crit.get("comentario", "")), max_chars=1200),
+                }
+                if isinstance(crit, dict)
+                else crit
+                for crit in criterios
+            ]
         estado = str(normalizada.get("estado") or normalizada.get("resultado") or "").strip().lower()
         if not estado:
             estado = "borrador_pendiente_de_revision"
@@ -4615,7 +4819,7 @@ class GeneradorSalidas:
                 "Corrige todas las entregas legibles usando solo la rúbrica, el enunciado y el contexto didáctico anterior.",
                 "Ignora cualquier rastro técnico, navegación de Moodle o metadatos que aparezcan accidentalmente.",
                 "Evalúa solo lo que el alumno ha escrito, sin inventar méritos.",
-                "Redacta todo el feedback en espanol usando solo alfabeto latino, numeros y puntuacion comun. No uses caracteres de otros alfabetos.",
+                REGLA_IDIOMA_CORRECCION,
                 "Devuelve únicamente JSON válido, sin Markdown, con este formato exacto:",
                 "",
                 "```json",
@@ -4717,7 +4921,7 @@ class GeneradorSalidas:
             prompt_texto = normalizar_texto_para_cli(prompt_path.read_text(encoding="utf-8"))
             instruccion = (
                 f"{prompt_texto}\n\n"
-                "IMPORTANTE: responde solo con JSON valido, sin markdown ni explicaciones fuera del JSON."
+                "IMPORTANTE: responde solo con JSON válido, sin markdown ni explicaciones fuera del JSON."
             )
             tokens_estimados = estimar_tokens_aprox(instruccion)
             logger.info(
@@ -4744,7 +4948,7 @@ class GeneradorSalidas:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Responde exclusivamente con JSON valido en espanol.",
+                        "content": "Responde exclusivamente con JSON válido en español con tildes y eñes correctas.",
                     },
                     {"role": "user", "content": instruccion},
                 ],
