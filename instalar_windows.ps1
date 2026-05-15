@@ -3,6 +3,7 @@ param(
     [switch]$InstalarOCR,
     [switch]$InstalarArranque,
     [switch]$AutoPrepararAlInicio,
+    [switch]$PrepararCodex,
     [switch]$CrearAccesoDirecto,
     [switch]$OmitirVerificacion
 )
@@ -86,6 +87,29 @@ function Test-PlaywrightChromiumInstalled {
     return [bool](Get-ChildItem -LiteralPath $MsPlaywright -Directory -Filter "chromium-*" -ErrorAction SilentlyContinue | Select-Object -First 1)
 }
 
+function Find-CodexDesktop {
+    $pkg = Get-AppxPackage -Name "OpenAI.Codex" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($pkg) {
+        return $pkg.InstallLocation
+    }
+    return ""
+}
+
+function Find-CodexDesktopCli {
+    $npmCodex = Join-Path $env:APPDATA "npm\codex.cmd"
+    $candidates = @(
+        $npmCodex,
+        (Get-Command "codex.cmd" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source),
+        (Get-Command "codex" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)
+    )
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path $candidate) -and $candidate -notmatch "\\.vscode\\extensions\\openai\.chatgpt-" -and $candidate -notmatch "\.ps1$") {
+            return $candidate
+        }
+    }
+    return ""
+}
+
 $Python = Find-Python
 Test-PythonVersion -PythonCommand $Python
 
@@ -127,6 +151,27 @@ if ($InstalarOCR) {
         }
     } catch {
         Write-Host "No se pudo instalar OCR automaticamente. Detalle: $_" -ForegroundColor Yellow
+    }
+}
+
+if ($PrepararCodex) {
+    Write-Step "Comprobando integracion con Codex App"
+    $CodexDesktop = Find-CodexDesktop
+    $CodexCli = Find-CodexDesktopCli
+    if ($CodexDesktop) {
+        Write-Host "Codex Desktop detectado: $CodexDesktop" -ForegroundColor Green
+    } else {
+        Write-Host "Codex Desktop no detectado. La app funcionara con API o modo manual; podras instalar Codex Desktop mas adelante." -ForegroundColor Yellow
+    }
+    if ($CodexCli) {
+        Write-Host "CLI de Codex Desktop detectado: $CodexCli" -ForegroundColor Green
+        try {
+            & $CodexCli login status | Out-Host
+        } catch {
+            Write-Host "No se pudo comprobar la sesion. Abre Codex Desktop e inicia sesion con ChatGPT." -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "No hay CLI ejecutable de Codex Desktop. No se usara el Codex de VS Code para automatizar correcciones." -ForegroundColor Yellow
     }
 }
 

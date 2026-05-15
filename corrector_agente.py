@@ -24,6 +24,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import unicodedata
 import zipfile
 from dataclasses import dataclass
@@ -75,6 +76,31 @@ except ValueError:
 DEFAULT_PENDIENTES_DIR = Path(r"C:\temp\vscodec\pendientes")
 DEFAULT_TEMPORAL_DIR = Path(r"C:\temp\vscodec\temporal")
 DEFAULT_ACTIVIDAD_CODIGO = "ud01cp01"
+
+
+def course_id_from_url(url: str | None = None) -> str:
+    target = str(url if url is not None else CARM_COURSE_URL or "").strip()
+    try:
+        parsed = urlparse(target)
+        params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        course_id = str(params.get("id") or "").strip()
+        return course_id if course_id.isdigit() else ""
+    except Exception:
+        match = re.search(r"[?&]id=(\d+)", target)
+        return match.group(1) if match else ""
+
+
+def codex_course_project_dir_for(pendientes_dir: Path, course_id: str | None = None) -> Path | None:
+    course_id = str(course_id or course_id_from_url() or "").strip()
+    if not course_id.isdigit():
+        match = re.search(r"\\cursos\\(\d+)\\", str(pendientes_dir), flags=re.I)
+        if match:
+            course_id = match.group(1)
+    if not course_id.isdigit():
+        return None
+    match = re.search(r"^(.*?\\cursos)\\\d+\\", str(pendientes_dir), flags=re.I)
+    courses_root = Path(match.group(1)) if match else DEFAULT_PENDIENTES_DIR.parent / "cursos"
+    return courses_root / course_id / "codex_project"
 
 
 def requiere_curso_carm_configurado(accion: str) -> bool:
@@ -132,17 +158,105 @@ def idioma_ocr_preferido(tesseract_cmd: str | None = None) -> str:
 
 
 def resolver_codex_cmd() -> str:
-    candidatos = [os.getenv("CODEX_CMD", "").strip(), shutil.which("codex") or ""]
-    candidatos.extend(
-        str(path)
-        for path in sorted(
-            (Path.home() / ".vscode" / "extensions").glob("openai.chatgpt-*/bin/windows-x86_64/codex.exe")
-        )
-    )
+    env_path = os.environ.get("PATH", "")
+    if os.name == "nt":
+        extras = [r"C:\Program Files\nodejs", str(Path.home() / "AppData" / "Roaming" / "npm")]
+        env_path = os.pathsep.join([p for p in extras if Path(p).exists()]) + os.pathsep + env_path
+    candidatos = [
+        os.getenv("CODEX_CMD", "").strip(),
+        str(Path.home() / "AppData" / "Roaming" / "npm" / "codex.cmd") if os.name == "nt" else "",
+        shutil.which("codex.cmd", path=env_path) or "",
+        shutil.which("codex", path=env_path) or "",
+    ]
     for candidato in candidatos:
+        normalizado = str(candidato or "").replace("/", "\\").lower()
+        if "\\.vscode\\extensions\\openai.chatgpt-" in normalizado or normalizado.endswith(".ps1"):
+            continue
         if candidato and Path(candidato).exists():
             return candidato
-    return "codex"
+    return ""
+
+
+def codex_process_env() -> dict[str, str]:
+    env = os.environ.copy()
+    if os.name == "nt":
+        extras = [r"C:\Program Files\nodejs", str(Path.home() / "AppData" / "Roaming" / "npm")]
+        current = env.get("PATH", "")
+        env["PATH"] = os.pathsep.join([p for p in extras if Path(p).exists()]) + os.pathsep + current
+    return env
+
+
+def _salida_codex_limpia(texto: str) -> str:
+    lineas = []
+    for linea in str(texto or "").splitlines():
+        lower = linea.lower()
+        if "failed to clean up stale arg0 temp dirs" in lower:
+            continue
+        if "proceeding, even though we could not update path" in lower:
+            continue
+        lineas.append(linea)
+    return "\n".join(lineas).strip()
+
+
+def comprobar_codex_cli_listo(codex_cmd: str, timeout_segundos: int = 30) -> tuple[bool, str]:
+    try:
+        version = subprocess.run(
+            [codex_cmd, "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=codex_process_env(),
+            timeout=timeout_segundos,
+            **hidden_subprocess_kwargs(),
+        )
+    except Exception as exc:
+        return False, f"No se pudo ejecutar Codex CLI: {exc}"
+
+    version_text = _salida_codex_limpia(version.stdout)
+    if version.returncode != 0:
+        return False, f"Codex CLI no responde correctamente: {version_text or 'sin salida'}"
+
+    try:
+        login = subprocess.run(
+            [codex_cmd, "login", "status"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=codex_process_env(),
+            timeout=timeout_segundos,
+            **hidden_subprocess_kwargs(),
+        )
+    except Exception as exc:
+        return False, f"No se pudo comprobar la sesion de Codex: {exc}"
+
+    login_text = _salida_codex_limpia(login.stdout)
+    if login.returncode != 0 or "logged in" not in login_text.lower():
+        return False, f"Codex CLI esta instalado, pero no tiene sesion ChatGPT activa. Ejecuta `codex login`. Detalle: {login_text or 'sin salida'}"
+    return True, f"{version_text}; {login_text}"
+
+
+def salida_codex_indica_fallo_temporal(texto: str) -> bool:
+    lower = str(texto or "").lower()
+    patrones = [
+        "timed out",
+        "timeout",
+        "connection",
+        "network",
+        "econnreset",
+        "econnrefused",
+        "etimedout",
+        "temporarily unavailable",
+        "service unavailable",
+        "rate limit",
+        "too many requests",
+        "failed to fetch",
+        "websocket",
+    ]
+    return any(patron in lower for patron in patrones)
 
 LOG_DIR = Path("logs_correcciones")
 RESPUESTAS_DIR = Path("respuestas_extraidas")
@@ -5014,8 +5128,15 @@ class GeneradorSalidas:
         timeout_segundos: int = 1800,
     ) -> tuple[list[Path], Path | None]:
         codex_cmd = resolver_codex_cmd()
-        if not shutil.which(codex_cmd) and not Path(codex_cmd).exists():
-            raise RuntimeError("No se encontro Codex CLI. Abre Codex/VS Code o revisa CODEX_CMD.")
+        if not codex_cmd or (not shutil.which(codex_cmd) and not Path(codex_cmd).exists()):
+            raise RuntimeError(
+                "No se encontro un CLI ejecutable de Codex Desktop. "
+                "No se usa el Codex de VS Code para este flujo; usa la API o el modo manual hasta que Codex Desktop exponga CLI."
+            )
+        listo, detalle_codex = comprobar_codex_cli_listo(codex_cmd)
+        if not listo:
+            raise RuntimeError(detalle_codex)
+        logger.info("Codex CLI listo: %s", detalle_codex)
 
         prompts_dir = prompts_pendientes_dir(self.pendientes_dir)
         if not prompts_dir.exists():
@@ -5043,6 +5164,12 @@ class GeneradorSalidas:
         output_dir.mkdir(parents=True, exist_ok=True)
         rutas_correcciones: list[Path] = []
         prompts_resueltos: list[Path] = []
+        workspace_dir = codex_course_project_dir_for(self.pendientes_dir)
+        if workspace_dir and workspace_dir.exists():
+            logger.info("Codex App usara el proyecto del curso como workspace: %s", workspace_dir)
+        else:
+            workspace_dir = Path(__file__).resolve().parent
+            logger.info("No hay proyecto Codex del curso; uso workspace de la app: %s", workspace_dir)
 
         for prompt_path in prompts:
             salida_path = output_dir / f"{prompt_path.stem}_correccion.json"
@@ -5061,26 +5188,41 @@ class GeneradorSalidas:
                 "never",
                 "exec",
                 "--skip-git-repo-check",
+                "--cd",
+                str(workspace_dir),
                 "--sandbox",
                 "read-only",
                 "--output-last-message",
                 str(salida_raw),
                 "-",
             ]
-            proc = subprocess.run(
-                cmd,
-                cwd=str(Path(__file__).resolve().parent),
-                input=instruccion,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=timeout_segundos,
-                **hidden_subprocess_kwargs(),
-            )
+            proc = None
+            salida_error = ""
+            for intento in range(1, 3):
+                proc = subprocess.run(
+                    cmd,
+                    cwd=str(workspace_dir),
+                    input=instruccion,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=codex_process_env(),
+                    timeout=timeout_segundos,
+                    **hidden_subprocess_kwargs(),
+                )
+                salida_error = _salida_codex_limpia(proc.stdout)
+                if proc.returncode == 0:
+                    break
+                if intento == 1 and salida_codex_indica_fallo_temporal(salida_error):
+                    logger.warning("Codex App fallo de forma temporal; reintento en 8 segundos. Detalle: %s", salida_error[-1000:])
+                    time.sleep(8)
+                    continue
+                break
+            assert proc is not None
             if proc.returncode != 0:
-                raise RuntimeError(f"Codex App fallo con codigo {proc.returncode}: {proc.stdout[-2000:]}")
+                raise RuntimeError(f"Codex App fallo con codigo {proc.returncode}: {salida_error[-2000:]}")
             if not salida_raw.exists():
                 salida_raw.write_text(proc.stdout, encoding="utf-8")
             contenido = self._normalizar_json_modelo(salida_raw.read_text(encoding="utf-8", errors="replace"))
@@ -5126,10 +5268,15 @@ async def ejecutar_flujo(args) -> None:
         return
 
     if getattr(args, "comprobar_codex_cli", False):
-        logger.warning(
-            "Codex CLI integrado esta desactivado en el flujo actual. "
-            "Usa $C desde Codex y despues importa los *_correccion.json desde la interfaz."
-        )
+        codex_cmd = resolver_codex_cmd()
+        if not codex_cmd:
+            logger.error("Codex CLI oficial no detectado. Instala Node.js LTS y despues `npm i -g @openai/codex`.")
+            return
+        listo, detalle = comprobar_codex_cli_listo(codex_cmd)
+        if listo:
+            logger.info("Codex CLI listo: %s", detalle)
+        else:
+            logger.error("Codex CLI no esta listo: %s", detalle)
         return
 
     flujo_correccion_carm = getattr(args, "flujo_correccion_carm", False)
@@ -5818,7 +5965,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--corregir-prompts-codex-app",
         action="store_true",
-        help="Envia prompts .md ya preparados a Codex App/CLI con login ChatGPT, sin OPENAI_API_KEY.",
+        help="Envia prompts .md ya preparados a Codex Desktop con login ChatGPT, sin OPENAI_API_KEY.",
     )
     parser.add_argument(
         "--importar-tras-openai",

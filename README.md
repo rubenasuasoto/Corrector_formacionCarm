@@ -45,6 +45,18 @@ Es la entrada recomendada para una instalacion guiada en Windows. Crea `.venv`, 
 
 El instalador abre una ventana de configuracion basica: carpeta donde instalar la app, carpeta de datos/descargas, acceso directo, inicio con Windows y apertura al terminar. Por defecto activa el inicio con Windows y separa datos por curso dentro de la carpeta de datos elegida.
 
+Tambien incluye una casilla de integracion con Codex Desktop. No instala Codex todavia: solo detecta si la app de escritorio `OpenAI.Codex` esta disponible y deja la app preparada para usarla sin `OPENAI_API_KEY` cuando Codex Desktop exponga un CLI ejecutable. No se usa el Codex de VS Code para este flujo.
+
+En otro ordenador, si se quiere usar Codex sin API, instala primero Node.js LTS y despues el CLI oficial:
+
+```powershell
+winget install --id OpenJS.NodeJS.LTS --source winget
+npm i -g @openai/codex
+codex login
+```
+
+La app busca `codex.cmd` en `AppData\Roaming\npm`, inyecta `C:\Program Files\nodejs` al ejecutar Codex y evita `codex.ps1` para no chocar con politicas de PowerShell.
+
 Para abrir el panel despues de instalar:
 
 ```powershell
@@ -135,7 +147,15 @@ El agente lee las entregas, las agrupa por actividad y genera archivos en la car
 
 Despues puedes usar las instrucciones de `INSTRUCCIONES_CODEX_PERSONALIZADAS.md` y escribir `$C`, `$C ud01cp02` o `$C todas` en Codex. Ese flujo no entra en CARM, no mueve archivos y crea un `*_correccion.json` por prompt en la misma carpeta.
 
-Si tienes Codex App/CLI instalado e iniciado con ChatGPT, la interfaz tambien puede resolver los prompts sin `OPENAI_API_KEY` con `Corregir con Codex App`. Internamente usa `codex exec`, guarda los JSON individuales, genera el CSV revisable y mantiene la subida a CARM como proceso asistido con revision humana.
+Si tienes Codex Desktop instalado, iniciado con ChatGPT y con CLI ejecutable disponible, la interfaz tambien podra resolver los prompts sin `OPENAI_API_KEY` con `Corregir con Codex App`. Internamente usara `codex exec --cd <codex_project>`, guardara los JSON individuales, generara el CSV revisable y mantendra la subida a CARM como proceso asistido con revision humana. El Codex de VS Code queda fuera de esta ruta para evitar depender de la extension.
+
+La interfaz puede preparar y abrir un proyecto local de Codex por curso en `C:\temp\vscodec\cursos\<course_id>\codex_project`. Ese proyecto exporta solo cache didactica y enunciados (`contexto_didactico.md`, `actividades.json`, `AGENTS.md`), no entregas ni datos personales. En `Configuracion > Windows` se puede marcar que Codex App se abra con ese proyecto al iniciar Windows junto al Corrector CARM.
+
+`codex_project` es una carpeta operativa solo para Codex App: queda fuera de Git, fuera del paquete ZIP y fuera del flujo de subida a CARM.
+
+La carpeta se crea o actualiza automaticamente al seleccionar un curso con cache didactica disponible, y tambien al terminar correctamente un escaneo de curso que acaba de generar esa cache.
+
+En Windows, la apertura automatica del proyecto requiere que Codex Desktop exponga un CLI ejecutable. La app detecta la instalacion de `OpenAI.Codex`, pero no fuerza permisos sobre `WindowsApps` ni usa el `codex.exe` de VS Code.
 
 Cuando existan los `*_correccion.json`, vuelve a la interfaz y pulsa `Importar JSON a revision`. Puedes importar un JSON concreto o todos los JSON pendientes. La app los pasara a `revision_pendiente.csv` y archivara los prompts ya usados.
 

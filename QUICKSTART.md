@@ -15,6 +15,36 @@ Para uso real, el camino normal es este:
 
 No uses comandos directos de publicacion: esa ruta esta desactivada. La subida asistida es el flujo que mantiene revision humana y limpia el CSV al confirmar cada caso.
 
+## Continuar en otro ordenador
+
+Para retomar el proyecto en otro Windows, usa el paquete ZIP guiado o esta carpeta de proyecto sin copiar datos sensibles. No copies `.env`, `cache_carm`, `logs_correcciones`, `respuestas_extraidas`, `correcciones_validadas`, `.venv` ni carpetas de alumnos.
+
+Pasos recomendados:
+
+1. Ejecuta `.\INSTALAR_CORRECTOR_CARM.cmd`.
+2. Elige carpeta de instalacion y carpeta de datos.
+3. Abre el panel con `.\ABRIR_CORRECTOR_CARM.cmd`.
+4. Configura credenciales CARM desde la interfaz.
+5. Detecta cursos y selecciona el curso activo.
+6. Ejecuta `.\verificar_app_windows.cmd --instalacion`.
+7. Si vas a usar Codex sin API, instala Node.js LTS y el CLI oficial de Codex:
+
+```powershell
+winget install --id OpenJS.NodeJS.LTS --source winget
+npm i -g @openai/codex
+codex login
+```
+
+La app debe detectar `C:\Users\<usuario>\AppData\Roaming\npm\codex.cmd`. No uses el `codex.exe` de la extension de VS Code para este flujo.
+
+Si el ordenador no permite `winget`, instala Node.js LTS desde la pagina oficial, abre una terminal nueva y repite `npm i -g @openai/codex`.
+
+Para OCR de PDF escaneados o imagenes, usa el instalador guiado o ejecuta:
+
+```powershell
+.\instalar_ocr_windows.cmd
+```
+
 ## Documentacion de apoyo
 
 - `ESTADO_PROYECTO.md`: estado real y decisiones recientes.
@@ -35,7 +65,15 @@ En Windows, la entrada recomendada para una instalacion guiada es:
 
 Esto crea `.venv`, instala dependencias base y de extraccion, instala Chromium de Playwright si falta, crea `.env` si no existe y deja accesos directos para abrir el panel. La primera configuracion de credenciales se hace desde la interfaz si faltan.
 
-El asistente permite elegir carpeta de instalacion y carpeta de datos. En esa carpeta de datos se crean `pendientes`, `temporal` y `cursos`; con separacion por curso activada, cada curso guarda ahi sus prompts, CSV y resumenes. El inicio con Windows aparece activado por defecto y se puede desmarcar.
+El asistente permite elegir carpeta de instalacion y carpeta de datos. En esa carpeta de datos se crean `pendientes`, `temporal` y `cursos`; con separacion por curso activada, cada curso guarda ahi sus prompts, CSV y resumenes. El inicio con Windows aparece activado por defecto y se puede desmarcar. Tambien puedes dejar activada la integracion con Codex Desktop: el instalador no instala Codex todavia, pero detecta si la app de escritorio esta disponible. No se usa el Codex de VS Code para este flujo.
+
+Para automatizar correcciones con Codex sin API hace falta el Codex CLI oficial. Si `npm` no existe, instala Node.js LTS y abre una terminal nueva. En Windows, la app llama a `codex.cmd` para evitar que PowerShell bloquee `codex.ps1` por politica de ejecucion:
+
+```powershell
+winget install --id OpenJS.NodeJS.LTS --source winget
+npm i -g @openai/codex
+codex login
+```
 
 Para abrir el panel despues:
 
@@ -61,6 +99,16 @@ Ese arranque abre la app y hace el escaneo inicial normal. Si quieres que ademas
 ```powershell
 .\instalar_windows.cmd -InstalarArranque -AutoPrepararAlInicio
 ```
+
+Desde la interfaz, en `Configuracion > Windows`, tambien puedes preparar un proyecto local por curso para Codex App en `C:\temp\vscodec\cursos\<course_id>\codex_project` con contexto didactico y enunciados, sin entregas ni datos personales de alumnos. Si Codex Desktop llega a exponer un CLI oficial en Windows, la app podra abrirlo junto al Corrector al iniciar Windows.
+
+Esa carpeta es solo para Codex App. No se versiona, no se empaqueta en el ZIP de instalacion y no se usa para subir nada a CARM.
+
+El proyecto Codex se prepara automaticamente cuando seleccionas un curso que ya tiene cache didactica. Si aun no hay cache, se prepara al terminar el escaneo del curso.
+
+La apertura automatica requiere un CLI ejecutable de Codex Desktop. La app no usa el `codex.exe` de la extension de VS Code para este flujo.
+
+Si Codex Desktop tiene abierto el proyecto, puede bloquear temporalmente algun archivo de `codex_project`. En ese caso la interfaz abre el proyecto existente sin refrescarlo y muestra un aviso; al cerrar Codex o cambiar de curso podra actualizarlo de nuevo.
 
 Para crear tambien un acceso directo en el escritorio:
 
@@ -251,7 +299,7 @@ El archivo `.md` se copia entero en Codex/ChatGPT. Codex debe devolver un JSON c
 El flujo sin API puede hacerse de dos formas:
 
 - Manual: abre Codex/ChatGPT aparte, ejecuta `$C` o pega el prompt, guarda los `*_correccion.json` en la carpeta de prompts y vuelve a la interfaz para pulsar `Importar JSON a revision`.
-- Codex App: si Codex está instalado e iniciado con ChatGPT, pulsa `Corregir con Codex App`. La app usa `codex exec`, crea los JSON individuales e importa las correcciones a `revision_pendiente.csv` sin usar `OPENAI_API_KEY`.
+- Codex App: si Codex Desktop esta instalado, iniciado con ChatGPT y expone un CLI ejecutable, pulsa `Corregir con Codex App`. La app usa `codex exec --cd <codex_project>`, crea los JSON individuales e importa las correcciones a `revision_pendiente.csv` sin usar `OPENAI_API_KEY`. La extension de VS Code no se usa para esta ruta.
 
 ## 4. Corregir archivos reales ya descargados
 

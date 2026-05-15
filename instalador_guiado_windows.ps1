@@ -5,6 +5,7 @@ param(
     [switch]$NoAccesoDirecto,
     [switch]$NoInicioWindows,
     [switch]$NoInstalarOCR,
+    [switch]$NoPrepararCodex,
     [switch]$NoAbrirAlFinal
 )
 
@@ -39,7 +40,7 @@ function Show-InstallerForm {
     $form.FormBorderStyle = "FixedDialog"
     $form.MaximizeBox = $false
     $form.MinimizeBox = $false
-    $form.ClientSize = New-Object System.Drawing.Size(640, 420)
+    $form.ClientSize = New-Object System.Drawing.Size(640, 452)
 
     $title = New-Object System.Windows.Forms.Label
     $title.Text = "Corrector CARM"
@@ -112,31 +113,38 @@ function Show-InstallerForm {
     $ocrCheck.Size = New-Object System.Drawing.Size(470, 24)
     $form.Controls.Add($ocrCheck)
 
+    $codexCheck = New-Object System.Windows.Forms.CheckBox
+    $codexCheck.Text = "Preparar integracion con Codex App sin API"
+    $codexCheck.Checked = -not $NoPrepararCodex
+    $codexCheck.Location = New-Object System.Drawing.Point(32, 316)
+    $codexCheck.Size = New-Object System.Drawing.Size(470, 24)
+    $form.Controls.Add($codexCheck)
+
     $openCheck = New-Object System.Windows.Forms.CheckBox
     $openCheck.Text = "Abrir la app al terminar"
     $openCheck.Checked = -not $NoAbrirAlFinal
-    $openCheck.Location = New-Object System.Drawing.Point(32, 316)
+    $openCheck.Location = New-Object System.Drawing.Point(32, 344)
     $openCheck.Size = New-Object System.Drawing.Size(420, 24)
     $form.Controls.Add($openCheck)
 
     $hint = New-Object System.Windows.Forms.Label
-    $hint.Text = "El OCR requiere instalar Tesseract con winget. Si falla, la app seguira instalada y esos archivos pasaran a revision manual."
+    $hint.Text = "Codex es opcional: el instalador solo lo detecta y prepara la app para usarlo si ya esta instalado."
     $hint.ForeColor = [System.Drawing.Color]::DimGray
-    $hint.Location = New-Object System.Drawing.Point(30, 346)
-    $hint.Size = New-Object System.Drawing.Size(580, 24)
+    $hint.Location = New-Object System.Drawing.Point(30, 374)
+    $hint.Size = New-Object System.Drawing.Size(580, 32)
     $form.Controls.Add($hint)
 
     $cancel = New-Object System.Windows.Forms.Button
     $cancel.Text = "Cancelar"
     $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $cancel.Location = New-Object System.Drawing.Point(420, 382)
+    $cancel.Location = New-Object System.Drawing.Point(420, 414)
     $cancel.Size = New-Object System.Drawing.Size(90, 30)
     $form.Controls.Add($cancel)
 
     $install = New-Object System.Windows.Forms.Button
     $install.Text = "Instalar"
     $install.DialogResult = [System.Windows.Forms.DialogResult]::OK
-    $install.Location = New-Object System.Drawing.Point(520, 382)
+    $install.Location = New-Object System.Drawing.Point(520, 414)
     $install.Size = New-Object System.Drawing.Size(90, 30)
     $form.Controls.Add($install)
     $form.AcceptButton = $install
@@ -169,6 +177,7 @@ function Show-InstallerForm {
         CrearAccesoDirecto = $shortcutCheck.Checked
         InstalarArranque = $startupCheck.Checked
         InstalarOCR = $ocrCheck.Checked
+        PrepararCodex = $codexCheck.Checked
         AbrirAlFinal = $openCheck.Checked
     }
 }
@@ -202,7 +211,7 @@ function Copy-AppFiles {
 }
 
 function Write-AppConfig {
-    param([string]$Root, [string]$DataRoot)
+    param([string]$Root, [string]$DataRoot, [bool]$PrepararCodex)
 
     $pendientes = Join-Path $DataRoot "pendientes"
     $temporal = Join-Path $DataRoot "temporal"
@@ -220,6 +229,7 @@ function Write-AppConfig {
         auto_scan_interval_minutes = 60
         periodic_auto_prepare = $false
         auto_prepare_interval_minutes = 0
+        codex_integration_enabled = $PrepararCodex
         installer_configured_at = (Get-Date).ToString("s")
     }
     $config | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Root ".corrector_app.json") -Encoding UTF8
@@ -232,6 +242,7 @@ if ($SinInterfaz) {
         CrearAccesoDirecto = -not $NoAccesoDirecto
         InstalarArranque = -not $NoInicioWindows
         InstalarOCR = -not $NoInstalarOCR
+        PrepararCodex = -not $NoPrepararCodex
         AbrirAlFinal = -not $NoAbrirAlFinal
     }
 } else {
@@ -252,7 +263,7 @@ Write-Step "Copiando app a la carpeta de instalacion"
 Copy-AppFiles -From $SourceRoot -To $TargetRoot
 
 Write-Step "Preparando carpetas de datos"
-Write-AppConfig -Root $TargetRoot -DataRoot $TargetData
+Write-AppConfig -Root $TargetRoot -DataRoot $TargetData -PrepararCodex ([bool]$choices.PrepararCodex)
 
 $installScript = Join-Path $TargetRoot "instalar_windows.ps1"
 if (-not (Test-Path -LiteralPath $installScript)) {
@@ -268,6 +279,9 @@ if ($choices.InstalarArranque) {
 }
 if ($choices.InstalarOCR) {
     $installArgs += "-InstalarOCR"
+}
+if ($choices.PrepararCodex) {
+    $installArgs += "-PrepararCodex"
 }
 
 Write-Step "Instalando dependencias y accesos"
