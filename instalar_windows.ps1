@@ -54,6 +54,10 @@ function New-AppShortcut {
     $Shortcut.TargetPath = Join-Path $Root "ABRIR_CORRECTOR_CARM.cmd"
     $Shortcut.WorkingDirectory = $Root
     $Shortcut.Description = "Iniciar Corrector CARM"
+    $IconPath = Join-Path $Root "assets\corrector_carm.ico"
+    if (Test-Path -LiteralPath $IconPath) {
+        $Shortcut.IconLocation = $IconPath
+    }
     $Shortcut.Save()
     Write-Host "Acceso directo creado: $ShortcutPath" -ForegroundColor Green
 }

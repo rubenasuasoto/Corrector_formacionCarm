@@ -30,7 +30,7 @@ Objetivo: que la app sepa donde esta, que curso corrige y si tiene permisos para
 - No mostrar unidades/casos que no existan en CARM.
 - Separar cache didactica de datos personales siempre que sea posible.
 
-Estado: implementado en primera version. La app crea carpetas, detecta cursos, separa rutas por curso por defecto y reescanea tras credenciales/seleccion de curso. Pendiente de pruebas reales repetidas con varios cursos y permisos Windows/Chromium.
+Estado: implementado en primera version. La app crea carpetas, detecta cursos, separa rutas por curso por defecto y reescanea tras credenciales/seleccion de curso. El flujo multi-curso ya ha sido confirmado por el docente; conviene seguir observandolo en usos reales con permisos Windows/Chromium distintos.
 
 ## Fase 1: Interfaz de descarga CARM
 
@@ -114,7 +114,7 @@ Implementacion por pasos:
 10. Evitar que el refresco automatico de la interfaz pise cambios no guardados en la configuracion de cursos. Estado: implementado.
 11. Aislar contexto de cuenta CARM para no reutilizar cursos/carpetas de otra cuenta. Estado: implementado con referencia local seudonima de cuenta y prueba offline en `verificar_app.py`.
 
-Esta fase debe hacerse con cambios pequenos y verificables. La primera cola multi-curso, el resumen por curso y el aislamiento offline por cuenta ya existen, pero falta prueba real con varios cursos CARM antes de considerarlo terminado. Tambien se debe verificar en CARM real que cambiar curso recalcula rutas y que ningun CSV de un curso se muestra como si perteneciera a otro.
+Esta fase queda operativa en primera version: la cola multi-curso, el resumen por curso, el aislamiento offline por cuenta y la prueba real multi-curso ya existen. Se mantiene como vigilancia que ningun CSV de un curso se muestre como si perteneciera a otro y que los nombres de cursos auxiliares no oculten cursos reales en futuras cuentas.
 
 ## Fase 2: Seguridad operativa local
 
@@ -178,7 +178,7 @@ Objetivo: no saltar a infraestructura futura antes de que la herramienta local s
 
 - Ejecutar `verificar_app_windows.cmd` en verde.
 - Ejecutar prueba CARM real de deteccion, prompts, importacion CSV y previsualizacion.
-- Probar cambio de curso y carpetas por curso si hay varios cursos reales.
+- Probar cambio de curso y carpetas por curso si hay varios cursos reales. Estado: confirmado en uso real; mantener vigilancia en nuevas cuentas.
 - Confirmar que la subida asistida mantiene guardado humano.
 - Confirmar que no se duplican prompts, pendientes ni CSV al repetir ejecuciones.
 - Confirmar que la cache didactica usa contenido imprimible/resumenes utiles y no mapas de Moodle.
