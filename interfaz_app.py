@@ -39,6 +39,7 @@ DEFAULT_TEMPORAL_DIR = Path(r"C:\temp\vscodec\temporal")
 DEFAULT_COURSES_DIR = Path(r"C:\temp\vscodec\cursos")
 BASE_PENDIENTES_DIR = DEFAULT_PENDIENTES_DIR
 BASE_TEMPORAL_DIR = DEFAULT_TEMPORAL_DIR
+COURSES_DIR = DEFAULT_COURSES_DIR
 PENDIENTES_DIR = DEFAULT_PENDIENTES_DIR
 TEMPORAL_DIR = DEFAULT_TEMPORAL_DIR
 PROMPTS_DIR = PENDIENTES_DIR / "prompts_codex"
@@ -254,7 +255,7 @@ def _apply_course_scope(base_pendientes: Path, base_temporal: Path) -> tuple[Pat
     if not active_id:
         return base_pendientes, base_temporal
     course_id = _course_safe_id(active_id)
-    course_root = DEFAULT_COURSES_DIR / course_id
+    course_root = COURSES_DIR / course_id
     return course_root / "pendientes", course_root / "temporal"
 
 
@@ -263,7 +264,7 @@ def course_work_dirs(course_id: str) -> tuple[Path, Path]:
         return BASE_PENDIENTES_DIR, BASE_TEMPORAL_DIR
     course_id = _course_safe_id(course_id)
     if course_scoped_dirs_enabled():
-        course_root = DEFAULT_COURSES_DIR / course_id
+        course_root = COURSES_DIR / course_id
         return course_root / "pendientes", course_root / "temporal"
     return BASE_PENDIENTES_DIR, BASE_TEMPORAL_DIR
 
@@ -272,7 +273,7 @@ def ensure_work_dirs() -> None:
     for path in (
         BASE_PENDIENTES_DIR,
         BASE_TEMPORAL_DIR,
-        DEFAULT_COURSES_DIR,
+        COURSES_DIR,
         PENDIENTES_DIR,
         TEMPORAL_DIR,
         PROMPTS_DIR,
@@ -286,10 +287,11 @@ def ensure_work_dirs() -> None:
 
 
 def configure_work_dirs(pendientes: str | Path | None = None, temporal: str | Path | None = None, persist: bool = False) -> None:
-    global BASE_PENDIENTES_DIR, BASE_TEMPORAL_DIR, PENDIENTES_DIR, TEMPORAL_DIR, PROMPTS_DIR, COMBINED_JSON, REVISION_CSV
+    global BASE_PENDIENTES_DIR, BASE_TEMPORAL_DIR, COURSES_DIR, PENDIENTES_DIR, TEMPORAL_DIR, PROMPTS_DIR, COMBINED_JSON, REVISION_CSV
     current = load_app_config()
     BASE_PENDIENTES_DIR = _normalize_dir(pendientes or current.get("pendientes_dir"), DEFAULT_PENDIENTES_DIR)
     BASE_TEMPORAL_DIR = _normalize_dir(temporal or current.get("temporal_dir"), DEFAULT_TEMPORAL_DIR)
+    COURSES_DIR = _normalize_dir(current.get("courses_dir"), DEFAULT_COURSES_DIR)
     PENDIENTES_DIR, TEMPORAL_DIR = _apply_course_scope(BASE_PENDIENTES_DIR, BASE_TEMPORAL_DIR)
     PROMPTS_DIR = PENDIENTES_DIR / "prompts_codex"
     COMBINED_JSON = PROMPTS_DIR / "correcciones_codex_combinadas.json"
@@ -1851,6 +1853,7 @@ def project_state() -> dict:
         "prompts_dir": str(PROMPTS_DIR),
         "temporal_dir": str(TEMPORAL_DIR),
         "base_temporal_dir": str(BASE_TEMPORAL_DIR),
+        "courses_dir": str(COURSES_DIR),
         "course_scoped_dirs": course_scoped_dirs_enabled(),
         "account_context_ok": account_context_matches_current_user(),
         "course_id": active_course_id(),
@@ -2533,7 +2536,7 @@ HTML = r"""<!doctype html>
               <input type="checkbox" id="courseScopedDirs">
               Separar carpetas por curso
             </label>
-            <p class="hint">Activado por defecto. Este curso usa sus propias carpetas en C:\temp\vscodec\cursos\&lt;id&gt;\ para no mezclar prompts, CSV ni resumenes.</p>
+            <p class="hint">Activado por defecto. Cada curso usa sus propias carpetas dentro de la carpeta de datos configurada para no mezclar prompts, CSV ni resumenes.</p>
             <h3>Autoescaneo</h3>
             <div class="grid2">
               <div>

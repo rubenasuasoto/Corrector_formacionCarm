@@ -135,6 +135,40 @@ def check_javascript_panel_embebido() -> bool:
     return True
 
 
+def check_javascript_playwright_embebido() -> bool:
+    safe_print("\n==> JavaScript Playwright embebido")
+    try:
+        lines = (ROOT / "corrector_agente.py").read_text(encoding="utf-8").splitlines()
+    except Exception as exc:
+        safe_print(f"ERROR: no se pudo leer corrector_agente.py: {exc}")
+        return False
+
+    patrones_rotos = (
+        "  document.querySelector(",
+        "label  label.",
+        "wrap  wrap.",
+        "heading  heading.",
+        "card  card.",
+        "key.includes('_editor')  ",
+        "typeof el.className === 'string'  ",
+        "invalid  '",
+        "allowManual  '",
+    )
+    incidencias: list[str] = []
+    for index, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if any(patron in stripped for patron in patrones_rotos):
+            incidencias.append(f"{index}: posible ternario JS roto: {stripped}")
+
+    if incidencias:
+        safe_print("ERROR: posibles roturas de JavaScript usado por Playwright:")
+        for item in incidencias[:12]:
+            safe_print(f"- {item}")
+        return False
+    safe_print("OK: no se detectan ternarios rotos en JavaScript usado por Playwright.")
+    return True
+
+
 def check_iconos_app() -> bool:
     safe_print("\n==> Iconos de la app")
     ico = ROOT / "assets" / "corrector_carm.ico"
@@ -166,6 +200,65 @@ def check_iconos_app() -> bool:
     return True
 
 
+def check_cache_sqlite_basica() -> bool:
+    safe_print("\n==> Cache SQLite CARM")
+    from corrector_agente import CacheCursoCarm
+
+    tmp_root = ROOT / ".tmp_verificacion_cache"
+    try:
+        if tmp_root.exists():
+            shutil.rmtree(tmp_root)
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        cache = CacheCursoCarm(
+            path=tmp_root / "curso_9999.sqlite",
+            course_url="https://formacion.carm.es/course/view.php?id=9999",
+        )
+        cache.guardar_curso("Curso de prueba")
+        cache.guardar_unidad("ud01", nombre="Unidad 1", contenido_imprimible="")
+        cache.guardar_actividad(
+            {
+                "codigo": "ud01cp01",
+                "unidad_codigo": "ud01",
+                "nombre": "UD01 - Caso practico 1",
+                "tipo": "obligatorio",
+                "url": "https://formacion.carm.es/mod/assign/view.php?id=1",
+                "url_grading": "https://formacion.carm.es/mod/assign/view.php?action=grading&id=1&filter=require_grading",
+                "filtro": "require_grading",
+                "enunciado": "Enunciado de prueba",
+            }
+        )
+        cache.obtener_contexto_unidades({"ud01"})
+        actividad = cache.enriquecer_actividad({"codigo": "ud01cp01"})
+        if actividad.get("enunciado") != "Enunciado de prueba":
+            safe_print("ERROR: la cache no devolvio la actividad enriquecida.")
+            return False
+        safe_print("OK: operaciones basicas de cache SQLite funcionan.")
+        return True
+    except Exception as exc:
+        safe_print(f"ERROR: cache SQLite fallo: {exc}")
+        return False
+    finally:
+        if tmp_root.exists():
+            shutil.rmtree(tmp_root, ignore_errors=True)
+
+
+def check_extraccion_insuficiente() -> bool:
+    safe_print("\n==> Extraccion insuficiente")
+    from corrector_agente import GeneradorSalidas
+
+    if not GeneradorSalidas._texto_extraido_insuficiente("•\n•\n•\n\n•\n•\n"):
+        safe_print("ERROR: texto formado solo por vinetas no queda bloqueado como revision manual.")
+        return False
+    if GeneradorSalidas._texto_extraido_insuficiente(
+        "Respuesta desarrollada con medidas concretas, canal humano alternativo, "
+        "aviso visible de uso de IA, trazabilidad y revision profesional."
+    ):
+        safe_print("ERROR: texto suficiente queda marcado como insuficiente.")
+        return False
+    safe_print("OK: textos vacios o solo con marcas/listas quedan fuera de correccion automatica.")
+    return True
+
+
 def print_health(operacion: bool) -> bool:
     safe_print("\n==> Estado local")
     import interfaz_app as app
@@ -183,7 +276,10 @@ def print_health(operacion: bool) -> bool:
         safe_print(f"[{status}] {check['name']}: {check.get('message', '')}")
         if required and not check.get("ok"):
             ok = False
-    safe_print(f"OK: {health['message']}" if ok else "ERROR: Hay puntos obligatorios pendientes.")
+    if ok and not operacion:
+        safe_print("OK: instalacion lista; credenciales CARM y curso activo pueden configurarse despues.")
+    else:
+        safe_print(f"OK: {health['message']}" if ok else "ERROR: Hay puntos obligatorios pendientes.")
     return ok
 
 
@@ -474,7 +570,10 @@ def main() -> int:
     )
     ok &= check_textos_sin_mojibake()
     ok &= check_javascript_panel_embebido()
+    ok &= check_javascript_playwright_embebido()
     ok &= check_iconos_app()
+    ok &= check_cache_sqlite_basica()
+    ok &= check_extraccion_insuficiente()
     ok &= print_health(operacion=not args.instalacion)
     if not args.sin_prueba_offline:
         ok &= check_importacion_json_csv()

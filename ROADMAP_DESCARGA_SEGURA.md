@@ -18,6 +18,40 @@ La siguiente fase del proyecto es completar la interfaz y logica de descarga des
 6. Generar prompts y correcciones sin reabrir Playwright innecesariamente.
 7. Publicar solo tras revision humana.
 
+## DevOps seguro adaptado al Corrector CARM
+
+El esquema general del documento de despliegue seguro se adopta, pero traducido a una app local de Windows. En este proyecto "produccion" significa el equipo del docente ejecutando el panel local y usando CARM real con revision humana.
+
+Flujo vigente antes de Fase 5:
+
+```text
+Codigo
+  corrector_agente.py, interfaz_app.py, prompts y documentacion viva
+Git
+  control de cambios, .env/datos personales fuera del repositorio
+Build local
+  instalador Windows, paquete ZIP guiado y futuro .exe local
+Test
+  verificar_app.py, pruebas offline, endpoints locales, iconos, JS embebido
+Instalacion limpia
+  extraer ZIP, crear .venv, instalar dependencias, crear .env desde plantilla
+Produccion local
+  127.0.0.1, token local, CARM con credenciales del docente, subida asistida
+Simulacion de fallo local
+  permisos Playwright, falta de credenciales, puerto local, JS roto, paquete limpio
+Operacion
+  generar prompts, corregir, importar CSV y subir solo tras revision humana
+```
+
+Equivalencias:
+
+- `Docker` no es obligatorio mientras la app sea local y necesite bandeja de Windows, explorador de archivos, Chromium/Playwright y revision humana.
+- `Docker Compose` solo tendria sentido si aparecieran servicios separados, por ejemplo base de datos externa, servidor multiusuario o cola de tareas.
+- `Produccion segura` ahora se cubre con `.env` local, endpoints en `127.0.0.1`, token local, logs redactados, datos sensibles fuera de Git y paquete sin artefactos generados.
+- `Simulacion de fallo` se mantiene como pruebas locales de permisos, instalacion limpia, endpoints, cache, credenciales ausentes y subida asistida.
+
+Decision: antes de Fase 5, el siguiente salto de despliegue es `.exe` local con identidad propia de Windows, no Docker. Primera version aplicada: `crear_launcher_windows.cmd` genera `Corrector CARM.exe` como lanzador visual sobre el arranque actual, manteniendo instalacion de dependencias y Chromium fuera del binario.
+
 ## Fase 0: Base antes de la descarga
 
 Objetivo: que la app sepa donde esta, que curso corrige y si tiene permisos para usar navegador.
@@ -159,6 +193,7 @@ Esta fase aplica las ideas de Git, build reproducible y pruebas del documento, p
 Objetivo: facilitar uso en Windows sin depender de conocimientos tecnicos.
 
 - Script de instalacion guiado.
+- Asistente visual de instalacion para elegir carpeta de instalacion, carpeta de datos, accesos directos e inicio con Windows. Estado: implementado como `instalador_guiado_windows.ps1`; el inicio con Windows queda activado por defecto pero puede desmarcarse.
 - Comprobacion de Python, dependencias y Playwright. Estado: instalador valida Python 3.12+, revisa codigos de salida, instala dependencias y ejecuta `verificar_app.py --instalacion`.
 - Instalacion de Chromium para Playwright. Estado: implementado; si Chromium ya existe, no lo reinstala para evitar locks de Windows.
 - Entrada guiada de usuario. Estado: implementado con `INSTALAR_CORRECTOR_CARM.cmd` y `ABRIR_CORRECTOR_CARM.cmd`.

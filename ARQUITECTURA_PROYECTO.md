@@ -16,10 +16,21 @@ Instalacion y soporte Windows:
 
 - `instalar_windows.cmd`
 - `instalar_windows.ps1`
+- `instalador_guiado_windows.cmd`
+- `instalador_guiado_windows.ps1`
 - `iniciar_app_windows.cmd`
+- `crear_launcher_windows.cmd`
+- `crear_launcher_windows.ps1`
 - `reparar_dependencias_windows.cmd`
+- `crear_paquete_windows.cmd`
+- `crear_paquete_windows.ps1`
 - `requirements.txt`
 - `requirements-extraccion.txt`
+
+Identidad visual local:
+
+- `assets/corrector_carm.ico`: icono de Windows para accesos directos y notificaciones fallback.
+- `assets/corrector_carm.png`: icono del panel local y bandeja.
 
 Documentacion viva:
 
@@ -128,6 +139,22 @@ Fase 3:
 - Tests de endpoints locales con token anti-CSRF.
 - Separar UI HTML/CSS/JS de `interfaz_app.py`.
 - Crear checklist de release antes de distribuir.
+
+## DevOps local antes de Fase 5
+
+El flujo de despliegue seguro se aplica en escala local:
+
+- Codigo: raiz del proyecto, con `corrector_agente.py` e `interfaz_app.py` como ejecutables activos.
+- Git: no versionar `.env`, caches, logs, entregas, salidas ni correcciones generadas.
+- Build local: `crear_paquete_windows.cmd` y futuro `.exe` local.
+- Lanzador Windows: `crear_launcher_windows.cmd` genera `Corrector CARM.exe` con icono propio; delega en `iniciar_app_windows.ps1` y no contiene credenciales ni datos.
+- Instalador guiado: `INSTALAR_CORRECTOR_CARM.cmd` llama a `instalador_guiado_windows.ps1`, copia la app a la carpeta elegida, prepara `.corrector_app.json` con carpeta de datos configurable y despues ejecuta el instalador tecnico.
+- Test: `verificar_app.py`, endpoints locales, importacion JSON/CSV, aislamiento cuenta/curso, JS embebido e iconos.
+- Instalacion limpia: probar ZIP/paquete en una carpeta temporal sin secretos.
+- Produccion local: panel en `127.0.0.1`, token local y subida asistida con revision humana.
+- Simulacion de fallo: permisos Playwright, credenciales ausentes, puerto ocupado, paquete sin `.env`, cache incompleta y errores de UI.
+
+Docker, Compose, orquestacion y despliegue cloud no forman parte de la arquitectura activa. Se reservan para Fase 5 si la herramienta deja de ser una app local y pasa a servidor, multiusuario o uso institucional coordinado.
 
 ## Multi-curso
 
