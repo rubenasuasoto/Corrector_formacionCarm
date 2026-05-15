@@ -38,10 +38,14 @@ Actualizacion instalador 2026-05-15: `INSTALAR_CORRECTOR_CARM.cmd` pasa a abrir 
 - [x] `ABRIR_CORRECTOR_CARM.cmd` abre el panel sin obligar a elegir scripts internos.
 - [x] `Corrector CARM.exe` puede generarse como lanzador visual de Windows encima del arranque actual.
 - [x] `crear_paquete_windows.cmd` genera un ZIP guiado para otro Windows sin secretos ni artefactos generados.
+- [x] El instalador guiado ofrece preparar integracion con Codex App sin API sin instalarlo automaticamente.
+- [x] La integracion sin API usa el Codex CLI oficial instalado con npm (`codex.cmd`) y bloquea el ejecutable de la extension de VS Code.
+- [x] El flujo Codex comprueba version/login, reintenta fallos temporales y tolera archivos bloqueados en `codex_project` si Codex Desktop ya lo tiene abierto.
 - [x] `iniciar_app_windows.cmd` arranca la app con comprobacion rapida.
 - [x] `reparar_dependencias_windows.cmd` repara dependencias, Chromium y lock de Playwright.
 - [x] `verificar_app_windows.cmd` valida equipo, endpoints y prueba offline.
 - [x] `SOLUCION_PROBLEMAS_WINDOWS.md` cubre incidencias comunes.
+- [x] La interfaz permite preparar un proyecto local de Codex por curso y marcar que se abra con Windows junto al Corrector.
 
 ### Seguridad local
 
@@ -87,6 +91,7 @@ Actualizacion instalador 2026-05-15: `INSTALAR_CORRECTOR_CARM.cmd` pasa a abrir 
 - [x] Limpiar o archivar notas historicas con codificacion rota si molestan al mantenimiento.
 - [x] Ejecutar `preparar_release_windows.cmd` completo tras los cambios de 2026-05-14.
 - [x] Ejecutar `preparar_release_windows.cmd` y `crear_paquete_windows.cmd` tras los cambios de icono/verificacion de 2026-05-15.
+- [ ] Regenerar paquete ZIP final despues de los cambios de Codex CLI oficial y robustez de conexion.
 
 ## Criterio para abrir Fase 5
 

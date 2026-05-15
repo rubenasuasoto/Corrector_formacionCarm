@@ -46,6 +46,7 @@ function Assert-NoSensitiveArtifacts {
         $_.FullName -match "\\logs_correcciones\\" -or
         $_.FullName -match "\\respuestas_extraidas\\" -or
         $_.FullName -match "\\cache_carm\\" -or
+        $_.FullName -match "\\codex_project\\" -or
         $_.FullName -match "\\__pycache__\\"
     }
 

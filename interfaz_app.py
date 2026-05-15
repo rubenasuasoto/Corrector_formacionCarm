@@ -631,15 +631,83 @@ def openai_api_key_present() -> bool:
     return is_real_env_value(api_key, secret=True)
 
 
+def is_vscode_codex_path(path: str) -> bool:
+    normalized = str(path or "").replace("/", "\\").lower()
+    return "\\.vscode\\extensions\\openai.chatgpt-" in normalized
+
+
+def codex_process_env() -> dict[str, str]:
+    env = os.environ.copy()
+    if os.name == "nt":
+        extras = [r"C:\Program Files\nodejs", str(Path.home() / "AppData" / "Roaming" / "npm")]
+        current = env.get("PATH", "")
+        env["PATH"] = os.pathsep.join([p for p in extras if Path(p).exists()]) + os.pathsep + current
+    return env
+
+
+def codex_desktop_install_location() -> str:
+    if os.name != "nt":
+        return ""
+    try:
+        proc = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "(Get-AppxPackage -Name OpenAI.Codex -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty InstallLocation)",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=8,
+            **hidden_subprocess_kwargs(),
+        )
+        location = proc.stdout.strip()
+        return location if proc.returncode == 0 and location else ""
+    except Exception:
+        return ""
+
+
+def codex_desktop_installed() -> bool:
+    return bool(codex_desktop_install_location())
+
+
 def codex_cli_path() -> str:
-    found = shutil.which("codex")
-    if found:
-        return found
-    extensions_dir = Path.home() / ".vscode" / "extensions"
-    for path in sorted(extensions_dir.glob("openai.chatgpt-*/bin/windows-x86_64/codex.exe"), reverse=True):
-        if path.exists():
-            return str(path)
+    candidates = []
+    if os.name == "nt":
+        candidates.extend(
+            [
+                Path.home() / "AppData" / "Roaming" / "npm" / "codex.cmd",
+                shutil.which("codex.cmd", path=codex_process_env().get("PATH")),
+            ]
+        )
+    candidates.append(shutil.which("codex"))
+    for candidate in candidates:
+        found = str(candidate or "").strip()
+        if not found or is_vscode_codex_path(found) or found.lower().endswith(".ps1"):
+            continue
+        if Path(found).exists():
+            return found
     return ""
+
+
+def clean_codex_output(text: str) -> str:
+    lines = []
+    for line in str(text or "").splitlines():
+        lower = line.lower()
+        if "failed to clean up stale arg0 temp dirs" in lower:
+            continue
+        if "proceeding, even though we could not update path" in lower:
+            continue
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def codex_course_project_dir(course_id: str | None = None) -> Path:
+    course_id = _course_safe_id(course_id or active_course_id())
+    return COURSES_DIR / course_id / "codex_project"
 
 
 def correction_mode() -> str:
@@ -655,6 +723,8 @@ def auth_status() -> dict:
         "configured": carm_credentials_present(),
         "session_saved": CARM_STORAGE_STATE.exists(),
         "openai_api_configured": openai_api_key_present(),
+        "codex_desktop_installed": codex_desktop_installed(),
+        "codex_desktop_path": codex_desktop_install_location(),
         "codex_cli_available": bool(codex_cli_path()),
         "codex_cli_path": codex_cli_path(),
         "correction_mode": correction_mode(),
@@ -723,15 +793,35 @@ def _check_tesseract_ocr() -> dict:
 
 
 def _check_codex_cli() -> dict:
+    desktop_location = codex_desktop_install_location()
     path = codex_cli_path()
     if not path:
+        if desktop_location:
+            return {
+                "name": "Codex Desktop",
+                "ok": False,
+                "required": False,
+                "message": "App de escritorio instalada, pero Windows no expone un CLI ejecutable para automatizar correcciones.",
+            }
         return {
-            "name": "Codex App/CLI",
+            "name": "Codex Desktop",
             "ok": False,
             "required": False,
-            "message": "No detectado; el modo sin API puede seguir usando prompts manuales.",
+            "message": "No detectado; instala Codex Desktop o usa prompts manuales.",
         }
     try:
+        version = subprocess.run(
+            [path, "--version"],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=codex_process_env(),
+            timeout=20,
+            **hidden_subprocess_kwargs(),
+        )
         proc = subprocess.run(
             [path, "login", "status"],
             cwd=str(ROOT),
@@ -740,20 +830,31 @@ def _check_codex_cli() -> dict:
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=codex_process_env(),
             timeout=20,
             **hidden_subprocess_kwargs(),
         )
-        logged = "Logged in" in proc.stdout
-        message = "Disponible y con sesion ChatGPT." if logged else "Disponible, pero revisa login en Codex."
+        version_text = clean_codex_output(version.stdout)
+        login_text = clean_codex_output(proc.stdout)
+        logged = "logged in" in login_text.lower()
+        if version.returncode != 0:
+            message = f"CLI detectado, pero no responde bien: {version_text or 'sin salida'}"
+            logged = False
+        else:
+            message = (
+                f"CLI disponible ({version_text}) y sesion ChatGPT activa."
+                if logged
+                else f"CLI disponible ({version_text}), pero falta iniciar sesion en Codex."
+            )
         return {
-            "name": "Codex App/CLI",
+            "name": "Codex Desktop",
             "ok": logged,
             "required": False,
             "message": message,
         }
     except Exception as exc:
         return {
-            "name": "Codex App/CLI",
+            "name": "Codex Desktop",
             "ok": False,
             "required": False,
             "message": f"Detectado, pero no se pudo comprobar login: {exc}",
@@ -858,7 +959,16 @@ def _check_git_sensitive_index() -> dict:
             }
 
         proc = subprocess.run(
-            ["git", "ls-files", ".env", "logs_correcciones", "correcciones_validadas", "respuestas_extraidas", "cache_carm"],
+            [
+                "git",
+                "ls-files",
+                ".env",
+                "logs_correcciones",
+                "correcciones_validadas",
+                "respuestas_extraidas",
+                "cache_carm",
+                "codex_project",
+            ],
             cwd=str(ROOT),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -1225,6 +1335,7 @@ class TaskRunner:
         self.permission_error = False
         self.scan_blocked_by_permissions = False
         self.last_detection_at = 0.0
+        self.course_id = ""
 
     def start(self, action: str, args: list[str], env_overrides: dict[str, str] | None = None) -> tuple[bool, str]:
         with self.lock:
@@ -1241,6 +1352,7 @@ class TaskRunner:
             env = os.environ.copy()
             if env_overrides:
                 env.update({str(key): str(value) for key, value in env_overrides.items()})
+            self.course_id = course_id_from_url(str(env.get("CARM_COURSE_URL") or "")) or active_course_id()
             if action in {"detect_course", "detect_courses", "auto_prepare", "check_playwright"}:
                 env["CARM_HEADLESS"] = "1"
             popen_kwargs = {}
@@ -1275,6 +1387,8 @@ class TaskRunner:
         code = proc.wait()
         should_auto_correct = False
         should_retry_scan = False
+        should_prepare_codex_project = False
+        completed_course_id = ""
         has_error = False
         with self.lock:
             self.exit_code = code
@@ -1285,6 +1399,9 @@ class TaskRunner:
                 self.scan_blocked_by_permissions = True
             if self.action in {"detect_course", "detect_courses", "check_playwright"} and code == 0 and not has_error:
                 self.last_detection_at = time.time()
+            if self.action == "detect_course" and code == 0 and not has_error:
+                should_prepare_codex_project = True
+                completed_course_id = self.course_id
             if self.action == "check_playwright" and code == 0 and not has_error and self.scan_blocked_by_permissions:
                 self.scan_blocked_by_permissions = False
                 should_retry_scan = True
@@ -1307,6 +1424,8 @@ class TaskRunner:
             notify_prompts_prepared()
         elif self.action in {"prepare_carm_api", "solve_prompts_api", "import_codex"}:
             notify_pending_publication()
+        if should_prepare_codex_project:
+            ensure_codex_course_project(completed_course_id, quiet=False)
         if should_retry_scan:
             notify("Corrector CARM", "Permisos de navegador recuperados. Repito el escaneo de CARM.", target="activity")
             threading.Timer(1.0, lambda: start_startup_work()).start()
@@ -1607,6 +1726,7 @@ def start_startup_work() -> None:
         RUNNER.start("detect_courses", ["--listar-cursos-carm"])
         return
     if has_cached_course_data():
+        ensure_codex_course_project(active_course_id(), quiet=True)
         RUNNER.last_detection_at = time.time()
         if AUTO_CORRECT_AFTER_SCAN:
             start_auto_prepare()
@@ -1671,6 +1791,154 @@ def cache_path_for_course_id(course_id: str) -> Path | None:
         return None
     path = ROOT / "cache_carm" / f"curso_{course_id}.sqlite"
     return path if path.exists() else None
+
+
+def export_codex_course_project(course_id: str | None = None) -> Path:
+    course_id = str(course_id or active_course_id() or "").strip()
+    if not course_id.isdigit():
+        raise ValueError("Selecciona un curso CARM antes de crear el proyecto Codex.")
+    cache_path = cache_path_for_course_id(course_id)
+    if not cache_path:
+        raise ValueError("No hay cache didactica del curso. Primero actualiza datos didacticos desde CARM.")
+
+    project_dir = codex_course_project_dir(course_id)
+    project_dir.mkdir(parents=True, exist_ok=True)
+    unidades: list[dict] = []
+    actividades: list[dict] = []
+    curso = {"id": course_id, "titulo": f"Curso {course_id}", "url": course_url_for_id(course_id)}
+    with sqlite3.connect(cache_path) as con:
+        row = con.execute("SELECT COALESCE(titulo, ''), COALESCE(url, '') FROM curso LIMIT 1").fetchone()
+        if row:
+            curso["titulo"] = row[0] or curso["titulo"]
+            curso["url"] = row[1] or curso["url"]
+        unidad_columns = {str(row[1]) for row in con.execute("PRAGMA table_info(unidad)").fetchall()}
+        actividad_columns = {str(row[1]) for row in con.execute("PRAGMA table_info(actividad)").fetchall()}
+        unidad_resumen_expr = "COALESCE(resumen_didactico, '')" if "resumen_didactico" in unidad_columns else "''"
+        unidad_contenido_expr = "COALESCE(contenido_imprimible, '')" if "contenido_imprimible" in unidad_columns else "''"
+        actividad_enunciado_expr = "COALESCE(enunciado, '')" if "enunciado" in actividad_columns else "''"
+        for row in con.execute(
+            f"""
+            SELECT codigo, COALESCE(nombre, ''), {unidad_resumen_expr}, {unidad_contenido_expr}
+            FROM unidad
+            WHERE course_id = ?
+            ORDER BY codigo
+            """,
+            (course_id,),
+        ):
+            codigo, nombre, resumen, contenido = row
+            unidades.append(
+                {
+                    "codigo": str(codigo or ""),
+                    "nombre": str(nombre or ""),
+                    "resumen": str(resumen or ""),
+                    "contenido": str(contenido or ""),
+                }
+            )
+        for row in con.execute(
+            f"""
+            SELECT codigo, COALESCE(unidad_codigo, ''), COALESCE(nombre, ''), COALESCE(tipo, ''), {actividad_enunciado_expr}
+            FROM actividad
+            WHERE course_id = ?
+            ORDER BY CASE WHEN tipo = 'obligatorio' THEN 0 ELSE 1 END, codigo
+            """,
+            (course_id,),
+        ):
+            codigo, unidad, nombre, tipo, enunciado = row
+            actividades.append(
+                {
+                    "codigo": str(codigo or ""),
+                    "unidad": str(unidad or ""),
+                    "nombre": str(nombre or ""),
+                    "tipo": str(tipo or ""),
+                    "enunciado": str(enunciado or ""),
+                }
+            )
+
+    contexto_lines = [
+        f"# Contexto didactico - {curso['titulo']}",
+        "",
+        "Este archivo procede de la cache didactica de Corrector CARM. No incluye entregas ni datos personales de alumnos.",
+        "",
+    ]
+    for unidad in unidades:
+        contexto_lines.extend(
+            [
+                f"## {unidad['codigo'].upper()} - {unidad['nombre'] or 'Unidad'}",
+                "",
+                unidad["resumen"] or unidad["contenido"] or "Sin contenido didactico limpio en cache.",
+                "",
+            ]
+        )
+    (project_dir / "contexto_didactico.md").write_text("\n".join(contexto_lines).strip() + "\n", encoding="utf-8")
+    (project_dir / "actividades.json").write_text(
+        json.dumps({"curso": curso, "actividades": actividades}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (project_dir / "README.md").write_text(
+        f"# {curso['titulo']}\n\nProyecto local para Codex App generado por Corrector CARM.\n\n"
+        "- Usa `contexto_didactico.md` como contexto estable del curso.\n"
+        "- Usa `actividades.json` para consultar enunciados y codigos de casos.\n"
+        "- No guardes aqui entregas de alumnos ni datos personales.\n",
+        encoding="utf-8",
+    )
+    (project_dir / "AGENTS.md").write_text(
+        "# Instrucciones para Codex en este curso\n\n"
+        "- Usa el contexto didactico local antes de corregir actividades.\n"
+        "- No inventes entregas, alumnos ni meritos.\n"
+        "- Responde siempre en español con tildes y eñes correctas.\n"
+        "- Mantén la salida en JSON cuando el prompt de Corrector CARM lo pida.\n"
+        "- No entres en CARM ni publiques calificaciones.\n",
+        encoding="utf-8",
+    )
+    return project_dir
+
+
+def open_codex_course_project() -> tuple[bool, str]:
+    path = codex_cli_path()
+    if not path:
+        return False, "Codex App/CLI no está instalado o no se detecta."
+    try:
+        project_dir = export_codex_course_project()
+        export_warning = ""
+    except PermissionError as exc:
+        project_dir = codex_course_project_dir()
+        required_files = ["contexto_didactico.md", "actividades.json", "AGENTS.md"]
+        if not project_dir.exists() or not all((project_dir / name).exists() for name in required_files):
+            return False, f"No se pudo preparar el proyecto Codex porque hay archivos bloqueados: {exc}"
+        export_warning = " El proyecto ya existia; se abre sin actualizar porque Codex parece tener archivos bloqueados."
+    try:
+        proc = subprocess.run(
+            [path, "app", str(project_dir)],
+            cwd=str(project_dir),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=codex_process_env(),
+            timeout=30,
+            **hidden_subprocess_kwargs(),
+        )
+        if proc.returncode != 0:
+            return False, f"No se pudo abrir Codex App: {clean_codex_output(proc.stdout) or 'sin salida'}"
+    except Exception as exc:
+        return False, f"No se pudo abrir Codex App: {exc}"
+    return True, f"Proyecto Codex preparado y orden enviada a Codex App: {project_dir}.{export_warning}"
+
+
+def ensure_codex_course_project(course_id: str | None = None, *, quiet: bool = True) -> tuple[bool, str]:
+    course_id = str(course_id or active_course_id() or "").strip()
+    if not course_id.isdigit():
+        return False, "No hay curso activo para preparar el proyecto Codex."
+    if not cache_path_for_course_id(course_id):
+        return False, "No hay cache didactica suficiente para preparar el proyecto Codex."
+    try:
+        project_dir = export_codex_course_project(course_id)
+    except Exception as exc:
+        return False, f"No se pudo preparar el proyecto Codex: {exc}"
+    if not quiet:
+        notify("Corrector CARM", f"Proyecto Codex preparado para el curso {course_id}.", target="settings", kind="success")
+    return True, f"Proyecto Codex listo: {project_dir}"
 
 
 def is_detected_course_allowed(title: str) -> bool:
@@ -1950,6 +2218,7 @@ def project_state() -> dict:
     prompts = sorted(PROMPTS_DIR.glob("prompt_*.md")) if PROMPTS_DIR.exists() else []
     corrections = sorted(PROMPTS_DIR.glob("*_correccion.json")) if PROMPTS_DIR.exists() else []
     resumenes = sorted(TEMPORAL_DIR.glob("resumen*.txt")) if TEMPORAL_DIR.exists() else []
+    codex_project = codex_course_project_dir() if active_course_id() else ROOT / "__sin_curso_codex_project__"
     return {
         "release": release_info(),
         "combined": file_info(COMBINED_JSON),
@@ -1970,6 +2239,9 @@ def project_state() -> dict:
         "auto_correct_after_scan": AUTO_CORRECT_AFTER_SCAN,
         "startup_installed": startup_cmd_path().exists(),
         "startup_auto_correct_enabled": startup_auto_correct_enabled(),
+        "startup_codex_enabled": startup_codex_enabled(),
+        "codex_project_dir": str(codex_project) if active_course_id() else "",
+        "codex_project": file_info(codex_project) if active_course_id() else file_info(Path("")),
         "auto_scan_interval_minutes": auto_scan_interval_minutes(),
         "periodic_auto_prepare": periodic_auto_prepare_enabled(),
         "auto_prepare_interval_minutes": auto_prepare_interval_minutes(),
@@ -2697,10 +2969,15 @@ HTML = r"""<!doctype html>
               <input type="checkbox" id="startupAutoCorrect">
               Preparar prompts automaticamente al iniciar
             </label>
-            <p class="hint">La preparacion automatica no llama a la API ni publica en CARM. Solo revisa pendientes y genera prompts.</p>
+            <label class="check">
+              <input type="checkbox" id="startupCodex">
+              Iniciar Codex App con el proyecto del curso
+            </label>
+            <p class="hint">La preparacion automatica no llama a la API ni publica en CARM. Codex se abre con contexto didactico del curso, sin entregas ni datos personales.</p>
             <div class="path" id="startupMessage">Arranque pendiente de comprobar.</div>
             <div class="row">
               <button id="saveStartupBtn" type="button">Guardar arranque</button>
+              <button id="openCodexProjectBtn" type="button">Abrir proyecto Codex</button>
             </div>
           </div>
         </section>
@@ -3315,7 +3592,8 @@ HTML = r"""<!doctype html>
         method: 'POST',
         body: JSON.stringify({
           enabled: $('startupEnabled').checked,
-          auto_correct: $('startupAutoCorrect').checked
+          auto_correct: $('startupAutoCorrect').checked,
+          start_codex: $('startupCodex').checked
         })
       });
       $('startupMessage').textContent = result.message || (result.ok ? 'Arranque guardado.' : 'No se pudo guardar el arranque.');
@@ -3417,10 +3695,11 @@ HTML = r"""<!doctype html>
       $('pauseScanBtn').textContent = state.auto_scan_interval_minutes > 0 ? 'Pausar autoescaneo' : 'Autoescaneo pausado';
       if ($('startupEnabled')) $('startupEnabled').checked = Boolean(state.startup_installed);
       if ($('startupAutoCorrect')) $('startupAutoCorrect').checked = Boolean(state.startup_auto_correct_enabled);
+      if ($('startupCodex')) $('startupCodex').checked = Boolean(state.startup_codex_enabled);
       if ($('startupMessage')) {
         $('startupMessage').textContent = state.startup_installed
           ?
-           (state.startup_auto_correct_enabled ? 'Arranque instalado con autopreparacion de prompts.' : 'Arranque instalado sin autopreparacion de prompts.')
+           `${state.startup_auto_correct_enabled ? 'Arranque instalado con autopreparacion de prompts.' : 'Arranque instalado sin autopreparacion de prompts.'}${state.startup_codex_enabled ? ' Codex App se abrira con el proyecto del curso.' : ''}`
           : 'Arranque automatico no instalado.';
       }
       const jsonHtml = state.json_options.map(jsonOptionHtml).join('');
@@ -3460,7 +3739,7 @@ HTML = r"""<!doctype html>
       $('useDetectedCourseBtn').disabled = !courseOptions.detected_courses.length;
       setText('courseMessage', courseOptions.cache_path
         ?
-         `Curso ${courseOptions.course_id} · cache: ${courseOptions.cache_path} · trabajo: ${state.pendientes_dir}`
+         `Curso ${courseOptions.course_id} · cache: ${courseOptions.cache_path} · proyecto Codex: ${state.codex_project && state.codex_project.exists ? 'listo' : 'se prepara al actualizar cache'} · trabajo: ${state.pendientes_dir}`
         : `Curso ${courseOptions.course_id || 'sin ID'} · sin cache didactica · trabajo: ${state.pendientes_dir}`);
       const badge = $('statusBadge');
       const failed = status.has_error || (status.exit_code && status.exit_code !== 0);
@@ -3600,6 +3879,14 @@ HTML = r"""<!doctype html>
     $('saveAutomationBtn').onclick = saveAutomation;
     $('saveAutoPrepareTimeBtn').onclick = saveAutoPrepareTime;
     $('saveStartupBtn').onclick = saveStartup;
+    $('openCodexProjectBtn').onclick = async () => {
+      $('openCodexProjectBtn').disabled = true;
+      $('startupMessage').textContent = 'Preparando proyecto Codex del curso...';
+      const result = await api('/api/codex/open-course-project', {method:'POST'});
+      $('startupMessage').textContent = result.message || (result.ok ? 'Orden enviada a Codex App.' : 'No se pudo abrir Codex.');
+      $('openCodexProjectBtn').disabled = false;
+      if (result.ok) await refresh();
+    };
     $('checkHealthBtn').onclick = checkHealth;
     $('saveOpenaiBtn').onclick = () => saveOpenAIConfig(false);
     $('checkOpenaiBtn').onclick = () => saveOpenAIConfig(true);
@@ -3808,6 +4095,8 @@ class Handler(BaseHTTPRequestHandler):
                 scan_message = ""
                 if active_label != "sin seleccionar" and not dashboard_saved and not has_cached_course_data():
                     scan_started, scan_message = schedule_course_scan_if_missing(active_label)
+                elif active_label != "sin seleccionar" and not dashboard_saved:
+                    ensure_codex_course_project(active_label, quiet=False)
                 message = (
                     f"Area personal guardada para detectar cursos. Curso activo: {active_label} ({scope})."
                     if dashboard_saved
@@ -3816,7 +4105,7 @@ class Handler(BaseHTTPRequestHandler):
                 if scan_message:
                     message = f"{message} {scan_message}"
                 elif not dashboard_saved:
-                    message = f"{message} Cache didactica disponible."
+                    message = f"{message} Cache didactica disponible. Proyecto Codex preparado."
                 send_json(
                     self,
                     {
@@ -3899,14 +4188,22 @@ class Handler(BaseHTTPRequestHandler):
                 body = read_json_body(self)
                 enabled = bool(body.get("enabled"))
                 auto_correct = bool(body.get("auto_correct"))
+                start_codex = bool(body.get("start_codex"))
                 if enabled:
-                    path = install_startup(auto_correct=auto_correct)
+                    path = install_startup(auto_correct=auto_correct, start_codex=start_codex)
                     message = (
                         "Arranque de Windows guardado con autopreparacion de prompts."
                         if auto_correct
                         else "Arranque de Windows guardado sin autopreparacion de prompts."
                     )
-                    audit_ui_event("configurar_arranque_windows", "instalado", auto_correct=auto_correct)
+                    if start_codex:
+                        message += " Codex App se abrira con el proyecto del curso."
+                    audit_ui_event(
+                        "configurar_arranque_windows",
+                        "instalado",
+                        auto_correct=auto_correct,
+                        start_codex=start_codex,
+                    )
                     send_json(
                         self,
                         {
@@ -3915,6 +4212,7 @@ class Handler(BaseHTTPRequestHandler):
                             "startup_path": str(path),
                             "startup_installed": True,
                             "startup_auto_correct_enabled": auto_correct,
+                            "startup_codex_enabled": start_codex,
                         },
                     )
                     return
@@ -3927,10 +4225,20 @@ class Handler(BaseHTTPRequestHandler):
                         "message": "Arranque de Windows desactivado." if removed else "El arranque automatico ya estaba desactivado.",
                         "startup_installed": False,
                         "startup_auto_correct_enabled": False,
+                        "startup_codex_enabled": False,
                     },
                 )
             except Exception as exc:
                 audit_ui_event("configurar_arranque_windows", "error", error=exc)
+                send_json(self, {"ok": False, "message": str(exc)}, 400)
+            return
+        if parsed.path == "/api/codex/open-course-project":
+            try:
+                ok, message = open_codex_course_project()
+                audit_ui_event("abrir_proyecto_codex_curso", "ok" if ok else "error")
+                send_json(self, {"ok": ok, "message": message}, 200 if ok else 400)
+            except Exception as exc:
+                audit_ui_event("abrir_proyecto_codex_curso", "error", error=exc)
                 send_json(self, {"ok": False, "message": str(exc)}, 400)
             return
         if parsed.path == "/api/config/openai":
@@ -4132,7 +4440,7 @@ def startup_cmd_path() -> Path:
     return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "Corrector CARM.cmd"
 
 
-def install_startup(auto_correct: bool = False) -> Path:
+def install_startup(auto_correct: bool = False, start_codex: bool = False) -> Path:
     venv_pythonw = ROOT / ".venv" / "Scripts" / "pythonw.exe"
     venv_python = ROOT / ".venv" / "Scripts" / "python.exe"
     current_pythonw = Path(sys.executable).with_name("pythonw.exe")
@@ -4144,9 +4452,17 @@ def install_startup(auto_correct: bool = False) -> Path:
     cmd_path = startup_cmd_path()
     cmd_path.parent.mkdir(parents=True, exist_ok=True)
     auto_correct_arg = " --auto-correct" if auto_correct else ""
+    codex_lines = ""
+    if start_codex:
+        codex = codex_cli_path()
+        if not codex:
+            raise RuntimeError("No se detecta Codex App/CLI. Instala o inicia Codex antes de activar su arranque automatico.")
+        project_dir = export_codex_course_project()
+        codex_lines = f'start "" "{codex}" app "{project_dir}"\n'
     cmd_path.write_text(
         "@echo off\n"
         f'cd /d "{ROOT}"\n'
+        f"{codex_lines}"
         f'start "" /min "{runner}" "{ROOT / "interfaz_app.py"}" --tray --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser{auto_correct_arg}\n',
         encoding="utf-8",
     )
@@ -4157,6 +4473,15 @@ def startup_auto_correct_enabled() -> bool:
     try:
         path = startup_cmd_path()
         return path.exists() and "--auto-correct" in path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return False
+
+
+def startup_codex_enabled() -> bool:
+    try:
+        path = startup_cmd_path()
+        text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+        return "codex" in text.lower() and " app " in text.lower()
     except Exception:
         return False
 
