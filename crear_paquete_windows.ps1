@@ -68,13 +68,27 @@ $PackageName = "Corrector_CARM_${Version}_guiado_$Stamp"
 $PackageDir = Join-Path $OutputRoot $PackageName
 $PackageZip = "$PackageDir.zip"
 
+if (Test-Path -LiteralPath (Join-Path $Root "crear_launcher_windows.ps1")) {
+    Write-Step "Actualizando lanzador de Windows"
+    try {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root "crear_launcher_windows.ps1")
+    } catch {
+        Write-Host "Aviso: no se pudo crear Corrector CARM.exe. El paquete mantendra los lanzadores .cmd. Detalle: $_" -ForegroundColor Yellow
+    }
+}
+
 Write-Step "Creando paquete guiado"
 New-Item -ItemType Directory -Path $PackageDir | Out-Null
 
 $TrackedFiles = git ls-files
 $ExtraReleaseFiles = @(
     "INSTALAR_CORRECTOR_CARM.cmd",
+    "instalador_guiado_windows.cmd",
+    "instalador_guiado_windows.ps1",
     "ABRIR_CORRECTOR_CARM.cmd",
+    "crear_launcher_windows.cmd",
+    "crear_launcher_windows.ps1",
+    "Corrector CARM.exe",
     "crear_paquete_windows.cmd",
     "crear_paquete_windows.ps1",
     "assets/corrector_carm.ico",
@@ -95,12 +109,15 @@ Corrector CARM $Version
 Instalacion guiada en otro Windows:
 1. Descomprime esta carpeta.
 2. Haz doble clic en INSTALAR_CORRECTOR_CARM.cmd.
-3. El instalador prepara dependencias y crea accesos directos.
-4. Abre Corrector CARM desde el Escritorio o el menu Inicio.
-5. La primera vez, configura credenciales CARM desde la interfaz si faltan.
+3. Elige carpeta de instalacion, carpeta de datos, acceso directo e inicio con Windows.
+4. El instalador copia la app a su sitio, prepara dependencias y crea accesos directos.
+5. Abre Corrector CARM desde el Escritorio, menu Inicio o el lanzador.
+6. La primera vez, configura credenciales CARM desde la interfaz si faltan.
 
 Entradas utiles:
+- Corrector CARM.exe: lanzador visual de Windows con icono propio.
 - INSTALAR_CORRECTOR_CARM.cmd: instalacion guiada recomendada.
+- instalador_guiado_windows.cmd: asistente visual de instalacion.
 - ABRIR_CORRECTOR_CARM.cmd: abre el panel de la app.
 - verificar_app_windows.cmd: diagnostico local.
 
@@ -118,6 +135,7 @@ $Manifest = [ordered]@{
     origen = $Root
     instalador_principal = "INSTALAR_CORRECTOR_CARM.cmd"
     lanzador_panel = "ABRIR_CORRECTOR_CARM.cmd"
+    lanzador_windows = "Corrector CARM.exe"
     incluye_secretos = $false
 }
 $Manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $PackageDir "MANIFIESTO_PAQUETE.json") -Encoding UTF8

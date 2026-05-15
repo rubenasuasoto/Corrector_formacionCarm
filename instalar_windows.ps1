@@ -51,7 +51,12 @@ function New-AppShortcut {
     $ShortcutPath = $Target
     $Shell = New-Object -ComObject WScript.Shell
     $Shortcut = $Shell.CreateShortcut($ShortcutPath)
-    $Shortcut.TargetPath = Join-Path $Root "ABRIR_CORRECTOR_CARM.cmd"
+    $LauncherExe = Join-Path $Root "Corrector CARM.exe"
+    if (Test-Path -LiteralPath $LauncherExe) {
+        $Shortcut.TargetPath = $LauncherExe
+    } else {
+        $Shortcut.TargetPath = Join-Path $Root "ABRIR_CORRECTOR_CARM.cmd"
+    }
     $Shortcut.WorkingDirectory = $Root
     $Shortcut.Description = "Iniciar Corrector CARM"
     $IconPath = Join-Path $Root "assets\corrector_carm.ico"
@@ -117,6 +122,15 @@ if (Test-PlaywrightChromiumInstalled) {
 if (-not (Test-Path ".env")) {
     Write-Step "Creando .env desde .env.example"
     Copy-Item ".env.example" ".env"
+}
+
+if (Test-Path ".\crear_launcher_windows.ps1") {
+    Write-Step "Preparando lanzador de escritorio"
+    try {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File ".\crear_launcher_windows.ps1"
+    } catch {
+        Write-Host "No se pudo crear el lanzador .exe; se usaran los accesos .cmd. Detalle: $_" -ForegroundColor Yellow
+    }
 }
 
 Write-Step "Verificando app"

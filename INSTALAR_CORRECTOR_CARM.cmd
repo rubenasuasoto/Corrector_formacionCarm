@@ -10,7 +10,7 @@ echo.
 echo Este asistente preparara la app, instalara dependencias,
 echo creara accesos directos y dejara el panel listo para abrir.
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0instalar_windows.ps1" -ConExtraccion -CrearAccesoDirecto %*
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0instalador_guiado_windows.ps1" %*
 if errorlevel 1 (
     echo.
     echo La instalacion no se ha completado correctamente.

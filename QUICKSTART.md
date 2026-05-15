@@ -35,6 +35,8 @@ En Windows, la entrada recomendada para una instalacion guiada es:
 
 Esto crea `.venv`, instala dependencias base y de extraccion, instala Chromium de Playwright si falta, crea `.env` si no existe y deja accesos directos para abrir el panel. La primera configuracion de credenciales se hace desde la interfaz si faltan.
 
+El asistente permite elegir carpeta de instalacion y carpeta de datos. En esa carpeta de datos se crean `pendientes`, `temporal` y `cursos`; con separacion por curso activada, cada curso guarda ahi sus prompts, CSV y resumenes. El inicio con Windows aparece activado por defecto y se puede desmarcar.
+
 Para abrir el panel despues:
 
 ```powershell

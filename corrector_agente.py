@@ -1070,7 +1070,7 @@ class CacheCursoCarm:
             con.execute(
                 """
                 INSERT INTO curso (course_id, url, titulo, fecha_fin, actualizado_en)
-                VALUES (, , , , )
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(course_id) DO UPDATE SET
                     url=excluded.url,
                     titulo=excluded.titulo,
@@ -1124,7 +1124,7 @@ class CacheCursoCarm:
                     course_id, codigo, nombre, contenido_imprimible,
                     resumen_didactico, hash_contenido, actualizado_en
                 )
-                VALUES (, , , , , , )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(course_id, codigo) DO UPDATE SET
                     nombre=COALESCE(NULLIF(excluded.nombre, ''), unidad.nombre),
                     contenido_imprimible=COALESCE(NULLIF(excluded.contenido_imprimible, ''), unidad.contenido_imprimible),
@@ -1153,7 +1153,7 @@ class CacheCursoCarm:
                     course_id, codigo, unidad_codigo, nombre, tipo, url, url_grading,
                     filtro, enunciado, actualizado_en
                 )
-                VALUES (, , , , , , , , , )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(course_id, codigo) DO UPDATE SET
                     unidad_codigo=excluded.unidad_codigo,
                     nombre=excluded.nombre,
@@ -1187,7 +1187,7 @@ class CacheCursoCarm:
             }
             tiene_resumen = "resumen_didactico" in columnas_unidad
             if unidades:
-                placeholders = ",".join("" for _ in unidades)
+                placeholders = ",".join("?" for _ in unidades)
                 select_cols = (
                     "codigo, nombre, contenido_imprimible, COALESCE(resumen_didactico, ''), COALESCE(hash_contenido, '')"
                     if tiene_resumen
@@ -1197,7 +1197,7 @@ class CacheCursoCarm:
                     f"""
                     SELECT {select_cols}
                     FROM unidad
-                    WHERE course_id =  AND codigo IN ({placeholders})
+                    WHERE course_id = ? AND codigo IN ({placeholders})
                     ORDER BY codigo
                     """,
                     (self.course_id, *sorted(unidades)),
@@ -1212,7 +1212,7 @@ class CacheCursoCarm:
                     f"""
                     SELECT {select_cols}
                     FROM unidad
-                    WHERE course_id = 
+                    WHERE course_id = ?
                     ORDER BY codigo
                     """,
                     (self.course_id,),
@@ -1248,8 +1248,8 @@ class CacheCursoCarm:
                 con.executemany(
                     """
                     UPDATE unidad
-                    SET contenido_imprimible = , resumen_didactico = , hash_contenido = , actualizado_en = 
-                    WHERE course_id =  AND codigo = 
+                    SET contenido_imprimible = ?, resumen_didactico = ?, hash_contenido = ?, actualizado_en = ?
+                    WHERE course_id = ? AND codigo = ?
                     """,
                     [
                         (contenido_limpio, resumen_limpio, hash_actual, self._ahora(), self.course_id, codigo)
@@ -1267,7 +1267,7 @@ class CacheCursoCarm:
                 """
                 SELECT unidad_codigo, nombre, url, url_grading, filtro, enunciado
                 FROM actividad
-                WHERE course_id =  AND codigo = 
+                WHERE course_id = ? AND codigo = ?
                 """,
                 (self.course_id, codigo),
             ).fetchone()
@@ -1774,7 +1774,7 @@ class ExtractorCarm:
                     const heading = section.querySelector(
                         '.sectionname, .section-title, h2, h3, h4, [role="heading"]'
                     );
-                    return heading  heading.textContent.trim() : '';
+                    return heading ? heading.textContent.trim() : '';
                 }"""
             )
         except Exception:
@@ -1900,9 +1900,9 @@ class ExtractorCarm:
                     for (const check of checks) {
                         const id = check.id || '';
                         const name = check.name || '';
-                        const label = id  document.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
+                        const label = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
                         const wrap = check.closest('label');
-                        const text = normalizar(`${id} ${name} ${label  label.textContent : ''} ${wrap  wrap.textContent : ''}`);
+                        const text = normalizar(`${id} ${name} ${label ? label.textContent : ''} ${wrap ? wrap.textContent : ''}`);
                         if (/(recordar|remember|mantener|sesion|session|cuenta|usuario)/.test(text)) {
                             check.checked = true;
                             check.dispatchEvent(new Event('change', {bubbles: true}));
@@ -2661,7 +2661,7 @@ class ExtractorCarm:
 
                 for (const textarea of textareas) {
                     const key = `${textarea.name || ''} ${textarea.id || ''}`.toLowerCase();
-                    const payload = key.includes('_editor')  (html || value.replace(/\\n/g, '<br>')) : value;
+                    const payload = key.includes('_editor') ? (html || value.replace(/\\n/g, '<br>')) : value;
                     textarea.value = payload;
                     textarea.textContent = payload;
                     textarea.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value}));
@@ -2786,7 +2786,7 @@ class ExtractorCarm:
                             tag: el.tagName.toLowerCase(),
                             name: el.getAttribute('name') || '',
                             id: el.id || '',
-                            class: typeof el.className === 'string'  el.className : '',
+                            class: typeof el.className === 'string' ? el.className : '',
                             aria: el.getAttribute('aria-label') || '',
                             visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
                             muestra: text
@@ -2875,7 +2875,7 @@ class ExtractorCarm:
             )
         await page.evaluate(
             """({message, detail, invalid, allowManual}) => {
-                const signature = `${message}\\n${detail}\\n${invalid  'invalid' : ''}\\n${allowManual  'manual' : ''}`;
+                const signature = `${message}\\n${detail}\\n${invalid ? 'invalid' : ''}\\n${allowManual ? 'manual' : ''}`;
                 const previous = document.getElementById('corrector-carm-assisted-banner');
                 if (previous && previous.dataset.signature === signature) return;
                 if (previous) previous.remove();
@@ -2889,9 +2889,9 @@ class ExtractorCarm:
                 banner.style.maxWidth = '420px';
                 banner.style.zIndex = '2147483647';
                 banner.style.padding = '12px 14px';
-                banner.style.background = invalid  '#fff1f1' : '#fff8ea';
-                banner.style.border = invalid  '1px solid #c94c4c' : '1px solid #d6a84f';
-                banner.style.color = invalid  '#5a1111' : '#3f2a00';
+                banner.style.background = invalid ? '#fff1f1' : '#fff8ea';
+                banner.style.border = invalid ? '1px solid #c94c4c' : '1px solid #d6a84f';
+                banner.style.color = invalid ? '#5a1111' : '#3f2a00';
                 banner.style.font = '14px Segoe UI, Arial, sans-serif';
                 banner.style.boxShadow = '0 8px 28px rgba(0,0,0,.18)';
                 banner.style.borderRadius = '8px';
@@ -2914,14 +2914,14 @@ class ExtractorCarm:
                 actions.style.justifyContent = 'flex-end';
                 const next = document.createElement('button');
                 next.type = 'button';
-                next.textContent = allowManual  'Confirmar guardado manual' : 'Ya he guardado en CARM';
+                next.textContent = allowManual ? 'Confirmar guardado manual' : 'Ya he guardado en CARM';
                 next.style.padding = '7px 12px';
                 next.style.border = '1px solid #6f520f';
                 next.style.borderRadius = '6px';
                 next.style.background = '#6f520f';
                 next.style.color = '#fff';
                 next.style.cursor = 'pointer';
-                next.onclick = () => { window.__correctorCarmDecision = allowManual  'confirmar_manual' : 'continuar'; };
+                next.onclick = () => { window.__correctorCarmDecision = allowManual ? 'confirmar_manual' : 'continuar'; };
                 const skip = document.createElement('button');
                 skip.type = 'button';
                 skip.textContent = 'Omitir';
@@ -3486,7 +3486,7 @@ class ExtractorCarm:
                                 await enlace.evaluate(
                                     """(el) => {
                                         const card = el.closest('.coursebox, .card, li, article, .dashboard-card');
-                                        return card  card.textContent : el.textContent;
+                                        return card ? card.textContent : el.textContent;
                                     }"""
                                 )
                             )
@@ -3739,6 +3739,23 @@ class GeneradorSalidas:
         return raw_size > 500_000 and len(palabras) < 80
 
     @staticmethod
+    def _texto_extraido_insuficiente(texto: str) -> bool:
+        limpio = GeneradorSalidas._limpiar_texto_extraido(texto)
+        if not limpio:
+            return True
+        palabras = re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]{3,}", limpio)
+        letras = re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", limpio)
+        marcadores = re.sub(r"[\s\wÁÉÍÓÚÜÑáéíóúüñ]", "", limpio)
+        solo_listas = bool(marcadores) and not letras
+        if solo_listas:
+            return True
+        if len(palabras) < 12:
+            return True
+        if len(letras) < 80:
+            return True
+        return False
+
+    @staticmethod
     def _recortar_html_conversacion_ia(texto: str) -> str:
         marcas = (
             "Tu ai spus",
@@ -3836,9 +3853,17 @@ class GeneradorSalidas:
             )
 
         if not texto.strip():
-            return LecturaEntrega("", False, "El archivo está vacío o no contiene texto legible.")
+            return LecturaEntrega("", True, "El archivo esta vacio o no contiene texto legible; requiere revision manual.")
 
-        return LecturaEntrega(texto, advertencia=advertencia)
+        texto_limpio = self._limpiar_texto_extraido(texto)
+        if self._texto_extraido_insuficiente(texto_limpio):
+            return LecturaEntrega(
+                "",
+                True,
+                "Texto extraido insuficiente o formado solo por marcas/listas; requiere revision manual del archivo original.",
+            )
+
+        return LecturaEntrega(texto_limpio, advertencia=advertencia)
 
     def _validar_archivo_entrega(self, path: Path, ext: str) -> str:
         try:

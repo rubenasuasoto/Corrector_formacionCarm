@@ -10,6 +10,8 @@ Este checklist se usa antes de compartir una version, reinstalar en otro equipo 
 - [ ] `.env.example` esta actualizado, no contiene secretos reales y cubre variables nuevas.
 - [ ] `ESTADO_PROYECTO.md`, `ROADMAP_DESCARGA_SEGURA.md` y `ARQUITECTURA_PROYECTO.md` reflejan el estado real.
 - [ ] `assets/corrector_carm.ico` y `assets/corrector_carm.png` estan incluidos para panel, bandeja, accesos directos y paquete Windows.
+- [ ] Si se distribuye como app guiada, `Corrector CARM.exe` se ha regenerado con `crear_launcher_windows.cmd` y no contiene secretos.
+- [ ] `INSTALAR_CORRECTOR_CARM.cmd` abre el asistente visual y permite elegir carpeta de instalacion, carpeta de datos, accesos e inicio con Windows.
 
 ## 2. Verificacion tecnica
 
@@ -49,6 +51,12 @@ Para crear etiqueta Git despues de hacer commit y tener el arbol limpio:
 
 ```powershell
 .\preparar_release_windows.cmd --crear-tag
+```
+
+Para regenerar el lanzador local con icono propio:
+
+```powershell
+.\crear_launcher_windows.cmd
 ```
 
 ## 3. Seguridad operativa
