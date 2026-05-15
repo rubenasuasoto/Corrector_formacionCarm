@@ -135,6 +135,8 @@ El agente lee las entregas, las agrupa por actividad y genera archivos en la car
 
 Despues puedes usar las instrucciones de `INSTRUCCIONES_CODEX_PERSONALIZADAS.md` y escribir `$C`, `$C ud01cp02` o `$C todas` en Codex. Ese flujo no entra en CARM, no mueve archivos y crea un `*_correccion.json` por prompt en la misma carpeta.
 
+Si tienes Codex App/CLI instalado e iniciado con ChatGPT, la interfaz tambien puede resolver los prompts sin `OPENAI_API_KEY` con `Corregir con Codex App`. Internamente usa `codex exec`, guarda los JSON individuales, genera el CSV revisable y mantiene la subida a CARM como proceso asistido con revision humana.
+
 Cuando existan los `*_correccion.json`, vuelve a la interfaz y pulsa `Importar JSON a revision`. Puedes importar un JSON concreto o todos los JSON pendientes. La app los pasara a `revision_pendiente.csv` y archivara los prompts ya usados.
 
 ## Uso con entregas locales
