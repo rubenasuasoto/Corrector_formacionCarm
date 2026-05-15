@@ -259,6 +259,58 @@ def check_extraccion_insuficiente() -> bool:
     return True
 
 
+def check_formatos_lectura() -> bool:
+    safe_print("\n==> Formatos de lectura")
+    from corrector_agente import GeneradorSalidas
+
+    esperados_texto = {".docx", ".docm", ".odt", ".ods", ".odp", ".rtf"}
+    esperados_ocr = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+    if not esperados_texto.issubset(GeneradorSalidas.EXTENSIONES_OFFICE_TEXTO):
+        faltan = sorted(esperados_texto - GeneradorSalidas.EXTENSIONES_OFFICE_TEXTO)
+        safe_print(f"ERROR: faltan formatos Office/ODF soportados: {faltan}")
+        return False
+    if not esperados_ocr.issubset(GeneradorSalidas.EXTENSIONES_OCR):
+        faltan = sorted(esperados_ocr - GeneradorSalidas.EXTENSIONES_OCR)
+        safe_print(f"ERROR: faltan formatos OCR soportados: {faltan}")
+        return False
+    if {".bmp", ".tif", ".tiff", ".webp"} & GeneradorSalidas.EXTENSIONES_MULTIMEDIA:
+        safe_print("ERROR: formatos OCR ampliados siguen clasificados como multimedia.")
+        return False
+    safe_print("OK: formatos ampliados de Office, ODF, EPUB, ZIP e imagen OCR configurados.")
+    return True
+
+
+def check_prompt_ortografia() -> bool:
+    safe_print("\n==> Prompt de ortografia")
+    import corrector_agente
+
+    regla = getattr(corrector_agente, "REGLA_IDIOMA_CORRECCION", "")
+    if "español" not in regla or "tildes" not in regla or "eñes" not in regla:
+        safe_print("ERROR: la regla de idioma no exige español con tildes y eñes.")
+        return False
+    if any(token in regla.lower() for token in (" espanol ", " numeros ", " puntuacion ")):
+        safe_print("ERROR: la regla de idioma contiene palabras clave sin tilde.")
+        return False
+    try:
+        data = json.loads((ROOT / "prompts_correccion.json").read_text(encoding="utf-8"))
+        default = data.get("prompts", {}).get("default", {})
+        combinado = f"{default.get('sistema', '')}\n{default.get('criterios', '')}"
+    except Exception as exc:
+        safe_print(f"ERROR: no se pudo leer prompts_correccion.json: {exc}")
+        return False
+    if "Regla ortográfica" not in combinado or "No devuelvas texto sin acentos" not in combinado:
+        safe_print("ERROR: prompts_correccion.json no refuerza la salida con acentos.")
+        return False
+    prueba = corrector_agente.sanitizar_feedback(
+        "La aplicacion practica tambien necesita revision y mas informacion."
+    )
+    if "aplicación práctica" not in prueba or "también" not in prueba or "revisión" not in prueba:
+        safe_print("ERROR: el saneado de feedback no corrige tildes frecuentes.")
+        return False
+    safe_print("OK: prompts y saneado piden feedback en español con acentos.")
+    return True
+
+
 def print_health(operacion: bool) -> bool:
     safe_print("\n==> Estado local")
     import interfaz_app as app
@@ -574,6 +626,8 @@ def main() -> int:
     ok &= check_iconos_app()
     ok &= check_cache_sqlite_basica()
     ok &= check_extraccion_insuficiente()
+    ok &= check_formatos_lectura()
+    ok &= check_prompt_ortografia()
     ok &= print_health(operacion=not args.instalacion)
     if not args.sin_prueba_offline:
         ok &= check_importacion_json_csv()

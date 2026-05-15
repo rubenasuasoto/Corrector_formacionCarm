@@ -1,5 +1,6 @@
 param(
     [switch]$ConExtraccion,
+    [switch]$InstalarOCR,
     [switch]$InstalarArranque,
     [switch]$AutoPrepararAlInicio,
     [switch]$CrearAccesoDirecto,
@@ -110,6 +111,23 @@ Invoke-Native "Instalacion de dependencias base" { & $VenvPython -m pip install 
 if ($ConExtraccion) {
     Write-Step "Instalando dependencias opcionales de extraccion"
     Invoke-Native "Instalacion de dependencias opcionales" { & $VenvPython -m pip install -r requirements-extraccion.txt }
+}
+
+if ($InstalarOCR) {
+    Write-Step "Instalando OCR para PDF escaneados e imagenes"
+    try {
+        $ocrScript = Join-Path $Root "instalar_ocr_windows.ps1"
+        if (Test-Path -LiteralPath $ocrScript) {
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $ocrScript
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "No se pudo instalar OCR automaticamente. La app seguira funcionando y marcara esos archivos como revision manual." -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "No se encontro instalar_ocr_windows.ps1; se omite OCR." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "No se pudo instalar OCR automaticamente. Detalle: $_" -ForegroundColor Yellow
+    }
 }
 
 if (Test-PlaywrightChromiumInstalled) {

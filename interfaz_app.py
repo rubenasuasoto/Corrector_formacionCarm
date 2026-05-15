@@ -658,6 +658,56 @@ def _check_module(label: str, module_name: str, required: bool = True) -> dict:
     }
 
 
+def _check_tesseract_ocr() -> dict:
+    candidates = [
+        os.getenv("TESSERACT_CMD", "").strip(),
+        str(Path.home() / "AppData" / "Local" / "Programs" / "Tesseract-OCR" / "tesseract.exe"),
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        "tesseract",
+    ]
+    cmd = next((item for item in candidates if item and (item == "tesseract" or Path(item).exists())), "tesseract")
+    try:
+        proc = subprocess.run(
+            [cmd, "--version"],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            **hidden_subprocess_kwargs(),
+        )
+        primera = proc.stdout.splitlines()[0].strip() if proc.stdout.splitlines() else "Disponible."
+        langs = subprocess.run(
+            [cmd, "--list-langs"],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            **hidden_subprocess_kwargs(),
+        )
+        idiomas = {line.strip() for line in langs.stdout.splitlines() if line.strip() and not line.lower().startswith("list of")}
+        sufijo = " Idioma espanol instalado." if "spa" in idiomas else " Falta idioma espanol; OCR usara ingles si esta disponible."
+        return {
+            "name": "Tesseract OCR",
+            "ok": proc.returncode == 0,
+            "required": False,
+            "message": f"{primera}.{sufijo}" if proc.returncode == 0 else "No disponible; los PDF escaneados pasaran a revision manual.",
+        }
+    except Exception:
+        return {
+            "name": "Tesseract OCR",
+            "ok": False,
+            "required": False,
+            "message": "No instalado; necesario para leer PDF que contienen texto como imagen.",
+        }
+
+
 def _check_chromium_installed() -> dict:
     ms_playwright = Path(os.getenv("LOCALAPPDATA", "")) / "ms-playwright"
     local_chromiums = sorted(ms_playwright.glob("chromium-*")) if ms_playwright.exists() else []
@@ -794,9 +844,11 @@ def local_health_status() -> dict:
         _check_module("pystray", "pystray"),
         _check_module("Pillow", "PIL"),
         _check_module("pypdf", "pypdf", required=False),
+        _check_module("pypdfium2", "pypdfium2", required=False),
         _check_module("python-pptx", "pptx", required=False),
         _check_module("openpyxl", "openpyxl", required=False),
         _check_module("pytesseract", "pytesseract", required=False),
+        _check_tesseract_ocr(),
         _check_git_sensitive_index(),
     ]
     checks.extend(

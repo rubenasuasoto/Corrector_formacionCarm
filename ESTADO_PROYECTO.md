@@ -17,7 +17,12 @@ Estado actual: seguimos en la puerta pre-Fase 5. La prioridad ya no es abrir inf
 - Instalador guiado 2026-05-15: `INSTALAR_CORRECTOR_CARM.cmd` abre una ventana de configuracion basica. Permite elegir carpeta de instalacion, carpeta de datos/descargas, acceso directo, inicio con Windows activado por defecto y apertura al finalizar; luego copia la app, prepara `.corrector_app.json` y ejecuta el instalador tecnico.
 - Correccion cache multi-curso 2026-05-15: se repara un fallo SQL en `CacheCursoCarm` donde habian desaparecido placeholders `?` de varias consultas SQLite, provocando `near ",": syntax error` al ejecutar `--cachear-curso`. `verificar_app.py` incorpora una prueba offline de operaciones basicas de cache SQLite para detectarlo antes de tocar CARM.
 - Correccion subida asistida 2026-05-15: se reparan ternarios JavaScript rotos dentro de `corrector_agente.py` que provocaban `Page.evaluate: SyntaxError: Unexpected token ':'` al mostrar la guia de subida asistida o rellenar feedback. `verificar_app.py` ahora revisa tambien JavaScript embebido usado por Playwright, no solo el panel local.
-- Correccion extraccion 2026-05-15: las entregas cuyo texto extraido queda vacio, con muy pocas palabras utiles o solo con vinetas/listas pasan a `revision_manual_necesaria` en vez de corregirse automaticamente con nota 0. Se repararon las filas actuales de Ana Tellaeche en el CSV del curso 1589 para bloquear su subida hasta revision manual.
+- Correccion extraccion 2026-05-15: las entregas cuyo texto extraido queda vacio, con muy pocas palabras utiles o solo con vinetas/listas pasan a `revision_manual_necesaria` en vez de corregirse automaticamente con nota 0. Caso real detectado: PDF con contenido visible como imagen pero casi sin texto extraible; las filas de Ana Tellaeche en el CSV del curso 1589 se recalificaron revisando las paginas renderizadas y quedaron listas para revision/subida asistida.
+- OCR PDF 2026-05-15: `requirements-extraccion.txt` incorpora `pypdfium2` y `corrector_agente.py` añade fallback OCR para PDF escaneados: primero intenta `pypdf`, y si el texto extraido es insuficiente renderiza paginas y usa Tesseract. Si falta `tesseract.exe`, la entrega queda en revision manual con motivo claro. El panel de estado local muestra `pypdfium2` y `Tesseract OCR`.
+- Instalacion OCR 2026-05-15: se añaden `instalar_ocr_windows.cmd` / `.ps1` para instalar Tesseract OCR mediante `winget` cuando el equipo lo permita. El instalador guiado muestra una casilla para instalar OCR y pasa `-InstalarOCR` al instalador tecnico; si falla, la app no se aborta y esos archivos quedan como revision manual. Tras instalarlo hay que reiniciar la app para refrescar el `PATH`.
+- OCR instalado en equipo de desarrollo 2026-05-15: Tesseract 5.4 queda instalado en `AppData\Local\Programs\Tesseract-OCR` con idiomas `eng`, `osd` y `spa`. La app ya lo detecta aunque la consola antigua no tenga el `PATH` refrescado, y la prueba sobre PDF escaneado real de Ana extrae texto suficiente sin revision manual.
+- Formatos ampliados 2026-05-15: la lectura de entregas admite ahora `.docm`, `.pptm`, `.xlsm`, `.ods`, `.odp`, `.epub` e imagenes OCR `.bmp`, `.tif`, `.tiff`, `.webp`. Los ZIP pueden contener tambien imagenes OCR y formatos ampliados, manteniendo limites de tamaño, numero de archivos y rutas internas seguras.
+- Ortografia feedback 2026-05-15: se refuerzan `prompts_correccion.json` y los prompts generados para exigir español con tildes y eñes. `sanitizar_feedback` corrige tildes frecuentes en retroalimentacion/comentarios importados o generados por API, y `verificar_app.py` incorpora una prueba de prompt ortografico para evitar volver a enviar instrucciones sin acentos.
 - Instalacion guiada: existen `INSTALAR_CORRECTOR_CARM.cmd`, `ABRIR_CORRECTOR_CARM.cmd` y `crear_paquete_windows.cmd`. El paquete guiado excluye `.env`, `.venv`, logs, cache, entregas y correcciones generadas.
 - Primer paquete local guiado preparado para otro Windows: `Corrector_CARM_0.3.0-local_guiado_*.zip`.
 - Credenciales: `.env.example` deja `CARM_USUARIO` y `CARM_CONTRASENA` vacios para que la app no confunda valores de plantilla con credenciales reales.
@@ -281,7 +286,7 @@ Lectura recomendada en este orden:
 ### Dependencias
 
 - **`requirements.txt`**: dependencias base (Playwright, OpenAI, dotenv, pystray, Pillow)
-- **`requirements-extraccion.txt`**: opcional para leer PDF, PPTX, XLSX, OCR
+- **`requirements-extraccion.txt`**: opcional para leer PDF/PDF escaneados, PPTX/PPTM, XLSX/XLSM, ODF, EPUB, ZIP e imagenes OCR
 
 ## Directorios y estructura de salidas
 
@@ -752,7 +757,7 @@ Prioridad media:
 
 Prioridad baja:
 
-- Evaluar OCR con Tesseract.
+- Probar OCR con Tesseract en instalacion limpia.
 - Evaluar soporte `.doc` antiguo con LibreOffice o Word.
 - Mantener fuera del repo datos de prueba locales y scripts obsoletos.
 

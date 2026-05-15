@@ -139,13 +139,21 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-Para leer formatos ampliados como PDF, PPTX, XLSX o imágenes con OCR:
+Para leer formatos ampliados como PDF, PDF escaneados, PPTX/PPTM, XLSX/XLSM, ODT/ODS/ODP, EPUB, ZIP o imágenes con OCR:
 
 ```powershell
 pip install -r requirements-extraccion.txt
 ```
 
-Para OCR de imágenes (`.jpg`, `.png`) también hace falta tener instalado Tesseract OCR en Windows y que esté disponible en el `PATH`. Esta parte no es prioritaria para la primera versión.
+Los PDF que son una imagen escaneada se leen en dos pasos: la app renderiza el PDF con `pypdfium2` y después aplica OCR con Tesseract. Para OCR de imágenes o PDF escaneados hace falta tener instalado Tesseract OCR en Windows y que esté disponible en el `PATH`; si falta, la entrega pasará a revisión manual en vez de recibir un 0 automático.
+
+El instalador guiado incluye una casilla para instalar OCR automáticamente. Si Windows no permite instalarlo, la app queda instalada igualmente y esos archivos pasan a revisión manual.
+
+Para intentar instalar el motor OCR desde Windows:
+
+```powershell
+.\instalar_ocr_windows.cmd
+```
 
 ## 2. Configurar
 
@@ -465,6 +473,6 @@ La extracción real deja auditoría en:
 
 Cuando una entrega ya ha sido copiada a `temporal` y tiene su corrección generada, se elimina automáticamente de `pendientes`. Para pruebas en las que quieras conservar los originales, usa `--conservar-pendientes`.
 
-Los `.txt`, `.docx`, `.odt`, `.rtf`, `.csv`, `.html`, `.json`, `.xml` y similares se intentan leer automáticamente. Con las dependencias opcionales también se intentan leer `.pdf`, `.pptx`, `.xlsx`, `.zip`, `.jpg` y `.png`. Los multimedia, `.doc` antiguo, comprimidos no soportados o formatos no extraíbles quedan marcados en `revision_pendiente.csv` como `revision_manual_necesaria` y no se eliminan de `pendientes`.
+Los `.txt`, `.md`, `.csv`, `.html`, `.json`, `.xml`, `.docx`, `.docm`, `.odt`, `.ods`, `.odp`, `.rtf`, `.pdf`, `.pptx`, `.pptm`, `.xlsx`, `.xlsm`, `.epub`, `.zip`, `.jpg`, `.jpeg`, `.png`, `.bmp`, `.tif`, `.tiff` y `.webp` se intentan leer automáticamente. Los multimedia, `.doc`/`.ppt` antiguos, comprimidos no soportados o formatos no extraíbles quedan marcados en `revision_pendiente.csv` como `revision_manual_necesaria` y no se eliminan de `pendientes`.
 
 El flujo normal deja todo revisable antes de publicar. La opcion preferente es la subida asistida, donde el docente pulsa guardar en CARM y la app confirma el avance.

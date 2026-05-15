@@ -91,13 +91,21 @@ Para crear un ZIP guiado para instalar en otro Windows:
 
 El paquete no incluye `.env`, `.venv`, cache, logs, entregas ni correcciones generadas.
 
-Dependencias opcionales para leer PDF, PPTX, XLSX, ZIP e imágenes con OCR:
+Dependencias opcionales para leer PDF, PDF escaneados, PPTX/PPTM, XLSX/XLSM, ODT/ODS/ODP, EPUB, ZIP e imágenes con OCR:
 
 ```powershell
 pip install -r requirements-extraccion.txt
 ```
 
-Para OCR de JPG/PNG también hace falta Tesseract OCR instalado en Windows y disponible en el `PATH`.
+Para OCR de JPG/PNG y PDF que contienen texto como imagen también hace falta Tesseract OCR instalado en Windows y disponible en el `PATH`. Si no está disponible, la app deja la entrega en revisión manual en vez de calificarla como vacía.
+
+El instalador guiado permite marcar la instalación de OCR. Si el equipo no permite instalar Tesseract automáticamente, la app no se rompe: queda instalada y esos archivos se tratarán como revisión manual.
+
+Puedes intentar instalarlo con:
+
+```powershell
+.\instalar_ocr_windows.cmd
+```
 
 ## Configuración
 
@@ -277,4 +285,4 @@ Todo queda en estado `borrador_pendiente_de_revision` salvo los casos que necesi
 - Seguir validando subida asistida real por lotes y casos ya gestionados en CARM.
 - Mejorar la vista local de revision por alumno antes de subir.
 - Instalar y probar dependencias opcionales de extracción.
-- Decidir si merece la pena añadir OCR con Tesseract.
+- Probar OCR con Tesseract en una instalación limpia de Windows.
