@@ -248,7 +248,10 @@ El archivo `.md` se copia entero en Codex/ChatGPT. Codex debe devolver un JSON c
 
 ### Resolver prompts sin API
 
-El flujo sin API actual no usa Codex CLI integrado. Abre Codex/ChatGPT aparte, ejecuta `$C` o pega el prompt, guarda los `*_correccion.json` en la carpeta de prompts y vuelve a la interfaz para pulsar `Importar JSON a revision`.
+El flujo sin API puede hacerse de dos formas:
+
+- Manual: abre Codex/ChatGPT aparte, ejecuta `$C` o pega el prompt, guarda los `*_correccion.json` en la carpeta de prompts y vuelve a la interfaz para pulsar `Importar JSON a revision`.
+- Codex App: si Codex está instalado e iniciado con ChatGPT, pulsa `Corregir con Codex App`. La app usa `codex exec`, crea los JSON individuales e importa las correcciones a `revision_pendiente.csv` sin usar `OPENAI_API_KEY`.
 
 ## 4. Corregir archivos reales ya descargados
 

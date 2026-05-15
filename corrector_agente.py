@@ -130,6 +130,20 @@ def idioma_ocr_preferido(tesseract_cmd: str | None = None) -> str:
         return "eng"
     return "spa+eng"
 
+
+def resolver_codex_cmd() -> str:
+    candidatos = [os.getenv("CODEX_CMD", "").strip(), shutil.which("codex") or ""]
+    candidatos.extend(
+        str(path)
+        for path in sorted(
+            (Path.home() / ".vscode" / "extensions").glob("openai.chatgpt-*/bin/windows-x86_64/codex.exe")
+        )
+    )
+    for candidato in candidatos:
+        if candidato and Path(candidato).exists():
+            return candidato
+    return "codex"
+
 LOG_DIR = Path("logs_correcciones")
 RESPUESTAS_DIR = Path("respuestas_extraidas")
 CORRECCIONES_DIR = Path("correcciones_validadas")
@@ -4979,6 +4993,124 @@ class GeneradorSalidas:
         archivar_archivos_auxiliares_prompts(output_dir, modo="post_api")
         return rutas_correcciones, revision_path
 
+    @staticmethod
+    def _normalizar_json_modelo(texto: str) -> str:
+        limpio = normalizar_texto_para_cli(texto or "").strip()
+        if limpio.startswith("```"):
+            limpio = re.sub(r"^```(?:json)?\s*", "", limpio, flags=re.I)
+            limpio = re.sub(r"\s*```$", "", limpio).strip()
+        if limpio and not limpio.startswith(("{", "[")):
+            match = re.search(r"(\{.*\}|\[.*\])", limpio, flags=re.S)
+            if match:
+                limpio = match.group(1).strip()
+        json.loads(limpio)
+        return limpio
+
+    def corregir_prompts_con_codex_app(
+        self,
+        rutas_prompts: list[Path] | None = None,
+        output_dir: Path | None = None,
+        importar: bool = True,
+        timeout_segundos: int = 1800,
+    ) -> tuple[list[Path], Path | None]:
+        codex_cmd = resolver_codex_cmd()
+        if not shutil.which(codex_cmd) and not Path(codex_cmd).exists():
+            raise RuntimeError("No se encontro Codex CLI. Abre Codex/VS Code o revisa CODEX_CMD.")
+
+        prompts_dir = prompts_pendientes_dir(self.pendientes_dir)
+        if not prompts_dir.exists():
+            prompts_dir = self.temporal_dir / "prompts_codex"
+        candidatos = [
+            ruta for ruta in (rutas_prompts or sorted(prompts_dir.glob("prompt_*.md")))
+            if ruta.suffix.lower() == ".md" and ruta.name.startswith("prompt_")
+        ]
+        prompts_ya_resueltos = [
+            ruta
+            for ruta in candidatos
+            if ruta.with_name(f"{ruta.stem}_correccion.json").exists()
+        ]
+        if prompts_ya_resueltos:
+            archivar_prompts_resueltos(prompts_ya_resueltos, modo="ya_tenian_correccion")
+        prompts = [
+            ruta
+            for ruta in candidatos
+            if not ruta.with_name(f"{ruta.stem}_correccion.json").exists()
+        ]
+        if not prompts:
+            raise ValueError("No hay prompts .md preparados para resolver con Codex App.")
+
+        output_dir = output_dir or prompts_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        rutas_correcciones: list[Path] = []
+        prompts_resueltos: list[Path] = []
+
+        for prompt_path in prompts:
+            salida_path = output_dir / f"{prompt_path.stem}_correccion.json"
+            salida_raw = output_dir / f"{prompt_path.stem}_codex_app_raw.txt"
+            prompt_texto = normalizar_texto_para_cli(prompt_path.read_text(encoding="utf-8"))
+            instruccion = (
+                f"{prompt_texto}\n\n"
+                f"{REGLA_IDIOMA_CORRECCION}\n"
+                "IMPORTANTE: responde solo con JSON válido, sin Markdown ni explicaciones fuera del JSON. "
+                "No entres en CARM, no muevas archivos y no generes salidas en carpetas de alumnos."
+            )
+            logger.info("Enviando prompt preparado a Codex App: %s", prompt_path)
+            cmd = [
+                codex_cmd,
+                "-a",
+                "never",
+                "exec",
+                "--skip-git-repo-check",
+                "--sandbox",
+                "read-only",
+                "--output-last-message",
+                str(salida_raw),
+                "-",
+            ]
+            proc = subprocess.run(
+                cmd,
+                cwd=str(Path(__file__).resolve().parent),
+                input=instruccion,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout_segundos,
+                **hidden_subprocess_kwargs(),
+            )
+            if proc.returncode != 0:
+                raise RuntimeError(f"Codex App fallo con codigo {proc.returncode}: {proc.stdout[-2000:]}")
+            if not salida_raw.exists():
+                salida_raw.write_text(proc.stdout, encoding="utf-8")
+            contenido = self._normalizar_json_modelo(salida_raw.read_text(encoding="utf-8", errors="replace"))
+            salida_path.write_text(contenido, encoding="utf-8")
+            try:
+                salida_raw.unlink()
+            except Exception:
+                pass
+            rutas_correcciones.append(salida_path)
+            prompts_resueltos.append(prompt_path)
+            logger.info("Correccion Codex App guardada en: %s", salida_path)
+
+        combinado_path = output_dir / "correcciones_codex_combinadas.json"
+        correcciones_combinadas: list[dict] = []
+        for ruta in rutas_correcciones:
+            correcciones_combinadas.extend(self._leer_correcciones_codex(ruta))
+        combinado_path.write_text(
+            json.dumps(correcciones_combinadas, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        rutas_correcciones.append(combinado_path)
+
+        revision_path: Path | None = None
+        if importar:
+            _, revision_path, _ = self.importar_correcciones_codex(combinado_path)
+
+        archivar_prompts_resueltos(prompts_resueltos, modo="resueltos_codex_app")
+        archivar_archivos_auxiliares_prompts(output_dir, modo="post_codex_app")
+        return rutas_correcciones, revision_path
+
 
 async def ejecutar_flujo(args) -> None:
     pendientes_dir = Path(args.pendientes)
@@ -5146,6 +5278,23 @@ async def ejecutar_flujo(args) -> None:
             )
         except Exception as e:
             logger.error(f"No se pudieron corregir prompts con OpenAI API: {e}")
+            return
+
+    if getattr(args, "corregir_prompts_codex_app", False) and not (
+        getattr(args, "preparar_prompts_codex", False) or preparar_carm_codex
+    ):
+        try:
+            salida = GeneradorSalidas(pendientes_dir, temporal_dir, args.actividad_codigo)
+            rutas_correcciones, revision_path = salida.corregir_prompts_con_codex_app(
+                importar=getattr(args, "importar_tras_codex", False),
+                timeout_segundos=max(60, int(getattr(args, "codex_timeout", 0) or 1800)),
+            )
+            for ruta in rutas_correcciones:
+                logger.info(f"Correccion Codex App generada: {ruta}")
+            if revision_path:
+                logger.info(f"Revision pendiente generada: {revision_path}")
+        except Exception as e:
+            logger.error(f"No se pudieron corregir prompts con Codex App: {e}")
             return
         logger.info("Correcciones generadas por OpenAI API:")
         for ruta in rutas_correcciones:
@@ -5384,6 +5533,20 @@ async def ejecutar_flujo(args) -> None:
                 )
             except Exception as e:
                 logger.error(f"No se pudieron corregir prompts con OpenAI API: {e}")
+                return
+        if getattr(args, "corregir_prompts_codex_app", False):
+            try:
+                rutas_correcciones, revision_path = salida.corregir_prompts_con_codex_app(
+                    rutas_prompts,
+                    importar=getattr(args, "importar_tras_codex", False),
+                    timeout_segundos=max(60, int(getattr(args, "codex_timeout", 0) or 1800)),
+                )
+                for ruta in rutas_correcciones:
+                    logger.info(f"Correccion Codex App generada: {ruta}")
+                if revision_path:
+                    logger.info(f"Revision pendiente generada: {revision_path}")
+            except Exception as e:
+                logger.error(f"No se pudieron corregir prompts con Codex App: {e}")
                 return
             logger.info("Correcciones generadas por OpenAI API:")
             for ruta in rutas_correcciones:
@@ -5651,6 +5814,11 @@ def parse_args() -> argparse.Namespace:
         "--corregir-prompts-openai",
         action="store_true",
         help="Envia prompts .md ya preparados a OpenAI API, guarda JSON e importa salidas revisables.",
+    )
+    parser.add_argument(
+        "--corregir-prompts-codex-app",
+        action="store_true",
+        help="Envia prompts .md ya preparados a Codex App/CLI con login ChatGPT, sin OPENAI_API_KEY.",
     )
     parser.add_argument(
         "--importar-tras-openai",

@@ -8,6 +8,7 @@ import os
 import json
 import re
 import secrets
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -630,6 +631,17 @@ def openai_api_key_present() -> bool:
     return is_real_env_value(api_key, secret=True)
 
 
+def codex_cli_path() -> str:
+    found = shutil.which("codex")
+    if found:
+        return found
+    extensions_dir = Path.home() / ".vscode" / "extensions"
+    for path in sorted(extensions_dir.glob("openai.chatgpt-*/bin/windows-x86_64/codex.exe"), reverse=True):
+        if path.exists():
+            return str(path)
+    return ""
+
+
 def correction_mode() -> str:
     env = read_env_values()
     raw = env.get("CORRECTION_MODE", "").strip().lower()
@@ -643,6 +655,8 @@ def auth_status() -> dict:
         "configured": carm_credentials_present(),
         "session_saved": CARM_STORAGE_STATE.exists(),
         "openai_api_configured": openai_api_key_present(),
+        "codex_cli_available": bool(codex_cli_path()),
+        "codex_cli_path": codex_cli_path(),
         "correction_mode": correction_mode(),
         "openai_model": read_env_values().get("OPENAI_MODEL", "gpt-5-mini") or "gpt-5-mini",
     }
@@ -705,6 +719,44 @@ def _check_tesseract_ocr() -> dict:
             "ok": False,
             "required": False,
             "message": "No instalado; necesario para leer PDF que contienen texto como imagen.",
+        }
+
+
+def _check_codex_cli() -> dict:
+    path = codex_cli_path()
+    if not path:
+        return {
+            "name": "Codex App/CLI",
+            "ok": False,
+            "required": False,
+            "message": "No detectado; el modo sin API puede seguir usando prompts manuales.",
+        }
+    try:
+        proc = subprocess.run(
+            [path, "login", "status"],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=20,
+            **hidden_subprocess_kwargs(),
+        )
+        logged = "Logged in" in proc.stdout
+        message = "Disponible y con sesion ChatGPT." if logged else "Disponible, pero revisa login en Codex."
+        return {
+            "name": "Codex App/CLI",
+            "ok": logged,
+            "required": False,
+            "message": message,
+        }
+    except Exception as exc:
+        return {
+            "name": "Codex App/CLI",
+            "ok": False,
+            "required": False,
+            "message": f"Detectado, pero no se pudo comprobar login: {exc}",
         }
 
 
@@ -849,6 +901,7 @@ def local_health_status() -> dict:
         _check_module("openpyxl", "openpyxl", required=False),
         _check_module("pytesseract", "pytesseract", required=False),
         _check_tesseract_ocr(),
+        _check_codex_cli(),
         _check_git_sensitive_index(),
     ]
     checks.extend(
@@ -1508,7 +1561,7 @@ def notify_prompts_prepared() -> None:
     if prompts:
         notify(
             "Corrector CARM",
-            f"Hay {len(prompts)} prompt(s) preparados. Abre la interfaz y pulsa Corregir prompts con API.",
+            f"Hay {len(prompts)} prompt(s) preparados. Puedes corregirlos con API, Codex App o importando JSON manual.",
             target="prepare",
             kind="success",
         )
@@ -1518,6 +1571,8 @@ def start_auto_prepare() -> tuple[bool, str]:
     global AUTO_COURSE_QUEUE
     if correction_mode() == "api" and openai_api_key_present():
         notify("Corrector CARM", "Preparo prompts automaticamente. La API se ejecutara cuando lo confirmes.", target="activity")
+    elif codex_cli_path():
+        notify("Corrector CARM", "Preparo prompts automaticamente. Puedes resolverlos con Codex App sin API key.", target="activity")
     else:
         notify("Corrector CARM", "Sin API key o modo prompt: preparo prompts para correccion manual.", target="activity")
     courses = selected_courses_for_auto()
@@ -2381,6 +2436,7 @@ HTML = r"""<!doctype html>
         <div class="button-row">
           <button class="primary" id="prepareBtn">Preparar prompts</button>
           <button id="solveApiBtn">Corregir prompts con API</button>
+          <button id="solveCodexBtn">Corregir con Codex App</button>
           <button class="danger" id="stopBtn">Detener</button>
         </div>
       </section>
@@ -2712,6 +2768,7 @@ HTML = r"""<!doctype html>
             <option value="cache_course">Cachear curso</option>
             <option value="check_openai">Comprobar OpenAI API</option>
             <option value="solve_prompts_api">Corregir prompts preparados con API</option>
+            <option value="solve_prompts_codex_app">Corregir prompts preparados con Codex App</option>
             <option value="prepare_carm_api">Corregir desde CARM con API directo</option>
             <option value="prepare_carm_codex">Preparar prompts desde CARM</option>
             <option value="prepare_carm_codex_activity">Preparar prompts de un caso desde CARM</option>
@@ -2782,6 +2839,7 @@ HTML = r"""<!doctype html>
       cache_course: 'Actualiza la cache local de recursos estables del curso.',
       check_openai: 'Comprueba que OPENAI_API_KEY y OPENAI_MODEL estan configurados.',
       solve_prompts_api: 'Envia a OpenAI API los prompts ya preparados y genera el CSV revisable.',
+      solve_prompts_codex_app: 'Usa Codex App con tu login de ChatGPT para resolver prompts sin OPENAI_API_KEY.',
       prepare_carm_api: 'Descarga entregas desde CARM y corrige con OpenAI API en un solo paso.',
       prepare_carm_codex: 'Descarga desde CARM y genera prompts para Codex sin llamar a la API.',
       prepare_carm_codex_activity: 'Descarga y prepara prompts solo para el caso practico elegido.',
@@ -2798,6 +2856,7 @@ HTML = r"""<!doctype html>
       cache_course: '--cachear-curso --unidad <unidad>',
       check_openai: '--comprobar-openai-api',
       solve_prompts_api: '--corregir-prompts-openai',
+      solve_prompts_codex_app: '--corregir-prompts-codex-app --importar-tras-codex',
       prepare_carm_api: '--extraer-carm --requerir-openai-api --unidad <unidad>',
       prepare_carm_codex: '--preparar-carm-codex --unidad <unidad> --max-entregas-por-prompt <n>',
       prepare_carm_codex_activity: '--preparar-carm-codex --actividad <caso> --max-entregas-por-prompt <n>',
@@ -3055,6 +3114,7 @@ HTML = r"""<!doctype html>
       $('prepareBtn').disabled = locked || (mode !== 'course' && !hasUnits) || !hasSelectedActivity;
       $('prepareBtn').textContent = 'Preparar prompts';
       $('solveApiBtn').disabled = locked || !authState.openai_api_configured;
+      $('solveCodexBtn').disabled = locked || !authState.codex_cli_available;
       $('importCodexBtn').disabled = locked || !window.__selectedCorrectionIsImportable;
       const pendingRows = Number(window.__pendingUploadRows || 0);
       const pendingBlocking = Number(window.__pendingUploadBlocking || 0);
@@ -3481,6 +3541,7 @@ HTML = r"""<!doctype html>
       max_entregas: $('maxEntregas').value
     });
     $('solveApiBtn').onclick = () => run('solve_prompts_api');
+    $('solveCodexBtn').onclick = () => run('solve_prompts_codex_app');
     $('importCodexBtn').onclick = () => run('import_codex', {json_path: $('jsonPath').value});
     $('assistPublishBtn').onclick = () => {
       if (!$('publishCheck').checked) return alert('Marca la confirmación antes de iniciar la subida asistida.');
@@ -4017,6 +4078,16 @@ def build_args(action: str, body: dict) -> list[str]:
             "--temporal",
             str(TEMPORAL_DIR),
             "--corregir-prompts-openai",
+        ]
+
+    if action == "solve_prompts_codex_app":
+        return [
+            "--pendientes",
+            str(PENDIENTES_DIR),
+            "--temporal",
+            str(TEMPORAL_DIR),
+            "--corregir-prompts-codex-app",
+            "--importar-tras-codex",
         ]
 
     if action == "prepare_carm_codex_activity":
