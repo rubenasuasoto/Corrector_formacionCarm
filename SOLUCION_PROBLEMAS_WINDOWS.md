@@ -59,6 +59,7 @@ Solucion:
 Sintomas:
 
 - `ModuleNotFoundError`
+- `RuntimeError: Playwright no esta disponible`
 - el chequeo local marca dependencias base como pendientes;
 - la app arranca desde un Python global en vez de `.venv`.
 
@@ -67,6 +68,20 @@ Solucion:
 ```powershell
 .\reparar_dependencias_windows.cmd
 ```
+
+Despues abre la app con:
+
+```powershell
+.\ABRIR_CORRECTOR_CARM.cmd
+```
+
+o:
+
+```powershell
+.\iniciar_app_windows.cmd -AbrirNavegador
+```
+
+Evita abrirla con `python interfaz_app.py` desde una consola que no sea la `.venv`.
 
 Para lectura avanzada de PDF, PPTX, XLSX u OCR:
 
@@ -111,6 +126,32 @@ Suele ocurrir si hay varias instancias intentando arrancar o si el acceso de ini
 ```
 
 El script de inicio comprueba si el panel ya responde en `127.0.0.1:8765` y no lanza otra instancia.
+
+## No aparece en Aplicaciones instaladas
+
+Las versiones antiguas se instalaban como carpeta local con accesos directos y podian no aparecer en la lista de Windows.
+
+Solucion:
+
+1. Ejecuta el instalador actual de nuevo:
+
+```powershell
+.\INSTALAR_CORRECTOR_CARM.cmd
+```
+
+2. El instalador registrara `Corrector CARM` en **Configuracion > Aplicaciones instaladas**.
+
+3. Si necesitas quitar una instalacion antigua sin reinstalar:
+
+```powershell
+.\desinstalar_windows.cmd
+```
+
+Si todavia se inicia al arrancar Windows, revisa y borra accesos antiguos en:
+
+```text
+%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
+```
 
 ## El panel local no conecta
 

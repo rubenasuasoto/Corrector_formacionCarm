@@ -54,6 +54,44 @@ function Assert-NoSensitiveArtifacts {
         $List = ($Sensitive | ForEach-Object { $_.FullName }) -join "`n"
         throw "El paquete contiene artefactos sensibles o generados:`n$List"
     }
+
+    $DevelopmentOnly = @(
+        "AGENTS.md",
+        "ARQUITECTURA_PROYECTO.md",
+        "CIERRE_APP_LOCAL.md",
+        "ESTADO_PROYECTO.md",
+        "RELEASE_CHECKLIST.md",
+        "ROADMAP_DESCARGA_SEGURA.md",
+        "preparar_release.py",
+        "preparar_release_windows.cmd",
+        "preparar_release_windows.ps1",
+        ".gitignore"
+    )
+    $FoundDevelopmentOnly = Get-ChildItem -LiteralPath $DestinationRoot -Recurse -Force | Where-Object {
+        $DevelopmentOnly -contains $_.Name
+    }
+
+    if ($FoundDevelopmentOnly) {
+        $List = ($FoundDevelopmentOnly | ForEach-Object { $_.FullName }) -join "`n"
+        throw "El paquete contiene archivos de desarrollo que no necesita el usuario final:`n$List"
+    }
+}
+
+function Assert-RequiredReleaseFiles {
+    param(
+        [string[]]$Files,
+        [string[]]$RequiredFiles
+    )
+
+    $Missing = @()
+    foreach ($Required in $RequiredFiles) {
+        if ($Files -notcontains $Required) {
+            $Missing += $Required
+        }
+    }
+    if ($Missing.Count -gt 0) {
+        throw "Faltan archivos obligatorios del paquete:`n$($Missing -join "`n")"
+    }
 }
 
 $Version = Get-AppVersion
@@ -81,24 +119,58 @@ if (Test-Path -LiteralPath (Join-Path $Root "crear_launcher_windows.ps1")) {
 Write-Step "Creando paquete guiado"
 New-Item -ItemType Directory -Path $PackageDir | Out-Null
 
-$TrackedFiles = git ls-files
-$ExtraReleaseFiles = @(
+$ReleaseFiles = @(
+    ".env.example",
+    "VERSION",
+    "INSTRUCCIONES_CODEX_PERSONALIZADAS.md",
+    "requirements.txt",
+    "requirements-extraccion.txt",
+    "prompts_correccion.json",
+    "corrector_agente.py",
+    "interfaz_app.py",
+    "verificar_app.py",
+    "verificar_app_windows.cmd",
+    "verificar_app_windows.ps1",
     "INSTALAR_CORRECTOR_CARM.cmd",
     "instalador_guiado_windows.cmd",
     "instalador_guiado_windows.ps1",
     "ABRIR_CORRECTOR_CARM.cmd",
+    "instalar_windows.cmd",
+    "instalar_windows.ps1",
+    "iniciar_app_windows.cmd",
+    "iniciar_app_windows.ps1",
+    "reparar_dependencias_windows.cmd",
+    "reparar_dependencias_windows.ps1",
+    "instalar_ocr_windows.cmd",
+    "instalar_ocr_windows.ps1",
+    "desinstalar_windows.cmd",
+    "desinstalar_windows.ps1",
     "crear_launcher_windows.cmd",
     "crear_launcher_windows.ps1",
     "Corrector CARM.exe",
-    "crear_paquete_windows.cmd",
-    "crear_paquete_windows.ps1",
     "assets/corrector_carm.ico",
     "assets/corrector_carm.png"
 )
 
-$Files = @($TrackedFiles + $ExtraReleaseFiles) |
+$RequiredReleaseFiles = @(
+    ".env.example",
+    "requirements.txt",
+    "corrector_agente.py",
+    "interfaz_app.py",
+    "INSTALAR_CORRECTOR_CARM.cmd",
+    "instalador_guiado_windows.ps1",
+    "instalar_windows.ps1",
+    "iniciar_app_windows.ps1",
+    "ABRIR_CORRECTOR_CARM.cmd",
+    "desinstalar_windows.ps1",
+    "verificar_app.py"
+)
+
+$Files = @($ReleaseFiles) |
     Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
     Sort-Object -Unique
+
+Assert-RequiredReleaseFiles -Files $Files -RequiredFiles $RequiredReleaseFiles
 
 foreach ($File in $Files) {
     Copy-ReleaseFile -RelativePath $File -DestinationRoot $PackageDir
@@ -106,6 +178,12 @@ foreach ($File in $Files) {
 
 $Readme = @"
 Corrector CARM $Version
+
+Para usuarios:
+- Usa INSTALAR_CORRECTOR_CARM.cmd para instalar.
+- Usa ABRIR_CORRECTOR_CARM.cmd o el acceso directo de Windows para abrir la interfaz.
+- Usa GUIA_USUARIO.txt para el primer uso.
+- Usa desinstalar_windows.cmd solo si quieres quitar la app manualmente o no aparece en Aplicaciones instaladas.
 
 Instalacion guiada en otro Windows:
 1. Descomprime esta carpeta.
@@ -120,14 +198,61 @@ Entradas utiles:
 - INSTALAR_CORRECTOR_CARM.cmd: instalacion guiada recomendada.
 - instalador_guiado_windows.cmd: asistente visual de instalacion.
 - ABRIR_CORRECTOR_CARM.cmd: abre el panel de la app.
+- desinstalar_windows.cmd: desinstalacion local si no aparece en Aplicaciones instaladas.
 - verificar_app_windows.cmd: diagnostico local.
+
+Archivos de mantenimiento:
+- instalar_windows.*: instalador tecnico usado por el asistente.
+- iniciar_app_windows.*: arranque interno de la app y bandeja.
+- reparar_dependencias_windows.*: repara dependencias, Chromium y entorno local.
+- instalar_ocr_windows.*: instala OCR opcional para PDF escaneados.
+- verificar_app.*: diagnostico de instalacion local.
 
 Notas:
 - No incluye .env real, cache, logs, entregas ni correcciones generadas.
+- No incluye roadmap, estado interno, AGENTS ni checklist de desarrollo.
 - La app escucha solo en 127.0.0.1.
 - La subida a CARM es asistida: el docente revisa y guarda manualmente.
 "@
 Set-Content -LiteralPath (Join-Path $PackageDir "LEEME_INSTALACION.txt") -Value $Readme -Encoding UTF8
+
+$UserGuide = @"
+Corrector CARM - Guia de usuario
+
+Primer uso:
+1. Ejecuta INSTALAR_CORRECTOR_CARM.cmd.
+2. Abre Corrector CARM desde el acceso directo o ABRIR_CORRECTOR_CARM.cmd.
+3. Entra en Configuracion y guarda tus credenciales CARM.
+4. Pulsa detectar cursos y selecciona el curso o cursos que quieras preparar.
+5. Usa preparar prompts para dejar listas las entregas pendientes.
+
+Modos de correccion:
+- Con OpenAI API: guarda la API key desde Configuracion y pulsa corregir prompts con API cuando quieras gastar API.
+- Sin API: usa los prompts de pendientes/prompts_codex con Codex u otra IA, genera los *_correccion.json y despues importalos desde la interfaz.
+
+Subida a CARM:
+- La app usa subida asistida.
+- Revisa nota y feedback antes de guardar.
+- El docente pulsa Guardar cambios en CARM.
+- La app solo retira filas pendientes cuando se confirma el guardado.
+
+Reparacion:
+- Si falta Playwright, Chromium o dependencias, ejecuta reparar_dependencias_windows.cmd.
+- Si quieres OCR para PDF escaneados, ejecuta instalar_ocr_windows.cmd o marca OCR en el instalador.
+- Si necesitas diagnostico, ejecuta verificar_app_windows.cmd.
+
+Desinstalacion:
+- Preferente: Configuracion de Windows > Aplicaciones instaladas > Corrector CARM.
+- Alternativa: desinstalar_windows.cmd.
+- Por defecto conserva datos locales. Para borrarlos, usa desinstalar_windows.ps1 -EliminarDatos.
+
+Privacidad y seguridad:
+- El paquete no incluye credenciales, .env real, cache, logs, entregas ni correcciones.
+- La interfaz local escucha solo en 127.0.0.1.
+- La publicacion directa queda bloqueada; el flujo normal requiere revision humana.
+- No compartas carpetas de datos si contienen entregas, notas, logs o correcciones.
+"@
+Set-Content -LiteralPath (Join-Path $PackageDir "GUIA_USUARIO.txt") -Value $UserGuide -Encoding UTF8
 
 $Manifest = [ordered]@{
     nombre = $PackageName
@@ -137,7 +262,9 @@ $Manifest = [ordered]@{
     instalador_principal = "INSTALAR_CORRECTOR_CARM.cmd"
     lanzador_panel = "ABRIR_CORRECTOR_CARM.cmd"
     lanzador_windows = "Corrector CARM.exe"
+    tipo = "paquete_usuario_final"
     incluye_secretos = $false
+    incluye_archivos_desarrollo = $false
 }
 $Manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $PackageDir "MANIFIESTO_PAQUETE.json") -Encoding UTF8
 

@@ -39,6 +39,12 @@ La app debe detectar `C:\Users\<usuario>\AppData\Roaming\npm\codex.cmd`. No uses
 
 Si el ordenador no permite `winget`, instala Node.js LTS desde la pagina oficial, abre una terminal nueva y repite `npm i -g @openai/codex`.
 
+La app queda registrada en **Aplicaciones instaladas** de Windows como `Corrector CARM`. Para quitarla desde consola:
+
+```powershell
+.\desinstalar_windows.cmd
+```
+
 Para OCR de PDF escaneados o imagenes, usa el instalador guiado o ejecuta:
 
 ```powershell
@@ -64,6 +70,8 @@ En Windows, la entrada recomendada para una instalacion guiada es:
 ```
 
 Esto crea `.venv`, instala dependencias base y de extraccion, instala Chromium de Playwright si falta, crea `.env` si no existe y deja accesos directos para abrir el panel. La primera configuracion de credenciales se hace desde la interfaz si faltan.
+
+La instalacion queda visible en **Configuracion de Windows > Aplicaciones instaladas**. La desinstalacion normal conserva los datos locales; si quieres borrarlos tambien, usa `desinstalar_windows.ps1 -EliminarDatos`.
 
 El asistente permite elegir carpeta de instalacion y carpeta de datos. En esa carpeta de datos se crean `pendientes`, `temporal` y `cursos`; con separacion por curso activada, cada curso guarda ahi sus prompts, CSV y resumenes. El inicio con Windows aparece activado por defecto y se puede desmarcar. Tambien puedes dejar activada la integracion con Codex Desktop: el instalador no instala Codex todavia, pero detecta si la app de escritorio esta disponible. No se usa el Codex de VS Code para este flujo.
 

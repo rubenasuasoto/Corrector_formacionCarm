@@ -88,6 +88,13 @@ def hidden_subprocess_kwargs() -> dict:
     return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
 
 
+def app_python_executable() -> str:
+    venv_python = ROOT / ".venv" / "Scripts" / "python.exe"
+    if venv_python.exists():
+        return str(venv_python)
+    return sys.executable
+
+
 def app_version() -> str:
     try:
         value = VERSION_PATH.read_text(encoding="utf-8").strip()
@@ -874,7 +881,7 @@ def _check_chromium_installed() -> dict:
         }
     try:
         proc = subprocess.run(
-            [sys.executable, "-m", "playwright", "install", "--dry-run", "chromium"],
+            [app_python_executable(), "-m", "playwright", "install", "--dry-run", "chromium"],
             cwd=str(ROOT),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -918,7 +925,7 @@ def _check_app_python_env() -> dict:
         "name": "Python de la app",
         "ok": inside_venv,
         "required": True,
-        "message": str(current) if inside_venv else f"Arrancado con {current}. Reinicia con iniciar_app_windows.cmd para usar .venv.",
+        "message": str(current) if inside_venv else f"Arrancado con {current}. Reinicia con iniciar_app_windows.cmd para usar .venv. Los subprocesos intentaran usar {app_python_executable()}.",
     }
 
 
@@ -1052,7 +1059,7 @@ def verify_carm_credentials(usuario: str, contrasena: str) -> tuple[bool, str]:
     env["CARM_CONTRASENA"] = contrasena
     env["CARM_HEADLESS"] = "1"
     proc = subprocess.run(
-        [sys.executable, "corrector_agente.py", "--comprobar-login-carm"],
+        [app_python_executable(), "corrector_agente.py", "--comprobar-login-carm"],
         cwd=str(ROOT),
         env=env,
         stdout=subprocess.PIPE,
@@ -1345,7 +1352,8 @@ class TaskRunner:
             self.action = action
             self.started_at = time.time()
             self.exit_code = None
-            self.lines = [f"$ {sys.executable} corrector_agente.py {' '.join(args)}"]
+            python_exe = app_python_executable()
+            self.lines = [f"$ {python_exe} corrector_agente.py {' '.join(args)}"]
             self.error_notified = False
             self.manual_notified = False
             self.permission_error = False
@@ -1359,7 +1367,7 @@ class TaskRunner:
             if os.name == "nt":
                 popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             self.process = subprocess.Popen(
-                [sys.executable, "corrector_agente.py", *args],
+                [python_exe, "corrector_agente.py", *args],
                 cwd=str(ROOT),
                 env=env,
                 stdout=subprocess.PIPE,
