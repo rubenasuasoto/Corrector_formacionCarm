@@ -1,6 +1,6 @@
 # Arquitectura y orden del proyecto
 
-Estado: 2026-05-13.
+Estado: 2026-05-17.
 
 Este documento define la organizacion objetivo del Corrector CARM y separa codigo activo, documentacion, configuracion y artefactos locales. La idea es ordenar el proyecto sin romper rutas internas de golpe.
 
@@ -19,9 +19,14 @@ Instalacion y soporte Windows:
 - `instalador_guiado_windows.cmd`
 - `instalador_guiado_windows.ps1`
 - `iniciar_app_windows.cmd`
+- `desinstalar_windows.cmd`
+- `desinstalar_windows.ps1`
 - `crear_launcher_windows.cmd`
 - `crear_launcher_windows.ps1`
 - `reparar_dependencias_windows.cmd`
+- `reparar_dependencias_windows.ps1`
+- `instalar_ocr_windows.cmd`
+- `instalar_ocr_windows.ps1`
 - `crear_paquete_windows.cmd`
 - `crear_paquete_windows.ps1`
 - `requirements.txt`
@@ -61,6 +66,7 @@ No deben entrar en git:
 - `.venv/`
 - `venv/`
 - `__pycache__/`
+- `.tmp_verificacion_cache/`
 
 Motivo: contienen credenciales, estado local, datos de alumnos, notas, logs, cache o salidas generadas.
 
@@ -98,11 +104,17 @@ Motivo: contienen credenciales, estado local, datos de alumnos, notas, logs, cac
 Fase 1, sin romper imports:
 
 - Mantener los dos ejecutables principales en raiz.
+- Mantener en raiz los lanzadores `.cmd` que usan docentes e instaladores.
 - Sacar del indice de git todos los artefactos locales.
 - Mantener documentacion actualizada y coherente.
 - Mantener fuera del flujo activo scripts de prueba antiguos.
+- Mejorar el paquete distribuible con un `LEEME_INSTALACION.txt` que distinga entradas de usuario, mantenimiento y diagnostico.
 
-Estado 2026-05-12: fase en cierre. La documentacion ya existe, la app funciona con rutas multi-curso y `.env`, logs, caches, salidas y correcciones generadas ya no aparecen en `git ls-files`.
+Estado 2026-05-17: fase en cierre. La documentacion ya existe, la app funciona con rutas multi-curso y `.env`, logs, caches, salidas, verificaciones temporales y correcciones generadas no deben aparecer en `git ls-files`.
+
+Decision de orden actual: no mover todavia los scripts Windows a `scripts/`, porque el instalador, el paquete ZIP y los accesos directos esperan varios lanzadores en raiz. La limpieza profesional se hara en dos pasos: primero paquete y documentacion claros; despues refactor de carpetas con wrappers de compatibilidad.
+
+El paquete de usuario final no replica el repositorio completo. `crear_paquete_windows.ps1` usa una lista blanca de archivos necesarios y genera dentro del ZIP `LEEME_INSTALACION.txt`, `GUIA_USUARIO.txt` y `MANIFIESTO_PAQUETE.json`. Quedan fuera documentos de desarrollo como `AGENTS.md`, `ESTADO_PROYECTO.md`, `ARQUITECTURA_PROYECTO.md`, roadmap, checklist de release y scripts de preparacion interna.
 
 Fase 2, refactor gradual:
 

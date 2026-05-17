@@ -47,6 +47,18 @@ El instalador abre una ventana de configuracion basica: carpeta donde instalar l
 
 Tambien incluye una casilla de integracion con Codex Desktop. No instala Codex todavia: solo detecta si la app de escritorio `OpenAI.Codex` esta disponible y deja la app preparada para usarla sin `OPENAI_API_KEY` cuando Codex Desktop exponga un CLI ejecutable. No se usa el Codex de VS Code para este flujo.
 
+La instalacion se registra para el usuario actual en **Aplicaciones instaladas** de Windows como `Corrector CARM`. Desde ahi se puede desinstalar. Tambien puedes usar:
+
+```powershell
+.\desinstalar_windows.cmd
+```
+
+Por defecto la desinstalacion quita app, accesos, inicio automatico y entrada de Windows, pero conserva los datos locales. Para borrar tambien datos, ejecuta:
+
+```powershell
+.\desinstalar_windows.ps1 -EliminarDatos
+```
+
 En otro ordenador, si se quiere usar Codex sin API, instala primero Node.js LTS y despues el CLI oficial:
 
 ```powershell
@@ -128,7 +140,8 @@ CARM_USUARIO=tu_usuario_carm
 CARM_CONTRASENA=tu_contrasena_carm
 OPENAI_API_KEY=tu_api_key_aqui
 OPENAI_MODEL=gpt-5-mini
-CARM_COURSE_URL=https://formacion.carm.es/course/view.php[x]id=1592
+CARM_DASHBOARD_URL=https://formacion.carm.es/my/index.php
+CARM_COURSE_URL=
 ```
 
 No subas `.env` al repositorio.

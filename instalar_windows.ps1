@@ -79,6 +79,30 @@ function New-AppShortcuts {
     New-AppShortcut -Target (Join-Path $StartFolder "Corrector CARM.lnk")
 }
 
+function Register-UninstallEntry {
+    $VersionPath = Join-Path $Root "VERSION"
+    $Version = "0.0.0-local"
+    if (Test-Path -LiteralPath $VersionPath) {
+        $Version = (Get-Content -LiteralPath $VersionPath -Raw -Encoding UTF8).Trim()
+    }
+    $UninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Corrector CARM"
+    $UninstallScript = Join-Path $Root "desinstalar_windows.ps1"
+    $IconPath = Join-Path $Root "assets\corrector_carm.ico"
+    New-Item -Path $UninstallKey -Force | Out-Null
+    New-ItemProperty -Path $UninstallKey -Name "DisplayName" -Value "Corrector CARM" -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $UninstallKey -Name "DisplayVersion" -Value $Version -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $UninstallKey -Name "Publisher" -Value "Corrector CARM Local" -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $UninstallKey -Name "InstallLocation" -Value $Root -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $UninstallKey -Name "UninstallString" -Value "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$UninstallScript`"" -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $UninstallKey -Name "QuietUninstallString" -Value "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$UninstallScript`" -Silencioso" -PropertyType String -Force | Out-Null
+    if (Test-Path -LiteralPath $IconPath) {
+        New-ItemProperty -Path $UninstallKey -Name "DisplayIcon" -Value $IconPath -PropertyType String -Force | Out-Null
+    }
+    New-ItemProperty -Path $UninstallKey -Name "NoModify" -Value 1 -PropertyType DWord -Force | Out-Null
+    New-ItemProperty -Path $UninstallKey -Name "NoRepair" -Value 1 -PropertyType DWord -Force | Out-Null
+    Write-Host "Entrada de desinstalacion registrada en Aplicaciones instaladas." -ForegroundColor Green
+}
+
 function Test-PlaywrightChromiumInstalled {
     $MsPlaywright = Join-Path $env:LOCALAPPDATA "ms-playwright"
     if (-not (Test-Path $MsPlaywright)) {
@@ -212,6 +236,9 @@ if ($CrearAccesoDirecto) {
     Write-Step "Creando accesos directos"
     New-AppShortcuts
 }
+
+Write-Step "Registrando desinstalador de Windows"
+Register-UninstallEntry
 
 if (-not $OmitirVerificacion) {
     Write-Step "Verificando instalacion"

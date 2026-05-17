@@ -12,6 +12,7 @@ Este checklist se usa antes de compartir una version, reinstalar en otro equipo 
 - [ ] `assets/corrector_carm.ico` y `assets/corrector_carm.png` estan incluidos para panel, bandeja, accesos directos y paquete Windows.
 - [ ] Si se distribuye como app guiada, `Corrector CARM.exe` se ha regenerado con `crear_launcher_windows.cmd` y no contiene secretos.
 - [ ] `INSTALAR_CORRECTOR_CARM.cmd` abre el asistente visual y permite elegir carpeta de instalacion, carpeta de datos, accesos e inicio con Windows.
+- [ ] La instalacion registra `Corrector CARM` en Aplicaciones instaladas y `desinstalar_windows.cmd` / `.ps1` estan incluidos en el paquete.
 
 ## 2. Verificacion tecnica
 
