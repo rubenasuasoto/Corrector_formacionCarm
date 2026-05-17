@@ -27,7 +27,7 @@ Pasos recomendados:
 4. Configura credenciales CARM desde la interfaz.
 5. Detecta cursos y selecciona el curso activo.
 6. Ejecuta `.\verificar_app_windows.cmd --instalacion`.
-7. Si vas a usar Codex sin API, instala Node.js LTS y el CLI oficial de Codex:
+7. Si vas a usar Codex sin API, deja marcada la opcion de Codex en el instalador. Si prefieres hacerlo manualmente, instala Node.js LTS y el CLI oficial:
 
 ```powershell
 winget install --id OpenJS.NodeJS.LTS --source winget
@@ -73,9 +73,9 @@ Esto crea `.venv`, instala dependencias base y de extraccion, instala Chromium d
 
 La instalacion queda visible en **Configuracion de Windows > Aplicaciones instaladas**. La desinstalacion normal conserva los datos locales; si quieres borrarlos tambien, usa `desinstalar_windows.ps1 -EliminarDatos`.
 
-El asistente permite elegir carpeta de instalacion y carpeta de datos. En esa carpeta de datos se crean `pendientes`, `temporal` y `cursos`; con separacion por curso activada, cada curso guarda ahi sus prompts, CSV y resumenes. El inicio con Windows aparece activado por defecto y se puede desmarcar. Tambien puedes dejar activada la integracion con Codex Desktop: el instalador no instala Codex todavia, pero detecta si la app de escritorio esta disponible. No se usa el Codex de VS Code para este flujo.
+El asistente permite elegir carpeta de instalacion y carpeta de datos. En esa carpeta de datos se crean `pendientes`, `temporal` y `cursos`; con separacion por curso activada, cada curso guarda ahi sus prompts, CSV y resumenes. El inicio con Windows aparece activado por defecto y se puede desmarcar. Tambien puedes dejar activada la opcion de Codex: el instalador detecta Node.js/npm, instala Node.js LTS con `winget` si falta e instala/actualiza el CLI oficial `@openai/codex`. No se usa el Codex de VS Code para este flujo.
 
-Para automatizar correcciones con Codex sin API hace falta el Codex CLI oficial. Si `npm` no existe, instala Node.js LTS y abre una terminal nueva. En Windows, la app llama a `codex.cmd` para evitar que PowerShell bloquee `codex.ps1` por politica de ejecucion:
+Para automatizar correcciones con Codex sin API hace falta el Codex CLI oficial. Si la instalacion automatica falla o el equipo no permite `winget`, instala Node.js LTS manualmente y abre una terminal nueva. En Windows, la app llama a `codex.cmd` para evitar que PowerShell bloquee `codex.ps1` por politica de ejecucion:
 
 ```powershell
 winget install --id OpenJS.NodeJS.LTS --source winget
