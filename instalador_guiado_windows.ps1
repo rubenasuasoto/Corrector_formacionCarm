@@ -114,7 +114,7 @@ function Show-InstallerForm {
     $form.Controls.Add($ocrCheck)
 
     $codexCheck = New-Object System.Windows.Forms.CheckBox
-    $codexCheck.Text = "Preparar integracion con Codex App sin API"
+    $codexCheck.Text = "Instalar/preparar Node.js y Codex CLI sin API"
     $codexCheck.Checked = -not $NoPrepararCodex
     $codexCheck.Location = New-Object System.Drawing.Point(32, 316)
     $codexCheck.Size = New-Object System.Drawing.Size(470, 24)
@@ -128,7 +128,7 @@ function Show-InstallerForm {
     $form.Controls.Add($openCheck)
 
     $hint = New-Object System.Windows.Forms.Label
-    $hint.Text = "Codex es opcional: el instalador solo lo detecta y prepara la app para usarlo si ya esta instalado."
+    $hint.Text = "Codex es opcional: si marcas esta opcion, se detecta Node.js/npm y se instala Codex CLI oficial si falta."
     $hint.ForeColor = [System.Drawing.Color]::DimGray
     $hint.Location = New-Object System.Drawing.Point(30, 374)
     $hint.Size = New-Object System.Drawing.Size(580, 32)

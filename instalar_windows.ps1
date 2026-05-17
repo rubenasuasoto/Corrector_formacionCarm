@@ -134,6 +134,116 @@ function Find-CodexDesktopCli {
     return ""
 }
 
+function Find-NodeCommand {
+    $candidates = @(
+        (Get-Command "node.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source),
+        (Join-Path $env:ProgramFiles "nodejs\node.exe")
+    )
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            return $candidate
+        }
+    }
+    return ""
+}
+
+function Find-NpmCommand {
+    $candidates = @(
+        (Get-Command "npm.cmd" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source),
+        (Join-Path $env:ProgramFiles "nodejs\npm.cmd")
+    )
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            return $candidate
+        }
+    }
+    return ""
+}
+
+function Install-NodeJsLts {
+    $winget = Get-Command "winget.exe" -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        throw "No se encontro winget. Instala Node.js LTS manualmente desde https://nodejs.org y vuelve a ejecutar el instalador."
+    }
+
+    Write-Host "Node.js LTS no detectado. Instalando con winget..." -ForegroundColor Yellow
+    Invoke-Native "Instalacion de Node.js LTS" {
+        & $winget.Source install --id OpenJS.NodeJS.LTS --source winget --accept-package-agreements --accept-source-agreements --silent
+    }
+
+    $nodePath = Join-Path $env:ProgramFiles "nodejs"
+    if (Test-Path -LiteralPath $nodePath) {
+        $env:Path = "$nodePath;$env:Path"
+    }
+}
+
+function Install-CodexCli {
+    param([string]$NpmCommand)
+
+    Write-Host "Instalando/actualizando Codex CLI oficial con npm..." -ForegroundColor Yellow
+    Invoke-Native "Instalacion de Codex CLI" {
+        & $NpmCommand install -g @openai/codex
+    }
+
+    $npmBin = Join-Path $env:APPDATA "npm"
+    if (Test-Path -LiteralPath $npmBin) {
+        $env:Path = "$npmBin;$env:Path"
+    }
+}
+
+function Ensure-CodexEnvironment {
+    Write-Step "Preparando Codex CLI sin API"
+
+    $node = Find-NodeCommand
+    if (-not $node) {
+        Install-NodeJsLts
+        $node = Find-NodeCommand
+    }
+    if ($node) {
+        try {
+            $nodeVersion = (& $node --version).Trim()
+            Write-Host "Node.js detectado: $nodeVersion ($node)" -ForegroundColor Green
+        } catch {
+            Write-Host "Node.js detectado, pero no se pudo leer la version: $node" -ForegroundColor Yellow
+        }
+    } else {
+        throw "No se pudo preparar Node.js LTS."
+    }
+
+    $npm = Find-NpmCommand
+    if (-not $npm) {
+        throw "No se encontro npm tras preparar Node.js. Abre una terminal nueva o reinstala Node.js LTS."
+    }
+    try {
+        $npmVersion = (& $npm --version).Trim()
+        Write-Host "npm detectado: $npmVersion ($npm)" -ForegroundColor Green
+    } catch {
+        Write-Host "npm detectado, pero no se pudo leer la version: $npm" -ForegroundColor Yellow
+    }
+
+    $codexCli = Find-CodexDesktopCli
+    if (-not $codexCli) {
+        Install-CodexCli -NpmCommand $npm
+        $codexCli = Find-CodexDesktopCli
+    }
+
+    if ($codexCli) {
+        Write-Host "Codex CLI oficial detectado: $codexCli" -ForegroundColor Green
+        try {
+            & $codexCli --version | Out-Host
+        } catch {
+            Write-Host "Codex CLI instalado, pero no se pudo leer la version." -ForegroundColor Yellow
+        }
+        try {
+            & $codexCli login status | Out-Host
+        } catch {
+            Write-Host "Codex CLI instalado. Inicia sesion con ChatGPT ejecutando: codex login" -ForegroundColor Yellow
+        }
+    } else {
+        throw "No se encontro codex.cmd tras instalar @openai/codex."
+    }
+}
+
 $Python = Find-Python
 Test-PythonVersion -PythonCommand $Python
 
@@ -179,23 +289,15 @@ if ($InstalarOCR) {
 }
 
 if ($PrepararCodex) {
-    Write-Step "Comprobando integracion con Codex App"
-    $CodexDesktop = Find-CodexDesktop
-    $CodexCli = Find-CodexDesktopCli
-    if ($CodexDesktop) {
-        Write-Host "Codex Desktop detectado: $CodexDesktop" -ForegroundColor Green
-    } else {
-        Write-Host "Codex Desktop no detectado. La app funcionara con API o modo manual; podras instalar Codex Desktop mas adelante." -ForegroundColor Yellow
-    }
-    if ($CodexCli) {
-        Write-Host "CLI de Codex Desktop detectado: $CodexCli" -ForegroundColor Green
-        try {
-            & $CodexCli login status | Out-Host
-        } catch {
-            Write-Host "No se pudo comprobar la sesion. Abre Codex Desktop e inicia sesion con ChatGPT." -ForegroundColor Yellow
+    try {
+        $CodexDesktop = Find-CodexDesktop
+        if ($CodexDesktop) {
+            Write-Host "Codex Desktop detectado: $CodexDesktop" -ForegroundColor Green
         }
-    } else {
-        Write-Host "No hay CLI ejecutable de Codex Desktop. No se usara el Codex de VS Code para automatizar correcciones." -ForegroundColor Yellow
+        Ensure-CodexEnvironment
+    } catch {
+        Write-Host "No se pudo preparar Codex automaticamente. La app seguira funcionando con API o modo prompt manual." -ForegroundColor Yellow
+        Write-Host "Detalle: $_" -ForegroundColor Yellow
     }
 }
 

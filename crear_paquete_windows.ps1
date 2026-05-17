@@ -229,6 +229,8 @@ Primer uso:
 Modos de correccion:
 - Con OpenAI API: guarda la API key desde Configuracion y pulsa corregir prompts con API cuando quieras gastar API.
 - Sin API: usa los prompts de pendientes/prompts_codex con Codex u otra IA, genera los *_correccion.json y despues importalos desde la interfaz.
+- Si marcas la opcion de Codex en el instalador, intentara detectar Node.js/npm, instalar Node.js LTS con winget si falta e instalar el CLI oficial con npm.
+- Tras instalar Codex CLI, inicia sesion una vez con: codex login.
 
 Subida a CARM:
 - La app usa subida asistida.

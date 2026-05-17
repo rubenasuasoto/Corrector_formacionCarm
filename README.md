@@ -45,7 +45,7 @@ Es la entrada recomendada para una instalacion guiada en Windows. Crea `.venv`, 
 
 El instalador abre una ventana de configuracion basica: carpeta donde instalar la app, carpeta de datos/descargas, acceso directo, inicio con Windows y apertura al terminar. Por defecto activa el inicio con Windows y separa datos por curso dentro de la carpeta de datos elegida.
 
-Tambien incluye una casilla de integracion con Codex Desktop. No instala Codex todavia: solo detecta si la app de escritorio `OpenAI.Codex` esta disponible y deja la app preparada para usarla sin `OPENAI_API_KEY` cuando Codex Desktop exponga un CLI ejecutable. No se usa el Codex de VS Code para este flujo.
+Tambien incluye una casilla para preparar Codex sin API. Si la marcas, el instalador detecta Node.js/npm, intenta instalar Node.js LTS con `winget` si falta e instala/actualiza el CLI oficial con `npm i -g @openai/codex`. No se usa el Codex de VS Code para este flujo.
 
 La instalacion se registra para el usuario actual en **Aplicaciones instaladas** de Windows como `Corrector CARM`. Desde ahi se puede desinstalar. Tambien puedes usar:
 
@@ -59,7 +59,7 @@ Por defecto la desinstalacion quita app, accesos, inicio automatico y entrada de
 .\desinstalar_windows.ps1 -EliminarDatos
 ```
 
-En otro ordenador, si se quiere usar Codex sin API, instala primero Node.js LTS y despues el CLI oficial:
+En otro ordenador, si se quiere usar Codex sin API y no se marco esa opcion en el instalador, se puede preparar manualmente asi:
 
 ```powershell
 winget install --id OpenJS.NodeJS.LTS --source winget
