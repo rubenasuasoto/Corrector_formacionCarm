@@ -932,8 +932,8 @@ def check_instalador_python() -> bool:
     try:
         tecnico_text = tecnico.read_text(encoding="utf-8")
         guiado_text = guiado.read_text(encoding="utf-8")
-        setup_text = setup.read_text(encoding="utf-8")
         desinstalador_text = desinstalador.read_text(encoding="utf-8")
+        setup_text = setup.read_text(encoding="utf-8") if setup.exists() else ""
     except Exception as exc:
         safe_print(f"ERROR: no se pudieron leer los instaladores: {exc}")
         return False
@@ -950,6 +950,7 @@ def check_instalador_python() -> bool:
         "Test-PythonInstallerVersion",
         "Find-WingetInstallerCommand",
         "El instalador intentara instalarlo con winget",
+        "UTF8Encoding($false)",
     ]
     required_silent_ui = [
         "Invoke-ProcessWithProgress",
@@ -958,15 +959,21 @@ def check_instalador_python() -> bool:
         "System.Windows.Forms.ListView",
         "En curso",
         "Desinstalador",
+        "Corrector_CARM_instalador.log",
+        "Corrector_CARM_instalador_stdout.log",
+        "Show-InstallerError",
+        "Add_FormClosing",
+        "Fase tecnica terminada con codigo",
         "instalador_guiado_windows.ps1",
         "Start-UninstallProgress",
         "Complete-UninstallProgress",
     ]
     missing = [item for item in required_tecnico if item not in tecnico_text]
     missing += [item for item in required_guiado if item not in guiado_text]
-    missing += [item for item in required_silent_ui[:6] if item not in guiado_text]
-    missing += [item for item in required_silent_ui[6:7] if item not in setup_text]
-    missing += [item for item in required_silent_ui[7:] if item not in desinstalador_text]
+    missing += [item for item in required_silent_ui[:11] if item not in guiado_text]
+    if setup_text:
+        missing += [item for item in required_silent_ui[11:12] if item not in setup_text]
+    missing += [item for item in required_silent_ui[12:] if item not in desinstalador_text]
     if missing:
         safe_print("ERROR: autodeteccion/instalacion de Python incompleta: " + ", ".join(missing))
         return False

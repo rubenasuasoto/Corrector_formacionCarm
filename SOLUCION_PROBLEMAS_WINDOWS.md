@@ -89,6 +89,16 @@ Para lectura avanzada de PDF, PPTX, XLSX u OCR:
 .\reparar_dependencias_windows.cmd -ConExtraccion
 ```
 
+Si el asistente de instalacion falla o se cierra en `Instalando dependencias`, revisa el log que deja el instalador:
+
+```text
+%TEMP%\Corrector_CARM_instalador.log
+```
+
+Ese archivo guarda la salida de Python, pip, Playwright, OCR y Codex CLI para diagnosticar el fallo sin mostrar terminales al usuario final.
+
+Desde la revision del 2026-05-18, si la instalacion termina correctamente la ventana de progreso se cierra sola. Si se queda abierta, tratalo como incidencia y revisa el log anterior antes de volver a ejecutar el setup.
+
 ## No aparece el icono de bandeja
 
 1. Ejecuta:

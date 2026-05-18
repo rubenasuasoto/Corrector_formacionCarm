@@ -13,10 +13,35 @@ $ErrorActionPreference = "Stop"
 $SourceRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $DefaultInstallDir = Join-Path $env:LOCALAPPDATA "Programs\Corrector CARM"
 $DefaultDataDir = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "Corrector CARM"
+$InstallerLogPath = Join-Path $env:TEMP "Corrector_CARM_instalador.log"
+
+function Write-InstallerLog([string]$Message) {
+    try {
+        $stamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        Add-Content -LiteralPath $InstallerLogPath -Encoding UTF8 -Value "$stamp $Message"
+    } catch {}
+}
+
+function Show-InstallerError([string]$Message) {
+    Write-InstallerLog "[ERROR] $Message"
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        [System.Windows.Forms.MessageBox]::Show(
+            "$Message`n`nRevisa el log del instalador:`n$InstallerLogPath",
+            "Instalador Corrector CARM",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error
+        ) | Out-Null
+    } catch {
+        Write-Host $Message -ForegroundColor Red
+        Write-Host "Log: $InstallerLogPath" -ForegroundColor Yellow
+    }
+}
 
 function Write-Step($Message) {
     Write-Host ""
     Write-Host "==> $Message" -ForegroundColor Cyan
+    Write-InstallerLog "==> $Message"
 }
 
 function Resolve-FullPath([string]$PathValue) {
@@ -28,6 +53,10 @@ function Resolve-FullPath([string]$PathValue) {
 
 function Quote-Arg([string]$Value) {
     return '"' + ($Value -replace '"', '\"') + '"'
+}
+
+function Quote-PowerShellLiteral([string]$Value) {
+    return "'" + ($Value -replace "'", "''") + "'"
 }
 
 function Read-ExistingAppConfig([string]$Root) {
@@ -494,7 +523,9 @@ function Write-AppConfig {
         installer_configured_at = (Get-Date).ToString("s")
     }
     #>
-    $config | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Root ".corrector_app.json") -Encoding UTF8
+    $json = $config | ConvertTo-Json -Depth 4
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText((Join-Path $Root ".corrector_app.json"), $json, $utf8NoBom)
 }
 
 function Invoke-ProcessWithProgress {
@@ -575,6 +606,8 @@ function Invoke-ProcessWithProgress {
     $logBox.Location = New-Object System.Drawing.Point(328, 146)
     $logBox.Size = New-Object System.Drawing.Size(466, 300)
     $form.Controls.Add($logBox)
+    $logBox.AppendText("Log: $InstallerLogPath" + [Environment]::NewLine)
+    Write-InstallerLog "Iniciando fase tecnica: $FilePath $($Arguments -join ' ')"
 
     $closeButton = New-Object System.Windows.Forms.Button
     $closeButton.Text = "Cerrar"
@@ -583,6 +616,15 @@ function Invoke-ProcessWithProgress {
     $closeButton.Size = New-Object System.Drawing.Size(90, 28)
     $closeButton.Add_Click({ $form.Close() })
     $form.Controls.Add($closeButton)
+    $form.Add_FormClosing({
+        param($sender, $eventArgs)
+        try {
+            if ($process -and -not $process.HasExited -and -not $closeButton.Enabled) {
+                $eventArgs.Cancel = $true
+                $detailLabel.Text = "La instalacion sigue en curso. Espera a que termine."
+            }
+        } catch {}
+    })
 
     $stepNames = @(
         "Python",
@@ -649,64 +691,135 @@ function Invoke-ProcessWithProgress {
     }
 
     $queue = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+    $stdoutLog = Join-Path $env:TEMP "Corrector_CARM_instalador_stdout.log"
+    $stderrLog = Join-Path $env:TEMP "Corrector_CARM_instalador_stderr.log"
+    $runnerScript = Join-Path $env:TEMP "Corrector_CARM_instalador_runner.ps1"
+    Remove-Item -LiteralPath $stdoutLog, $stderrLog -Force -ErrorAction SilentlyContinue
+    $runnerArgs = ($Arguments | ForEach-Object {
+        $arg = [string]$_
+        if ($arg.Length -ge 2 -and $arg.StartsWith('"') -and $arg.EndsWith('"')) {
+            $arg = $arg.Substring(1, $arg.Length - 2)
+        }
+        Quote-PowerShellLiteral $arg
+    }) -join ",`n"
+    $runnerExe = Quote-PowerShellLiteral $FilePath
+    $runnerStdout = Quote-PowerShellLiteral $stdoutLog
+    $runnerContent = @"
+`$ErrorActionPreference = 'Continue'
+`$exe = $runnerExe
+`$utf8NoBom = New-Object System.Text.UTF8Encoding(`$false)
+function Write-RunnerLine([object]`$Value) {
+    [System.IO.File]::AppendAllText($runnerStdout, ([string]`$Value + [Environment]::NewLine), `$utf8NoBom)
+}
+`$argsList = @(
+$runnerArgs
+)
+try {
+    & `$exe @argsList 2>&1 | ForEach-Object { Write-RunnerLine `$_ }
+    if (`$null -ne `$LASTEXITCODE) { exit `$LASTEXITCODE }
+    exit 0
+} catch {
+    Write-RunnerLine `"ERROR EJECUTANDO INSTALADOR TECNICO: `$(`$_ | Out-String)`"
+    exit 1
+}
+"@
+    Set-Content -LiteralPath $runnerScript -Value $runnerContent -Encoding UTF8
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $process.StartInfo.FileName = $FilePath
-    $process.StartInfo.Arguments = ($Arguments -join " ")
+    $process.StartInfo.FileName = "powershell.exe"
+    $process.StartInfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -File " + (Quote-Arg $runnerScript)
     $process.StartInfo.WorkingDirectory = $WorkingDirectory
     $process.StartInfo.UseShellExecute = $false
     $process.StartInfo.CreateNoWindow = $true
     $process.StartInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
-    $process.StartInfo.RedirectStandardOutput = $true
-    $process.StartInfo.RedirectStandardError = $true
-
-    $outputHandler = [System.Diagnostics.DataReceivedEventHandler]{
-        param($sender, $eventArgs)
-        if ($eventArgs.Data) {
-            $queue.Enqueue($eventArgs.Data)
-        }
-    }
-    $process.add_OutputDataReceived($outputHandler)
-    $process.add_ErrorDataReceived($outputHandler)
+    $process.StartInfo.RedirectStandardOutput = $false
+    $process.StartInfo.RedirectStandardError = $false
 
     $timer = New-Object System.Windows.Forms.Timer
     $timer.Interval = 150
     $exitCode = $null
-    $timer.Add_Tick({
-        $line = $null
-        while ($queue.TryDequeue([ref]$line)) {
-            $logBox.AppendText($line + [Environment]::NewLine)
-            $logBox.SelectionStart = $logBox.TextLength
-            $logBox.ScrollToCaret()
-            $detectedStep = & $stepForLine $line
-            if ($detectedStep) {
-                if ($currentStep -and $currentStep -ne $detectedStep) {
-                    & $setStepStatus $currentStep "OK"
+    $lastStdoutLength = 0
+    $lastStderrLength = 0
+    $readLogLines = {
+        param([string]$Path, [ref]$LastLength)
+        if (-not (Test-Path -LiteralPath $Path)) { return }
+        try {
+            $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+            try {
+                if ($stream.Length -lt $LastLength.Value) {
+                    $LastLength.Value = 0
                 }
-                $currentStep = $detectedStep
-                & $setStepStatus $currentStep "En curso"
-                $detailLabel.Text = "Ahora: $detectedStep"
+                if ($stream.Length -le $LastLength.Value) {
+                    return
+                }
+                $stream.Seek($LastLength.Value, [System.IO.SeekOrigin]::Begin) | Out-Null
+                $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8, $true)
+                $chunk = $reader.ReadToEnd()
+                $LastLength.Value = $stream.Position
+                foreach ($part in ($chunk -split "(`r`n|`n|`r)")) {
+                    if (-not [string]::IsNullOrWhiteSpace($part)) {
+                        $queue.Enqueue($part)
+                    }
+                }
+            } finally {
+                $stream.Dispose()
             }
-            if ($line -match "No se pudo|fallo|ERROR|Error") {
-                if ($currentStep) { & $setStepStatus $currentStep "Aviso" }
-            }
-            $line = $null
+        } catch {
+            Write-InstallerLog "[WARN LOG READ] $_"
         }
-        if ($process.HasExited) {
-            $timer.Stop()
-            $script:__CorrectorProgressExitCode = $process.ExitCode
-            $progress.Style = [System.Windows.Forms.ProgressBarStyle]::Blocks
-            $progress.MarqueeAnimationSpeed = 0
-            if ($process.ExitCode -eq 0) {
-                if ($currentStep) { & $setStepStatus $currentStep "OK" }
-                $progress.Value = 100
-                $titleLabel.Text = "Instalacion completada"
-                $detailLabel.Text = "Todo ha terminado correctamente."
-            } else {
-                if ($currentStep) { & $setStepStatus $currentStep "Error" }
-                $titleLabel.Text = "La instalacion necesita revision"
-                $detailLabel.Text = "Revisa el detalle. Si OCR fallo, la app puede seguir funcionando y marcar esos archivos para revision manual."
+    }
+    $timer.Add_Tick({
+        try {
+            & $readLogLines $stdoutLog ([ref]$lastStdoutLength)
+            & $readLogLines $stderrLog ([ref]$lastStderrLength)
+            $line = $null
+            while ($queue.TryDequeue([ref]$line)) {
+                Write-InstallerLog $line
+                $logBox.AppendText($line + [Environment]::NewLine)
+                $logBox.SelectionStart = $logBox.TextLength
+                $logBox.ScrollToCaret()
+                $detectedStep = & $stepForLine $line
+                if ($detectedStep) {
+                    if ($currentStep -and $currentStep -ne $detectedStep) {
+                        & $setStepStatus $currentStep "OK"
+                    }
+                    $currentStep = $detectedStep
+                    & $setStepStatus $currentStep "En curso"
+                    $detailLabel.Text = "Ahora: $detectedStep"
+                }
+                if ($line -match "No se pudo|fallo|ERROR|Error") {
+                    if ($currentStep) { & $setStepStatus $currentStep "Aviso" }
+                }
+                $line = $null
             }
+            if ($process.HasExited) {
+                $timer.Stop()
+                $script:__CorrectorProgressExitCode = $process.ExitCode
+                Write-InstallerLog "Fase tecnica terminada con codigo $($process.ExitCode)"
+                $progress.Style = [System.Windows.Forms.ProgressBarStyle]::Blocks
+                $progress.MarqueeAnimationSpeed = 0
+                if ($process.ExitCode -eq 0) {
+                    if ($currentStep) { & $setStepStatus $currentStep "OK" }
+                    $progress.Value = 100
+                    $titleLabel.Text = "Instalacion completada"
+                    $detailLabel.Text = "Todo ha terminado correctamente."
+                    $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
+                    $form.Close()
+                } else {
+                    if ($currentStep) { & $setStepStatus $currentStep "Error" }
+                    $titleLabel.Text = "La instalacion necesita revision"
+                    $detailLabel.Text = "Revisa el detalle. El log queda guardado en $InstallerLogPath"
+                    $closeButton.Text = "Continuar"
+                    $closeButton.Enabled = $true
+                    $form.ControlBox = $true
+                }
+            }
+        } catch {
+            $timer.Stop()
+            $script:__CorrectorProgressExitCode = 1
+            Write-InstallerLog "[ERROR UI] $_"
+            $titleLabel.Text = "La instalacion necesita revision"
+            $detailLabel.Text = "Se produjo un error mostrando el progreso. El log queda guardado en $InstallerLogPath"
             $closeButton.Text = "Continuar"
             $closeButton.Enabled = $true
             $form.ControlBox = $true
@@ -714,11 +827,15 @@ function Invoke-ProcessWithProgress {
     })
 
     $script:__CorrectorProgressExitCode = $null
-    [void]$process.Start()
-    $process.BeginOutputReadLine()
-    $process.BeginErrorReadLine()
-    $timer.Start()
-    [void]$form.ShowDialog()
+    try {
+        [void]$process.Start()
+        $timer.Start()
+        [void]$form.ShowDialog()
+    } catch {
+        Write-InstallerLog "[ERROR START] $_"
+        Show-InstallerError "No se pudo iniciar la fase tecnica de instalacion: $_"
+        return 1
+    }
     $timer.Stop()
     if ($null -eq $script:__CorrectorProgressExitCode) {
         $script:__CorrectorProgressExitCode = $process.ExitCode
@@ -726,6 +843,7 @@ function Invoke-ProcessWithProgress {
     return [int]$script:__CorrectorProgressExitCode
 }
 
+try {
 if ($SinInterfaz) {
     $choices = [ordered]@{
         InstallDir = if ($InstallDir) { $InstallDir } else { $DefaultInstallDir }
@@ -798,6 +916,9 @@ if ($exitCode -ne 0) {
     throw "La instalacion tecnica fallo con codigo $exitCode."
 }
 
+Write-Step "Confirmando configuracion local"
+Write-AppConfig -Root $TargetRoot -DataRoot $TargetData -PrepararCodex ([bool]$choices.PrepararCodex)
+
 if ($choices.AbrirAlFinal) {
     $launcher = Join-Path $TargetRoot "Corrector CARM.exe"
     if (Test-Path -LiteralPath $launcher) {
@@ -811,3 +932,8 @@ Write-Host ""
 Write-Host "Corrector CARM instalado correctamente." -ForegroundColor Green
 Write-Host "Instalacion: $TargetRoot"
 Write-Host "Datos:       $TargetData"
+Write-InstallerLog "Instalacion completada correctamente. Instalacion: $TargetRoot Datos: $TargetData"
+} catch {
+    Show-InstallerError "La instalacion no se ha completado correctamente: $_"
+    exit 1
+}
