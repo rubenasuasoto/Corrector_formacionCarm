@@ -36,16 +36,87 @@ function Find-Python {
             return $candidate
         }
     }
-    throw "No se encontro Python. Instala Python 3.12+ para Windows y vuelve a ejecutar este instalador."
+    return ""
+}
+
+function Get-PythonVersion {
+    param([string]$PythonCommand)
+    if (-not $PythonCommand) {
+        return ""
+    }
+    try {
+        return (& $PythonCommand -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
+    } catch {
+        return ""
+    }
 }
 
 function Test-PythonVersion {
     param([string]$PythonCommand)
-    $versionText = & $PythonCommand -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
-    $parts = $versionText.Trim().Split(".")
-    if ([int]$parts[0] -lt 3 -or ([int]$parts[0] -eq 3 -and [int]$parts[1] -lt 12)) {
-        throw "Python 3.12+ requerido. Detectado: $versionText"
+    $versionText = Get-PythonVersion -PythonCommand $PythonCommand
+    if (-not $versionText) {
+        return $false
     }
+    $parts = $versionText.Split(".")
+    return ([int]$parts[0] -gt 3 -or ([int]$parts[0] -eq 3 -and [int]$parts[1] -ge 12))
+}
+
+function Add-PythonInstallPaths {
+    $paths = @(
+        (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\Scripts"),
+        (Join-Path $env:ProgramFiles "Python312"),
+        (Join-Path $env:ProgramFiles "Python312\Scripts")
+    )
+    foreach ($path in $paths) {
+        if ($path -and (Test-Path -LiteralPath $path)) {
+            $env:Path = "$path;$env:Path"
+        }
+    }
+}
+
+function Install-Python312 {
+    $winget = Get-Command "winget.exe" -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        throw "No se encontro Python 3.12+ ni winget. Instala Python 3.12+ manualmente desde https://www.python.org/downloads/windows/ y vuelve a ejecutar el instalador."
+    }
+
+    Write-Host "Python 3.12+ no detectado. Instalando Python 3.12 con winget..." -ForegroundColor Yellow
+    Invoke-Native "Instalacion de Python 3.12" {
+        & $winget.Source install --id Python.Python.3.12 --source winget --accept-package-agreements --accept-source-agreements --silent
+    }
+    Add-PythonInstallPaths
+}
+
+function Ensure-Python {
+    $python = Find-Python
+    if ($python -and (Test-PythonVersion -PythonCommand $python)) {
+        $versionText = Get-PythonVersion -PythonCommand $python
+        Write-Host "Python detectado: $versionText ($python)" -ForegroundColor Green
+        return $python
+    }
+
+    if ($python) {
+        $versionText = Get-PythonVersion -PythonCommand $python
+        if ($versionText) {
+            Write-Host "Python detectado, pero es antiguo: $versionText. Se preparara Python 3.12." -ForegroundColor Yellow
+        }
+    }
+
+    Install-Python312
+    $python = Find-Python
+    if (-not $python) {
+        Add-PythonInstallPaths
+        $python = Find-Python
+    }
+    if (-not $python -or -not (Test-PythonVersion -PythonCommand $python)) {
+        $versionText = Get-PythonVersion -PythonCommand $python
+        if (-not $versionText) { $versionText = "no detectable" }
+        throw "Python 3.12+ requerido. Detectado: $versionText. Abre una terminal nueva o instala Python 3.12+ manualmente."
+    }
+    $versionText = Get-PythonVersion -PythonCommand $python
+    Write-Host "Python listo: $versionText ($python)" -ForegroundColor Green
+    return $python
 }
 
 function New-AppShortcut {
@@ -256,8 +327,7 @@ function Ensure-CodexEnvironment {
     }
 }
 
-$Python = Find-Python
-Test-PythonVersion -PythonCommand $Python
+$Python = Ensure-Python
 
 if (-not (Test-Path ".venv\Scripts\python.exe")) {
     Write-Step "Creando entorno virtual .venv"

@@ -557,12 +557,33 @@ def check_contexto_cursos_cuenta() -> bool:
             safe_print("ERROR: no se detectan como base invalida las rutas temporales de un curso concreto.")
             return False
 
+        cursos_auto = app.selected_courses_for_auto()
+        if [curso["id"] for curso in cursos_auto] != ["1592", "1600"]:
+            safe_print("ERROR: los cursos seleccionados para autoprompteo no se conservan en cola.")
+            return False
+        rutas_pendientes = {curso["pendientes"] for curso in cursos_auto}
+        rutas_temporal = {curso["temporal"] for curso in cursos_auto}
+        if len(rutas_pendientes) != 2 or len(rutas_temporal) != 2:
+            safe_print("ERROR: varios cursos seleccionados comparten carpeta de trabajo.")
+            return False
+        if not all(rf"\cursos\{curso['id']}\pendientes".lower() in curso["pendientes"].lower() for curso in cursos_auto):
+            safe_print("ERROR: los pendientes de autoprompteo no apuntan a la carpeta del curso.")
+            return False
+        if not all(rf"\cursos\{curso['id']}\temporal".lower() in curso["temporal"].lower() for curso in cursos_auto):
+            safe_print("ERROR: los temporales de autoprompteo no apuntan a la carpeta del curso.")
+            return False
+        for curso in cursos_auto:
+            args = app.auto_prepare_args_for_course(curso)
+            if curso["pendientes"] not in args or curso["temporal"] not in args:
+                safe_print("ERROR: el autoprompteo no propaga rutas por curso al subproceso.")
+                return False
+
         app.read_env_values = lambda: {"CARM_USUARIO": "tu_usuario_carm", "CARM_CONTRASENA": "tu_contrasena_carm"}
         if app.carm_credentials_present():
             safe_print("ERROR: valores de plantilla en .env cuentan como credenciales reales.")
             return False
 
-        safe_print("OK: cambio de cuenta bloquea cursos antiguos y misma cuenta conserva seleccion.")
+        safe_print("OK: cambio de cuenta bloquea cursos antiguos y el autoprompteo multi-curso usa carpetas separadas.")
         return True
     except Exception as exc:
         safe_print(f"ERROR: prueba de contexto cuenta/curso fallo: {exc}")
@@ -780,6 +801,88 @@ def check_revision_manual_interfaz() -> bool:
         shutil.rmtree(base, ignore_errors=True)
 
 
+def check_autoprompt_hora() -> bool:
+    safe_print("\n==> Horario de autoprompt")
+    import interfaz_app as app
+
+    original_config_path = app.APP_CONFIG_PATH
+    base = ROOT / ".tmp_autoprompt_check"
+    if base.exists():
+        shutil.rmtree(base, ignore_errors=True)
+    base.mkdir(parents=True, exist_ok=True)
+    try:
+        app.APP_CONFIG_PATH = base / ".corrector_app.json"
+        app.save_automation_config(
+            interval_minutes=600,
+            periodic_auto_prepare=True,
+            auto_prepare_interval=0,
+            auto_prepare_time="08:30",
+        )
+        if app.auto_prepare_time_of_day() != "08:30":
+            safe_print("ERROR: la hora 08:30 no queda guardada o no se lee correctamente.")
+            return False
+        app.save_automation_config(
+            interval_minutes=600,
+            periodic_auto_prepare=True,
+            auto_prepare_interval=0,
+            auto_prepare_time="00:00",
+        )
+        if app.auto_prepare_time_of_day() != "00:00":
+            safe_print("ERROR: la hora 00:00 no queda guardada o no se lee correctamente.")
+            return False
+        try:
+            app.save_automation_config(
+                interval_minutes=600,
+                periodic_auto_prepare=True,
+                auto_prepare_interval=0,
+                auto_prepare_time="24:00",
+            )
+        except ValueError:
+            safe_print("OK: hora exacta de autoprompt guarda HH:MM validos y rechaza horas invalidas.")
+            return True
+        safe_print("ERROR: la hora invalida 24:00 fue aceptada.")
+        return False
+    except Exception as exc:
+        safe_print(f"ERROR: prueba de horario de autoprompt fallo: {exc}")
+        return False
+    finally:
+        app.APP_CONFIG_PATH = original_config_path
+        shutil.rmtree(base, ignore_errors=True)
+
+
+def check_instalador_python() -> bool:
+    safe_print("\n==> Instalador Python")
+    tecnico = ROOT / "instalar_windows.ps1"
+    guiado = ROOT / "instalador_guiado_windows.ps1"
+    try:
+        tecnico_text = tecnico.read_text(encoding="utf-8")
+        guiado_text = guiado.read_text(encoding="utf-8")
+    except Exception as exc:
+        safe_print(f"ERROR: no se pudieron leer los instaladores: {exc}")
+        return False
+
+    required_tecnico = [
+        "function Ensure-Python",
+        "function Install-Python312",
+        "Python.Python.3.12",
+        "winget.exe",
+        "$Python = Ensure-Python",
+    ]
+    required_guiado = [
+        "Find-PythonInstallerCommand",
+        "Test-PythonInstallerVersion",
+        "Find-WingetInstallerCommand",
+        "El instalador intentara instalarlo con winget",
+    ]
+    missing = [item for item in required_tecnico if item not in tecnico_text]
+    missing += [item for item in required_guiado if item not in guiado_text]
+    if missing:
+        safe_print("ERROR: autodeteccion/instalacion de Python incompleta: " + ", ".join(missing))
+        return False
+    safe_print("OK: instalador detecta Python 3.12+ e intenta prepararlo con winget si falta.")
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verificacion local del Corrector CARM.")
     parser.add_argument(
@@ -825,6 +928,8 @@ def main() -> int:
         ok &= check_export_codex_project_extenso()
         ok &= check_interfaz_flujos_seguro()
         ok &= check_revision_manual_interfaz()
+        ok &= check_autoprompt_hora()
+        ok &= check_instalador_python()
     if not args.sin_endpoints:
         ok &= check_local_endpoints()
 

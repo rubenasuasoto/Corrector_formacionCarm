@@ -35,8 +35,108 @@ function Find-IExpress {
     throw "No se encontro IExpress en Windows. Usa crear_paquete_windows.cmd o instala Inno Setup para crear un instalador EXE alternativo."
 }
 
+function Find-CSharpCompiler {
+    $candidates = @(
+        (Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"),
+        (Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe"),
+        (Get-Command "csc.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)
+    )
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            return $candidate
+        }
+    }
+    return ""
+}
+
 function Quote-SedValue([string]$Value) {
     return $Value -replace '"', '""'
+}
+
+function New-CustomIconSetup {
+    param(
+        [string]$PayloadZip,
+        [string]$SetupPath,
+        [string]$BuildRoot
+    )
+
+    $compiler = Find-CSharpCompiler
+    $iconPath = Join-Path $Root "assets\corrector_carm.ico"
+    if (-not $compiler -or -not (Test-Path -LiteralPath $iconPath)) {
+        return $false
+    }
+
+    $sourcePath = Join-Path $BuildRoot "CorrectorCarmSetup.cs"
+    $source = @'
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Reflection;
+using System.Windows.Forms;
+
+internal static class CorrectorCarmSetup
+{
+    [STAThread]
+    private static int Main()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), "CorrectorCARM_Setup_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(tempRoot);
+            string zipPath = Path.Combine(tempRoot, "payload.zip");
+            using (Stream input = Assembly.GetExecutingAssembly().GetManifestResourceStream("CorrectorCarm.PayloadZip"))
+            {
+                if (input == null) throw new InvalidOperationException("No se encontro el paquete interno de instalacion.");
+                using (FileStream output = File.Create(zipPath))
+                {
+                    input.CopyTo(output);
+                }
+            }
+
+            ZipFile.ExtractToDirectory(zipPath, tempRoot);
+            string appDir = Directory.GetDirectories(tempRoot, "Corrector_CARM_*")
+                .FirstOrDefault(path => File.Exists(Path.Combine(path, "INSTALAR_CORRECTOR_CARM.cmd")));
+            if (String.IsNullOrWhiteSpace(appDir))
+            {
+                throw new InvalidOperationException("No se encontro el instalador guiado dentro del paquete extraido.");
+            }
+
+            ProcessStartInfo start = new ProcessStartInfo();
+            start.FileName = "cmd.exe";
+            start.Arguments = "/c call \"INSTALAR_CORRECTOR_CARM.cmd\"";
+            start.WorkingDirectory = appDir;
+            start.UseShellExecute = false;
+            start.CreateNoWindow = false;
+            Process proc = Process.Start(start);
+            proc.WaitForExit();
+            return proc.ExitCode;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Instalador Corrector CARM", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return 1;
+        }
+    }
+}
+'@
+    Set-Content -LiteralPath $sourcePath -Value $source -Encoding UTF8
+
+    $arguments = @(
+        "/nologo",
+        "/target:winexe",
+        "/platform:anycpu",
+        "/out:$SetupPath",
+        "/win32icon:$iconPath",
+        "/resource:$PayloadZip,CorrectorCarm.PayloadZip",
+        "/reference:System.Windows.Forms.dll",
+        "/reference:System.IO.Compression.dll",
+        "/reference:System.IO.Compression.FileSystem.dll",
+        $sourcePath
+    )
+    & $compiler @arguments | Out-Host
+    return ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $SetupPath))
 }
 
 $Version = Get-AppVersion
@@ -110,9 +210,13 @@ exit /b %EXITCODE%
 '@
     Set-Content -LiteralPath (Join-Path $SfxSource "instalar_corrector_carm_setup.cmd") -Value $Bootstrap -Encoding ASCII
 
-    $IExpress = Find-IExpress
-    Write-Step "Creando instalador EXE autoextraible"
-    $Sed = @"
+    Write-Step "Creando instalador EXE autoextraible con icono propio"
+    $customIconOk = New-CustomIconSetup -PayloadZip $PayloadZip.FullName -SetupPath $SetupPath -BuildRoot $BuildRoot
+    if (-not $customIconOk) {
+        Write-Host "No se pudo crear el EXE con icono propio; se usa IExpress como fallback." -ForegroundColor Yellow
+        $IExpress = Find-IExpress
+        Write-Step "Creando instalador EXE autoextraible con IExpress"
+        $Sed = @"
 [Version]
 Class=IEXPRESS
 SEDVersion=3
@@ -148,17 +252,18 @@ SourceFiles0="$(Quote-SedValue ($SfxSource + "\"))"
 FILE0="payload.zip"
 FILE1="instalar_corrector_carm_setup.cmd"
 "@
-    Set-Content -LiteralPath $SedPath -Value $Sed -Encoding ASCII
-    & $IExpress /N /Q $SedPath
-    if ($LASTEXITCODE -ne 0) {
-        throw "IExpress fallo con codigo $LASTEXITCODE"
-    }
-    $Deadline = (Get-Date).AddSeconds(20)
-    while (-not (Test-Path -LiteralPath $SetupPath) -and (Get-Date) -lt $Deadline) {
-        Start-Sleep -Milliseconds 300
+        Set-Content -LiteralPath $SedPath -Value $Sed -Encoding ASCII
+        & $IExpress /N /Q $SedPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "IExpress fallo con codigo $LASTEXITCODE"
+        }
+        $Deadline = (Get-Date).AddSeconds(20)
+        while (-not (Test-Path -LiteralPath $SetupPath) -and (Get-Date) -lt $Deadline) {
+            Start-Sleep -Milliseconds 300
+        }
     }
     if (-not (Test-Path -LiteralPath $SetupPath)) {
-        throw "IExpress termino sin crear $SetupPath"
+        throw "No se pudo crear $SetupPath"
     }
 
     $SizeMb = [math]::Round((Get-Item -LiteralPath $SetupPath).Length / 1MB, 2)
@@ -166,6 +271,7 @@ FILE1="instalar_corrector_carm_setup.cmd"
     Write-Host "Instalador EXE creado:" -ForegroundColor Green
     Write-Host $SetupPath
     Write-Host "Tamano MB: $SizeMb"
+    Write-Host "Icono: $(if ($customIconOk) { 'Corrector CARM' } else { 'IExpress por defecto' })"
     Write-Host ""
     Write-Host "Nota: al no estar firmado digitalmente, Windows SmartScreen puede avisar de editor desconocido." -ForegroundColor Yellow
     if ($AbrirCarpeta) {
