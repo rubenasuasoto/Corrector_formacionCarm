@@ -125,6 +125,14 @@ Para crear un ZIP guiado para instalar en otro Windows:
 
 El paquete no incluye `.env`, `.venv`, cache, logs, entregas ni correcciones generadas.
 
+Para crear un instalador EXE autoextraible de un solo archivo:
+
+```powershell
+.\crear_instalador_setup_windows.cmd
+```
+
+El EXE contiene el paquete limpio y lanza `INSTALAR_CORRECTOR_CARM.cmd` automaticamente tras extraerlo en una carpeta temporal. Es la ruta pensada para usuarios finales que no deben descomprimir carpetas. Si no se firma digitalmente, Windows puede avisar de editor desconocido.
+
 Dependencias opcionales para leer PDF, PDF escaneados, PPTX/PPTM, XLSX/XLSM, ODT/ODS/ODP, EPUB, ZIP e imágenes con OCR:
 
 ```powershell

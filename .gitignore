@@ -23,3 +23,6 @@ codex_project/
 *.sqlite3
 *.db
 Corrector CARM.exe
+.tmp_setup_build/
+.tmp_setup_out/
+Corrector_CARM_*_Setup_*.exe
