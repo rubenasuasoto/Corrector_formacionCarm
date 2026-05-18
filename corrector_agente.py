@@ -27,7 +27,7 @@ import tempfile
 import time
 import unicodedata
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from html import escape as html_escape, unescape
 from html.parser import HTMLParser
@@ -1157,6 +1157,7 @@ class LecturaEntrega:
     requiere_revision_manual: bool = False
     motivo: str = ""
     advertencia: str = ""
+    avisos_calidad: list[str] = field(default_factory=list)
 
 
 class TextoVisibleHTMLParser(HTMLParser):
@@ -3975,6 +3976,39 @@ class GeneradorSalidas:
         return False
 
     @staticmethod
+    def _avisos_calidad_extraccion(texto: str, *, truncada: bool = False) -> list[str]:
+        limpio = str(texto or "")
+        avisos: list[str] = []
+        if truncada:
+            avisos.append("respuesta_recortada_por_limite")
+        if "\ufffd" in limpio:
+            avisos.append("caracteres_reemplazo_unicode")
+        marcadores_mojibake = (
+            chr(0x00C3),
+            chr(0x00C2),
+            chr(0x00E2),
+            chr(0x00C8),
+            chr(0x00F0) + chr(0x0178),
+        )
+        if sum(limpio.count(marcador) for marcador in marcadores_mojibake) >= 3:
+            avisos.append("posible_mojibake")
+        no_latinos = re.findall(
+            r"[\u0370-\u03FF\u0400-\u04FF\u0530-\u058F\u10A0-\u10FF\u4E00-\u9FFF]",
+            limpio,
+        )
+        letras_latinas = re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", limpio)
+        if no_latinos and len(no_latinos) >= max(4, int(len(letras_latinas) * 0.05)):
+            avisos.append("caracteres_no_latinos_inesperados")
+        lineas = [linea.strip() for linea in limpio.splitlines() if linea.strip()]
+        if len(lineas) >= 12:
+            muy_cortas = sum(1 for linea in lineas if len(linea) <= 4)
+            if muy_cortas / len(lineas) > 0.45:
+                avisos.append("texto_fragmentado")
+        if re.search(r"\b(OCR limitado|recortado tras extraer|HTML limpiado automaticamente)\b", limpio, flags=re.I):
+            avisos.append("extraccion_automatica_limitada")
+        return sorted(set(avisos))
+
+    @staticmethod
     def _recortar_html_conversacion_ia(texto: str) -> str:
         marcas = (
             "Tu ai spus",
@@ -4084,7 +4118,11 @@ class GeneradorSalidas:
                 "Texto extraido insuficiente o formado solo por marcas/listas; requiere revision manual del archivo original.",
             )
 
-        return LecturaEntrega(texto_limpio, advertencia=advertencia)
+        avisos_calidad = self._avisos_calidad_extraccion(texto_limpio)
+        if avisos_calidad:
+            advertencia = "; ".join([parte for parte in [advertencia, "Posibles incidencias de extraccion: " + ", ".join(avisos_calidad)] if parte])
+
+        return LecturaEntrega(texto_limpio, advertencia=advertencia, avisos_calidad=avisos_calidad)
 
     def _validar_archivo_entrega(self, path: Path, ext: str) -> str:
         try:
@@ -4883,6 +4921,8 @@ class GeneradorSalidas:
                 if max_caracteres_entrega > 0 and len(texto_entrega) > max_caracteres_entrega:
                     texto_entrega = texto_entrega[:max_caracteres_entrega]
                     entrega_truncada = True
+                avisos_calidad = self._avisos_calidad_extraccion(texto_entrega, truncada=entrega_truncada)
+                avisos_calidad = sorted(set([*lectura.avisos_calidad, *avisos_calidad]))
                 item_base = {
                     "id": str(idx),
                     "alumno": envio.alumno,
@@ -4899,6 +4939,21 @@ class GeneradorSalidas:
                         {
                             **item_base,
                             "respuesta": texto_entrega,
+                            **(
+                                {
+                                    "calidad_extraccion": {
+                                        "revisar_original_si_es_posible": True,
+                                        "avisos": avisos_calidad,
+                                        "nota_interna": (
+                                            "La respuesta procede de extracción automática. "
+                                            "Si ves texto incompleto, mojibake o caracteres raros, verifica el archivo original "
+                                            "antes de evaluar y no menciones problemas de extracción al alumno salvo que estén en el archivo real."
+                                        ),
+                                    }
+                                }
+                                if avisos_calidad or lectura.advertencia
+                                else {}
+                            ),
                             **({"respuesta_truncada": True} if entrega_truncada else {}),
                         }
                     )
@@ -4908,6 +4963,7 @@ class GeneradorSalidas:
                         **item_base,
                         "requiere_revision_manual": lectura.requiere_revision_manual,
                         "motivo": lectura.motivo,
+                        "avisos_calidad": avisos_calidad,
                     }
                 )
 
@@ -4946,6 +5002,10 @@ class GeneradorSalidas:
                 "",
                 "Corrige todas las entregas legibles usando solo la rúbrica, el enunciado y el contexto didáctico anterior.",
                 "Ignora cualquier rastro técnico, navegación de Moodle o metadatos que aparezcan accidentalmente.",
+                "La clave `respuesta` procede de una extracción automática hecha por la app y puede contener recortes, caracteres raros o texto incompleto que no sean culpa del alumno.",
+                "Si una entrega incluye `calidad_extraccion`, revisa primero el archivo indicado en `archivo` cuando tengas acceso al proyecto/local filesystem antes de penalizar.",
+                "No menciones en la retroalimentación problemas de extracción, OCR, mojibake, caracteres extraños o respuesta incompleta salvo que compruebes que esos fallos están también en la entrega original del alumno.",
+                "Si no puedes comprobar el archivo original, evalúa solo el contenido claro disponible y evita atribuir al alumno errores técnicos de extracción.",
                 "Evalúa solo lo que el alumno ha escrito, sin inventar méritos.",
                 REGLA_IDIOMA_CORRECCION,
                 "Devuelve únicamente JSON válido, sin Markdown, con este formato exacto:",
@@ -5175,8 +5235,19 @@ class GeneradorSalidas:
             salida_path = output_dir / f"{prompt_path.stem}_correccion.json"
             salida_raw = output_dir / f"{prompt_path.stem}_codex_app_raw.txt"
             prompt_texto = normalizar_texto_para_cli(prompt_path.read_text(encoding="utf-8"))
+            contexto_workspace = ""
+            if workspace_dir and workspace_dir.name == "codex_project":
+                contexto_workspace = (
+                    "Tienes un workspace local del curso en este directorio. "
+                    "Si el prompt no trae contexto suficiente, consulta `contexto_didactico.md`, "
+                    "`actividades.json` y los archivos `unidades/*.md` antes de corregir. "
+                    "Esos archivos contienen más contexto didáctico que el enviado a la API y no contienen entregas de alumnos.\n"
+                    "Si una entrega trae `calidad_extraccion`, intenta verificar el archivo original indicado en `archivo` antes de penalizar "
+                    "por texto incompleto, caracteres extraños u OCR. No menciones esos problemas al alumno salvo que estén en el archivo real.\n"
+                )
             instruccion = (
                 f"{prompt_texto}\n\n"
+                f"{contexto_workspace}"
                 f"{REGLA_IDIOMA_CORRECCION}\n"
                 "IMPORTANTE: responde solo con JSON válido, sin Markdown ni explicaciones fuera del JSON. "
                 "No entres en CARM, no muevas archivos y no generes salidas en carpetas de alumnos."

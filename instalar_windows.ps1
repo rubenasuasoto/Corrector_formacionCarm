@@ -206,6 +206,10 @@ function Ensure-CodexEnvironment {
         } catch {
             Write-Host "Node.js detectado, pero no se pudo leer la version: $node" -ForegroundColor Yellow
         }
+        $nodeDir = Split-Path -Parent $node
+        if ($nodeDir -and (Test-Path -LiteralPath $nodeDir)) {
+            $env:Path = "$nodeDir;$env:Path"
+        }
     } else {
         throw "No se pudo preparar Node.js LTS."
     }
@@ -235,7 +239,15 @@ function Ensure-CodexEnvironment {
             Write-Host "Codex CLI instalado, pero no se pudo leer la version." -ForegroundColor Yellow
         }
         try {
-            & $codexCli login status | Out-Host
+            $loginStatus = & $codexCli login status 2>&1
+            $loginExit = $LASTEXITCODE
+            $loginStatus | Out-Host
+            if ($loginExit -eq 0) {
+                Write-Host "Codex listo: sesion detectada." -ForegroundColor Green
+            } else {
+                Write-Host "Codex CLI listo, pero falta iniciar sesion para usar el modo sin API." -ForegroundColor Yellow
+                Write-Host "Despues de instalar, abre una terminal y ejecuta: codex login" -ForegroundColor Yellow
+            }
         } catch {
             Write-Host "Codex CLI instalado. Inicia sesion con ChatGPT ejecutando: codex login" -ForegroundColor Yellow
         }
@@ -352,3 +364,6 @@ Write-Host "Instalacion completada." -ForegroundColor Green
 Write-Host "Para abrir el panel: .\ABRIR_CORRECTOR_CARM.cmd"
 Write-Host "Para iniciar solo en bandeja: .\iniciar_app_windows.cmd"
 Write-Host "Para verificar todo tras configurar CARM: .\verificar_app_windows.cmd"
+if ($PrepararCodex) {
+    Write-Host "Modo sin API: si Codex no tiene sesion iniciada, ejecuta codex login antes de corregir con CLI." -ForegroundColor Yellow
+}
