@@ -255,6 +255,19 @@ def check_extraccion_insuficiente() -> bool:
     ):
         safe_print("ERROR: texto suficiente queda marcado como insuficiente.")
         return False
+    avisos = GeneradorSalidas._avisos_calidad_extraccion(
+        "Respuesta correcta sobre turismo e IA. " * 12 + (chr(0x10DE) + chr(0x10D0) + chr(0x10E1) + chr(0x10E3) + chr(0x10EE) + chr(0x10D0)) * 4
+    )
+    if "caracteres_no_latinos_inesperados" not in avisos:
+        safe_print("ERROR: no se detectan caracteres no latinos inesperados en una extraccion sospechosa.")
+        return False
+    avisos = GeneradorSalidas._avisos_calidad_extraccion(
+        "Respuesta desarrollada con contenido claro, estructura, ejemplos y medidas aplicables al caso.",
+        truncada=True,
+    )
+    if "respuesta_recortada_por_limite" not in avisos:
+        safe_print("ERROR: no se marca como aviso interno una respuesta recortada.")
+        return False
     safe_print("OK: textos vacios o solo con marcas/listas quedan fuera de correccion automatica.")
     return True
 
@@ -535,6 +548,14 @@ def check_contexto_cursos_cuenta() -> bool:
         if "1600" not in str(pendientes) or "1600" not in str(temporal):
             safe_print("ERROR: las carpetas activas no cambian al curso seleccionado.")
             return False
+        curso_pendientes = app.Path(r"C:\temp\vscodec\cursos\1592\pendientes")
+        curso_temporal = app.Path(r"C:\temp\vscodec\cursos\1592\temporal")
+        if not app._looks_like_course_work_dir(curso_pendientes, "pendientes"):
+            safe_print("ERROR: no se detectan como base invalida las rutas pendientes de un curso concreto.")
+            return False
+        if not app._looks_like_course_work_dir(curso_temporal, "temporal"):
+            safe_print("ERROR: no se detectan como base invalida las rutas temporales de un curso concreto.")
+            return False
 
         app.read_env_values = lambda: {"CARM_USUARIO": "tu_usuario_carm", "CARM_CONTRASENA": "tu_contrasena_carm"}
         if app.carm_credentials_present():
@@ -549,6 +570,80 @@ def check_contexto_cursos_cuenta() -> bool:
     finally:
         app.read_env_values = original_read_env
         app.load_app_config = original_load_config
+
+
+def check_export_codex_project_extenso() -> bool:
+    safe_print("\n==> Proyecto Codex por curso")
+    import sqlite3
+    import interfaz_app as app
+
+    course_id = "999999"
+    tmp_root = ROOT / ".tmp_verificar_codex_project"
+    tmp_courses = tmp_root / "cursos"
+    cache_dir = tmp_root / "cache_carm"
+    cache_path = cache_dir / f"curso_{course_id}.sqlite"
+    original_courses_dir = app.COURSES_DIR
+    original_cache_path_for_course_id = app.cache_path_for_course_id
+    try:
+        if tmp_root.exists():
+            shutil.rmtree(tmp_root, ignore_errors=True)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(cache_path) as con:
+            con.execute("CREATE TABLE curso (course_id TEXT, titulo TEXT, url TEXT)")
+            con.execute(
+                "CREATE TABLE unidad (course_id TEXT, codigo TEXT, nombre TEXT, contenido_imprimible TEXT, resumen_didactico TEXT)"
+            )
+            con.execute(
+                "CREATE TABLE actividad (course_id TEXT, codigo TEXT, unidad_codigo TEXT, nombre TEXT, tipo TEXT, enunciado TEXT)"
+            )
+            con.execute(
+                "INSERT INTO curso VALUES (?, ?, ?)",
+                (course_id, "Curso de prueba", f"https://formacion.carm.es/course/view.php?id={course_id}"),
+            )
+            con.execute(
+                "INSERT INTO unidad VALUES (?, ?, ?, ?, ?)",
+                (
+                    course_id,
+                    "ud01",
+                    "Guía rápida",
+                    "Contenido completo con codificación correcta y suficiente detalle. " * 80,
+                    "Resumen de la unidad.",
+                ),
+            )
+            con.execute(
+                "INSERT INTO actividad VALUES (?, ?, ?, ?, ?, ?)",
+                (course_id, "ud01cp01", "ud01", "Caso práctico", "obligatorio", "Enunciado de prueba."),
+            )
+        app.COURSES_DIR = tmp_courses
+        app.cache_path_for_course_id = lambda value: cache_path if str(value) == course_id else None
+        project = app.export_codex_course_project(course_id)
+        required = [
+            project / "contexto_didactico.md",
+            project / "actividades.json",
+            project / "AGENTS.md",
+            project / "unidades" / "ud01.md",
+        ]
+        if not all(path.exists() for path in required):
+            safe_print("ERROR: el proyecto Codex no exporta todos los archivos esperados.")
+            return False
+        unit_text = (project / "unidades" / "ud01.md").read_text(encoding="utf-8")
+        context_text = (project / "contexto_didactico.md").read_text(encoding="utf-8")
+        if "Contenido imprimible completo" not in unit_text or len(unit_text) < 1000:
+            safe_print("ERROR: Codex no recibe el contenido didactico completo por unidad.")
+            return False
+        if "unidades/ud01.md" not in context_text:
+            safe_print("ERROR: el indice Codex no enlaza el archivo completo de la unidad.")
+            return False
+        safe_print("OK: proyecto Codex exporta indice, actividades y contenido completo por unidad.")
+        return True
+    except Exception as exc:
+        safe_print(f"ERROR: prueba de proyecto Codex fallo: {exc}")
+        return False
+    finally:
+        app.COURSES_DIR = original_courses_dir
+        app.cache_path_for_course_id = original_cache_path_for_course_id
+        if tmp_root.exists():
+            shutil.rmtree(tmp_root, ignore_errors=True)
 
 
 def check_interfaz_flujos_seguro() -> bool:
@@ -632,6 +727,7 @@ def main() -> int:
     if not args.sin_prueba_offline:
         ok &= check_importacion_json_csv()
         ok &= check_contexto_cursos_cuenta()
+        ok &= check_export_codex_project_extenso()
         ok &= check_interfaz_flujos_seguro()
     if not args.sin_endpoints:
         ok &= check_local_endpoints()

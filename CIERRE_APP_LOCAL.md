@@ -28,6 +28,16 @@ Actualizacion 2026-05-15: se anade `crear_launcher_windows.cmd` / `.ps1` para ge
 
 Actualizacion instalador 2026-05-15: `INSTALAR_CORRECTOR_CARM.cmd` pasa a abrir un asistente visual. El asistente permite elegir carpeta de instalacion, carpeta de datos/descargas, accesos directos, inicio con Windows activado por defecto y apertura al finalizar. Despues copia la app a la ubicacion elegida y ejecuta el instalador tecnico.
 
+Revision 2026-05-18: la puerta pre-Fase 5 sigue siendo local. El instalador y paquete ya apuntan a distribucion de usuario final: lista blanca de archivos, `LEEME_INSTALACION.txt`, desinstalador registrado y preparacion opcional de Codex CLI oficial. La verificacion local vuelve a pasar en verde; queda pendiente regenerar el ZIP final tras el ajuste de PATH de Node/Codex.
+
+Actualizacion 2026-05-18: el instalador guiado reutiliza carpetas existentes y conserva configuracion compatible al reinstalar. El desinstalador permite elegir entre conservar datos, borrar todo o borrar solo pendientes, temporal o cursos/cache/proyectos Codex.
+
+Actualizacion instalador 2026-05-18: la ventana guiada muestra icono propio, comprobacion previa de Python, dependencias que se prepararan, OCR opcional, carpetas existentes y estado de Node.js/npm/Codex. Tambien avisa claramente que el modo sin API necesita iniciar sesion con ChatGPT mediante `codex login`.
+
+Actualizacion Codex 2026-05-18: el proyecto local por curso deja de ser solo un resumen. Mantiene `contexto_didactico.md` como indice, pero anade `unidades/*.md` con el contenido imprimible completo de cada unidad y sanea mojibake heredado de cache. La API sigue usando prompts recortados/optimizados para controlar coste; Codex puede apoyarse en el workspace del curso para consultar mas contexto sin subir entregas ni datos personales.
+
+Actualizacion prompts 2026-05-18: las entregas legibles con señales de extraccion dudosa incorporan `calidad_extraccion` dentro del prompt. Codex debe revisar el archivo original si puede antes de penalizar por texto incompleto, caracteres raros u OCR, y no debe trasladar problemas tecnicos de extraccion al feedback del alumno salvo que se vean tambien en el archivo real.
+
 ## Checklist obligatoria
 
 ### Instalacion y arranque
@@ -35,12 +45,17 @@ Actualizacion instalador 2026-05-15: `INSTALAR_CORRECTOR_CARM.cmd` pasa a abrir 
 - [x] `instalar_windows.cmd` instala `.venv`, dependencias y Chromium.
 - [x] `INSTALAR_CORRECTOR_CARM.cmd` ofrece una entrada guiada para usuarios no tecnicos.
 - [x] El instalador guiado copia la app a una carpeta de instalacion elegida y crea una carpeta de datos configurable.
+- [x] Reinstalar sobre carpetas existentes actualiza app sin borrar `.env` ni datos locales.
 - [x] `ABRIR_CORRECTOR_CARM.cmd` abre el panel sin obligar a elegir scripts internos.
 - [x] `Corrector CARM.exe` puede generarse como lanzador visual de Windows encima del arranque actual.
 - [x] `crear_paquete_windows.cmd` genera un ZIP guiado para otro Windows sin secretos ni artefactos generados.
+- [x] El desinstalador permite conservar datos, borrar todo o borrar solo partes concretas.
+- [x] El instalador guiado detecta dependencias/carpetas y avisa de la necesidad de iniciar sesion en Codex.
 - [x] El instalador guiado ofrece preparar integracion con Codex App sin API sin instalarlo automaticamente.
 - [x] La integracion sin API usa el Codex CLI oficial instalado con npm (`codex.cmd`) y bloquea el ejecutable de la extension de VS Code.
 - [x] El flujo Codex comprueba version/login, reintenta fallos temporales y tolera archivos bloqueados en `codex_project` si Codex Desktop ya lo tiene abierto.
+- [x] El proyecto Codex por curso exporta indice, actividades y contenido imprimible completo por unidad, separado de los prompts/API.
+- [x] Los prompts avisan a Codex de posibles fallos de extraccion para que verifique el original y no culpe al alumno sin comprobar.
 - [x] `iniciar_app_windows.cmd` arranca la app con comprobacion rapida.
 - [x] `reparar_dependencias_windows.cmd` repara dependencias, Chromium y lock de Playwright.
 - [x] `verificar_app_windows.cmd` valida equipo, endpoints y prueba offline.

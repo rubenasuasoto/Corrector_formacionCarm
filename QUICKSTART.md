@@ -45,6 +45,8 @@ La app queda registrada en **Aplicaciones instaladas** de Windows como `Correcto
 .\desinstalar_windows.cmd
 ```
 
+Por defecto conserva datos locales. En la desinstalacion grafica puedes elegir si borrar pendientes/prompts, CSV temporales o cursos/cache/proyectos Codex. Desde consola puedes usar `-EliminarDatos` para borrar todo o `-EliminarPendientes`, `-EliminarTemporal` y `-EliminarCursos` para borrar solo una parte.
+
 Para OCR de PDF escaneados o imagenes, usa el instalador guiado o ejecuta:
 
 ```powershell
@@ -69,11 +71,13 @@ En Windows, la entrada recomendada para una instalacion guiada es:
 .\INSTALAR_CORRECTOR_CARM.cmd
 ```
 
-Esto crea `.venv`, instala dependencias base y de extraccion, instala Chromium de Playwright si falta, crea `.env` si no existe y deja accesos directos para abrir el panel. La primera configuracion de credenciales se hace desde la interfaz si faltan.
+Esto crea `.venv`, instala dependencias base y de extraccion, instala Chromium de Playwright si falta, crea `.env` si no existe y deja accesos directos para abrir el panel. La ventana del instalador muestra una comprobacion previa de Python, carpetas, OCR opcional, Node.js/npm/Codex y avisa si falta iniciar sesion en Codex. La primera configuracion de credenciales se hace desde la interfaz si faltan.
 
-La instalacion queda visible en **Configuracion de Windows > Aplicaciones instaladas**. La desinstalacion normal conserva los datos locales; si quieres borrarlos tambien, usa `desinstalar_windows.ps1 -EliminarDatos`.
+La instalacion queda visible en **Configuracion de Windows > Aplicaciones instaladas**. La desinstalacion normal conserva los datos locales; si quieres borrar todo, usa `desinstalar_windows.ps1 -EliminarDatos`; si quieres borrar solo una parte, usa `-EliminarPendientes`, `-EliminarTemporal` o `-EliminarCursos`.
 
-El asistente permite elegir carpeta de instalacion y carpeta de datos. En esa carpeta de datos se crean `pendientes`, `temporal` y `cursos`; con separacion por curso activada, cada curso guarda ahi sus prompts, CSV y resumenes. El inicio con Windows aparece activado por defecto y se puede desmarcar. Tambien puedes dejar activada la opcion de Codex: el instalador detecta Node.js/npm, instala Node.js LTS con `winget` si falta e instala/actualiza el CLI oficial `@openai/codex`. No se usa el Codex de VS Code para este flujo.
+El asistente permite elegir carpeta de instalacion y carpeta de datos. En esa carpeta de datos se crean `pendientes`, `temporal` y `cursos`; con separacion por curso activada, cada curso guarda ahi sus prompts, CSV y resumenes. El inicio con Windows aparece activado por defecto y se puede desmarcar. Tambien puedes dejar activada la opcion de Codex: el instalador detecta Node.js/npm, instala Node.js LTS con `winget` si falta e instala/actualiza el CLI oficial `@openai/codex`. Para corregir sin API tendras que iniciar sesion una vez con `codex login`. No se usa el Codex de VS Code para este flujo.
+
+Si reinstalas sobre carpetas existentes, el instalador actualiza archivos de la app, conserva `.env` y reutiliza datos/configuracion compatibles. Las bases de trabajo deben quedar como `...\pendientes`, `...\temporal` y `...\cursos`; cada curso se guarda dentro de `cursos\<course_id>`.
 
 Para automatizar correcciones con Codex sin API hace falta el Codex CLI oficial. Si la instalacion automatica falla o el equipo no permite `winget`, instala Node.js LTS manualmente y abre una terminal nueva. En Windows, la app llama a `codex.cmd` para evitar que PowerShell bloquee `codex.ps1` por politica de ejecucion:
 
@@ -108,7 +112,7 @@ Ese arranque abre la app y hace el escaneo inicial normal. Si quieres que ademas
 .\instalar_windows.cmd -InstalarArranque -AutoPrepararAlInicio
 ```
 
-Desde la interfaz, en `Configuracion > Windows`, tambien puedes preparar un proyecto local por curso para Codex App en `C:\temp\vscodec\cursos\<course_id>\codex_project` con contexto didactico y enunciados, sin entregas ni datos personales de alumnos. Si Codex Desktop llega a exponer un CLI oficial en Windows, la app podra abrirlo junto al Corrector al iniciar Windows.
+Desde la interfaz, en `Configuracion > Windows`, tambien puedes preparar un proyecto local por curso para Codex App en `C:\temp\vscodec\cursos\<course_id>\codex_project` con contexto didactico y enunciados, sin entregas ni datos personales de alumnos. El proyecto de Codex incluye `contexto_didactico.md` como indice, `actividades.json` con enunciados y `unidades/*.md` con el contenido imprimible completo de cada unidad. Asi Codex puede usar mas contexto que la API sin aumentar el coste de tokens de cada peticion. Si Codex Desktop llega a exponer un CLI oficial en Windows, la app podra abrirlo junto al Corrector al iniciar Windows.
 
 Esa carpeta es solo para Codex App. No se versiona, no se empaqueta en el ZIP de instalacion y no se usa para subir nada a CARM.
 
@@ -308,6 +312,8 @@ El flujo sin API puede hacerse de dos formas:
 
 - Manual: abre Codex/ChatGPT aparte, ejecuta `$C` o pega el prompt, guarda los `*_correccion.json` en la carpeta de prompts y vuelve a la interfaz para pulsar `Importar JSON a revision`.
 - Codex App: si Codex Desktop esta instalado, iniciado con ChatGPT y expone un CLI ejecutable, pulsa `Corregir con Codex App`. La app usa `codex exec --cd <codex_project>`, crea los JSON individuales e importa las correcciones a `revision_pendiente.csv` sin usar `OPENAI_API_KEY`. La extension de VS Code no se usa para esta ruta.
+
+Si una respuesta extraida parece incompleta, recortada o con caracteres raros, el prompt incluye un bloque interno `calidad_extraccion`. Codex debe intentar revisar el archivo original indicado en `archivo` antes de penalizar y no debe mencionar problemas de extraccion/OCR/codificacion al alumno salvo que tambien aparezcan en la entrega real.
 
 ## 4. Corregir archivos reales ya descargados
 

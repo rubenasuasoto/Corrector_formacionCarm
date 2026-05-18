@@ -188,10 +188,13 @@ Para usuarios:
 Instalacion guiada en otro Windows:
 1. Descomprime esta carpeta.
 2. Haz doble clic en INSTALAR_CORRECTOR_CARM.cmd.
-3. Elige carpeta de instalacion, carpeta de datos, acceso directo e inicio con Windows.
-4. El instalador copia la app a su sitio, prepara dependencias y crea accesos directos.
-5. Abre Corrector CARM desde el Escritorio, menu Inicio o el lanzador.
-6. La primera vez, configura credenciales CARM desde la interfaz si faltan.
+3. Revisa la comprobacion previa: Python, dependencias, OCR opcional, Node.js/npm/Codex y carpetas existentes.
+4. Elige carpeta de instalacion, carpeta de datos, acceso directo e inicio con Windows.
+5. Si eliges carpetas existentes, el instalador actualiza la app y reutiliza datos/configuracion compatibles.
+6. El instalador copia la app a su sitio, prepara dependencias y crea accesos directos.
+7. Abre Corrector CARM desde el Escritorio, menu Inicio o el lanzador.
+8. La primera vez, configura credenciales CARM desde la interfaz si faltan.
+9. Si vas a corregir sin API con Codex, inicia sesion una vez con ChatGPT ejecutando: codex login.
 
 Entradas utiles:
 - Corrector CARM.exe: lanzador visual de Windows con icono propio.
@@ -230,7 +233,8 @@ Modos de correccion:
 - Con OpenAI API: guarda la API key desde Configuracion y pulsa corregir prompts con API cuando quieras gastar API.
 - Sin API: usa los prompts de pendientes/prompts_codex con Codex u otra IA, genera los *_correccion.json y despues importalos desde la interfaz.
 - Si marcas la opcion de Codex en el instalador, intentara detectar Node.js/npm, instalar Node.js LTS con winget si falta e instalar el CLI oficial con npm.
-- Tras instalar Codex CLI, inicia sesion una vez con: codex login.
+- Tras instalar Codex CLI, inicia sesion una vez con ChatGPT ejecutando: codex login. La app puede instalar el CLI, pero no puede iniciar sesion por ti.
+- El proyecto local de Codex por curso incluye un indice, enunciados y unidades completas en codex_project\unidades, sin entregas ni datos personales.
 
 Subida a CARM:
 - La app usa subida asistida.
@@ -246,7 +250,10 @@ Reparacion:
 Desinstalacion:
 - Preferente: Configuracion de Windows > Aplicaciones instaladas > Corrector CARM.
 - Alternativa: desinstalar_windows.cmd.
-- Por defecto conserva datos locales. Para borrarlos, usa desinstalar_windows.ps1 -EliminarDatos.
+- Por defecto conserva datos locales.
+- En modo grafico puedes elegir borrar pendientes/prompts, CSV temporales o cursos/cache/proyectos Codex.
+- Para borrar todo desde consola: desinstalar_windows.ps1 -EliminarDatos.
+- Para borrar solo una parte desde consola: usa -EliminarPendientes, -EliminarTemporal o -EliminarCursos.
 
 Privacidad y seguridad:
 - El paquete no incluye credenciales, .env real, cache, logs, entregas ni correcciones.

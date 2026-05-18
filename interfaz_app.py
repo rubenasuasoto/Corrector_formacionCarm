@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import time
+import unicodedata
 import webbrowser
 import tkinter as tk
 from datetime import datetime
@@ -267,6 +268,16 @@ def _apply_course_scope(base_pendientes: Path, base_temporal: Path) -> tuple[Pat
     return course_root / "pendientes", course_root / "temporal"
 
 
+def _looks_like_course_work_dir(path: Path, expected_leaf: str) -> bool:
+    parts = [part.lower() for part in path.parts]
+    if path.name.lower() != expected_leaf:
+        return False
+    for index, part in enumerate(parts[:-2]):
+        if part == "cursos" and index + 2 < len(parts) and parts[index + 1].isdigit():
+            return True
+    return False
+
+
 def course_work_dirs(course_id: str) -> tuple[Path, Path]:
     if not str(course_id or "").strip():
         return BASE_PENDIENTES_DIR, BASE_TEMPORAL_DIR
@@ -300,6 +311,11 @@ def configure_work_dirs(pendientes: str | Path | None = None, temporal: str | Pa
     BASE_PENDIENTES_DIR = _normalize_dir(pendientes or current.get("pendientes_dir"), DEFAULT_PENDIENTES_DIR)
     BASE_TEMPORAL_DIR = _normalize_dir(temporal or current.get("temporal_dir"), DEFAULT_TEMPORAL_DIR)
     COURSES_DIR = _normalize_dir(current.get("courses_dir"), DEFAULT_COURSES_DIR)
+    if course_scoped_dirs_enabled():
+        if _looks_like_course_work_dir(BASE_PENDIENTES_DIR, "pendientes"):
+            BASE_PENDIENTES_DIR = COURSES_DIR.parent / "pendientes"
+        if _looks_like_course_work_dir(BASE_TEMPORAL_DIR, "temporal"):
+            BASE_TEMPORAL_DIR = COURSES_DIR.parent / "temporal"
     PENDIENTES_DIR, TEMPORAL_DIR = _apply_course_scope(BASE_PENDIENTES_DIR, BASE_TEMPORAL_DIR)
     PROMPTS_DIR = PENDIENTES_DIR / "prompts_codex"
     COMBINED_JSON = PROMPTS_DIR / "correcciones_codex_combinadas.json"
@@ -603,6 +619,47 @@ def is_useful_didactic_context(value: str | None) -> bool:
         "la cache contiene una pagina indice de moodle",
     )
     return not any(fallback in normalized for fallback in fallbacks)
+
+
+def _mojibake_score(value: str) -> int:
+    markers = (chr(0x00C3), chr(0x00C2), chr(0x00E2), chr(0x00C8), chr(0x00F0) + chr(0x0178), chr(0xFFFD))
+    return sum(value.count(marker) for marker in markers)
+
+
+def repair_text_encoding(value: str | None) -> str:
+    text = str(value or "")
+    if not text:
+        return ""
+    original_score = _mojibake_score(text)
+    best = text
+    best_score = original_score
+    if original_score:
+        for encoding in ("cp1252", "latin1"):
+            try:
+                candidate = text.encode(encoding, errors="ignore").decode("utf-8", errors="ignore")
+            except Exception:
+                continue
+            candidate_score = _mojibake_score(candidate)
+            if candidate and len(candidate) >= max(20, int(len(text) * 0.75)) and candidate_score < best_score:
+                best = candidate
+                best_score = candidate_score
+    mojibake_dash = chr(0x00E2) + chr(0x20AC)
+    replacements = {
+        mojibake_dash + chr(0x201C): "-",
+        mojibake_dash + chr(0x201D): "-",
+        mojibake_dash + chr(0x00A2): "-",
+        chr(0x00E2) + chr(0x2013) + chr(0x00AA): "-",
+        mojibake_dash + chr(0x0153): '"',
+        mojibake_dash + chr(0x009D): '"',
+        mojibake_dash + chr(0x02DC): "'",
+        mojibake_dash + chr(0x2122): "'",
+        chr(0x00C2) + chr(0x00B7): "-",
+        chr(0x00C2) + chr(0x00BA): "º",
+        chr(0x00C2) + chr(0x00AA): "ª",
+    }
+    for source, target in replacements.items():
+        best = best.replace(source, target)
+    return unicodedata.normalize("NFC", best)
 
 
 def write_env_values(updates: dict[str, str | None]) -> None:
@@ -1836,10 +1893,10 @@ def export_codex_course_project(course_id: str | None = None) -> Path:
             codigo, nombre, resumen, contenido = row
             unidades.append(
                 {
-                    "codigo": str(codigo or ""),
-                    "nombre": str(nombre or ""),
-                    "resumen": str(resumen or ""),
-                    "contenido": str(contenido or ""),
+                    "codigo": repair_text_encoding(codigo),
+                    "nombre": repair_text_encoding(nombre),
+                    "resumen": repair_text_encoding(resumen),
+                    "contenido": repair_text_encoding(contenido),
                 }
             )
         for row in con.execute(
@@ -1854,26 +1911,62 @@ def export_codex_course_project(course_id: str | None = None) -> Path:
             codigo, unidad, nombre, tipo, enunciado = row
             actividades.append(
                 {
-                    "codigo": str(codigo or ""),
-                    "unidad": str(unidad or ""),
-                    "nombre": str(nombre or ""),
-                    "tipo": str(tipo or ""),
-                    "enunciado": str(enunciado or ""),
+                    "codigo": repair_text_encoding(codigo),
+                    "unidad": repair_text_encoding(unidad),
+                    "nombre": repair_text_encoding(nombre),
+                    "tipo": repair_text_encoding(tipo),
+                    "enunciado": repair_text_encoding(enunciado),
                 }
             )
 
+    curso["titulo"] = repair_text_encoding(curso["titulo"])
+    curso["url"] = repair_text_encoding(curso["url"])
+    unidades_dir = project_dir / "unidades"
+    unidades_dir.mkdir(parents=True, exist_ok=True)
+    for old_unit_file in unidades_dir.glob("*.md"):
+        try:
+            old_unit_file.unlink()
+        except OSError:
+            pass
+
     contexto_lines = [
-        f"# Contexto didactico - {curso['titulo']}",
+        f"# Contexto didáctico - {curso['titulo']}",
         "",
-        "Este archivo procede de la cache didactica de Corrector CARM. No incluye entregas ni datos personales de alumnos.",
+        "Este archivo procede de la caché didáctica de Corrector CARM. No incluye entregas ni datos personales de alumnos.",
+        "Para Codex se exporta más contexto que en los prompts/API: aquí tienes un índice por unidad y, además, archivos completos en `unidades/`.",
         "",
     ]
     for unidad in unidades:
+        unidad_codigo = (unidad["codigo"] or "unidad").lower()
+        unidad_nombre = unidad["nombre"] or "Unidad"
+        resumen = unidad["resumen"].strip()
+        contenido = unidad["contenido"].strip()
+        unidad_path = unidades_dir / f"{unidad_codigo}.md"
+        unidad_path.write_text(
+            "\n".join(
+                [
+                    f"# {unidad_codigo.upper()} - {unidad_nombre}",
+                    "",
+                    "## Resumen didáctico",
+                    "",
+                    resumen or "Sin resumen didáctico limpio en caché.",
+                    "",
+                    "## Contenido imprimible completo",
+                    "",
+                    contenido or "Sin contenido imprimible limpio en caché.",
+                    "",
+                ]
+            ).strip()
+            + "\n",
+            encoding="utf-8",
+        )
         contexto_lines.extend(
             [
-                f"## {unidad['codigo'].upper()} - {unidad['nombre'] or 'Unidad'}",
+                f"## {unidad_codigo.upper()} - {unidad_nombre}",
                 "",
-                unidad["resumen"] or unidad["contenido"] or "Sin contenido didactico limpio en cache.",
+                resumen or "Sin resumen didáctico limpio en caché.",
+                "",
+                f"Contenido completo de la unidad: `unidades/{unidad_path.name}`.",
                 "",
             ]
         )
@@ -1884,15 +1977,18 @@ def export_codex_course_project(course_id: str | None = None) -> Path:
     )
     (project_dir / "README.md").write_text(
         f"# {curso['titulo']}\n\nProyecto local para Codex App generado por Corrector CARM.\n\n"
-        "- Usa `contexto_didactico.md` como contexto estable del curso.\n"
-        "- Usa `actividades.json` para consultar enunciados y codigos de casos.\n"
-        "- No guardes aqui entregas de alumnos ni datos personales.\n",
+        "- Usa `contexto_didactico.md` como índice estable del curso.\n"
+        "- Usa `unidades/*.md` para consultar el contenido imprimible completo cuando necesites más detalle.\n"
+        "- Usa `actividades.json` para consultar enunciados y códigos de casos.\n"
+        "- No guardes aquí entregas de alumnos ni datos personales.\n",
         encoding="utf-8",
     )
     (project_dir / "AGENTS.md").write_text(
         "# Instrucciones para Codex en este curso\n\n"
-        "- Usa el contexto didactico local antes de corregir actividades.\n"
-        "- No inventes entregas, alumnos ni meritos.\n"
+        "- Usa el contexto didáctico local antes de corregir actividades.\n"
+        "- Si el prompt no incluye suficiente contexto, consulta `contexto_didactico.md`, `actividades.json` y el archivo de `unidades/` correspondiente.\n"
+        "- Prioriza el enunciado de la actividad y el contenido imprimible completo de su unidad.\n"
+        "- No inventes entregas, alumnos ni méritos.\n"
         "- Responde siempre en español con tildes y eñes correctas.\n"
         "- Mantén la salida en JSON cuando el prompt de Corrector CARM lo pida.\n"
         "- No entres en CARM ni publiques calificaciones.\n",
