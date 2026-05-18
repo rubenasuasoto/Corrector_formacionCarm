@@ -202,7 +202,7 @@ def auto_prepare_interval_minutes() -> int:
 
 def auto_prepare_time_of_day() -> str:
     value = str(load_app_config().get("auto_prepare_time", "") or "").strip()
-    if not re.fullmatch(r"(:[01]\d|2[0-3]):[0-5]\d", value):
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", value):
         return ""
     return value
 
@@ -352,7 +352,7 @@ def save_automation_config(
         updates["auto_prepare_interval_minutes"] = prepare_interval
     if auto_prepare_time is not None:
         prepare_time = str(auto_prepare_time or "").strip()
-        if prepare_time and not re.fullmatch(r"(:[01]\d|2[0-3]):[0-5]\d", prepare_time):
+        if prepare_time and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", prepare_time):
             raise ValueError("La hora exacta debe tener formato HH:MM.")
         updates["auto_prepare_time"] = prepare_time
     save_app_config(updates)

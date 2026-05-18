@@ -69,6 +69,34 @@ function Get-CommandSourceSafe([string]$Name) {
     return ""
 }
 
+function Find-PythonInstallerCommand {
+    $fromPath = Get-CommandSourceSafe "py"
+    if ($fromPath) { return "py" }
+    $fromPath = Get-CommandSourceSafe "python"
+    if ($fromPath) { return "python" }
+    return ""
+}
+
+function Get-PythonInstallerVersion([string]$PythonCommand) {
+    if (-not $PythonCommand) { return "" }
+    try {
+        return (& $PythonCommand -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
+    } catch {
+        return ""
+    }
+}
+
+function Test-PythonInstallerVersion([string]$PythonCommand) {
+    $versionText = Get-PythonInstallerVersion $PythonCommand
+    if (-not $versionText) { return $false }
+    $parts = $versionText.Split(".")
+    return ([int]$parts[0] -gt 3 -or ([int]$parts[0] -eq 3 -and [int]$parts[1] -ge 12))
+}
+
+function Find-WingetInstallerCommand {
+    return Get-CommandSourceSafe "winget.exe"
+}
+
 function Find-NodeInstallerCommand {
     $fromPath = Get-CommandSourceSafe "node.exe"
     if ($fromPath) { return $fromPath }
@@ -110,12 +138,23 @@ function Get-InstallerDependencyReport {
 
     $lines = New-Object System.Collections.Generic.List[string]
 
-    $python = Get-CommandSourceSafe "py"
-    if (-not $python) { $python = Get-CommandSourceSafe "python" }
-    if ($python) {
-        $lines.Add("[OK] Python detectado: $python")
+    $winget = Find-WingetInstallerCommand
+    $python = Find-PythonInstallerCommand
+    if ($python -and (Test-PythonInstallerVersion $python)) {
+        $versionText = Get-PythonInstallerVersion $python
+        $lines.Add("[OK] Python detectado: $versionText ($python)")
+    } elseif ($python) {
+        $versionText = Get-PythonInstallerVersion $python
+        if (-not $versionText) { $versionText = "version no detectable" }
+        if ($winget) {
+            $lines.Add("[PENDIENTE] Python detectado pero no cumple 3.12+: $versionText. El instalador intentara preparar Python 3.12 con winget.")
+        } else {
+            $lines.Add("[NECESARIO] Python 3.12+ requerido. Detectado: $versionText. winget no esta disponible; instalalo manualmente antes de continuar.")
+        }
+    } elseif ($winget) {
+        $lines.Add("[PENDIENTE] Python 3.12+ no detectado. El instalador intentara instalarlo con winget.")
     } else {
-        $lines.Add("[NECESARIO] Python 3.12+ no detectado. Instala Python antes de continuar.")
+        $lines.Add("[NECESARIO] Python 3.12+ no detectado y winget no esta disponible. Instala Python 3.12+ manualmente antes de continuar.")
     }
 
     $lines.Add("[OK] Playwright y Chromium se verificaran/instalaran automaticamente.")

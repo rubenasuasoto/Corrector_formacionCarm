@@ -2852,6 +2852,10 @@ class ExtractorCarm:
 
         selector_js = await page.evaluate(
             """(value) => {
+                const normalize = (text) => (text || '')
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\\u0300-\\u036f]/g, '');
                 const html = value
                     .split(/\\n+/)
                     .map(line => line.trim())
@@ -2861,6 +2865,58 @@ class ExtractorCarm:
                         .replace(/</g, '&lt;')
                         .replace(/>/g, '&gt;')}</p>`)
                     .join('');
+                const plain = value.trim();
+                const htmlPayload = html || value.replace(/\\n/g, '<br>');
+                const touched = [];
+
+                const dispatchEditorEvents = (el) => {
+                    try { el.dispatchEvent(new InputEvent('beforeinput', {bubbles: true, inputType: 'deleteContent'})); } catch (e) {}
+                    try { el.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value})); } catch (e) { el.dispatchEvent(new Event('input', {bubbles: true})); }
+                    el.dispatchEvent(new Event('change', {bubbles: true}));
+                    el.dispatchEvent(new Event('keyup', {bubbles: true}));
+                    el.dispatchEvent(new Event('blur', {bubbles: true}));
+                };
+
+                const setTextarea = (textarea) => {
+                    if (!textarea) return;
+                    const key = `${textarea.name || ''} ${textarea.id || ''}`.toLowerCase();
+                    const payload = key.includes('_editor') ? htmlPayload : plain;
+                    textarea.value = '';
+                    textarea.textContent = '';
+                    dispatchEditorEvents(textarea);
+                    textarea.value = payload;
+                    textarea.textContent = payload;
+                    dispatchEditorEvents(textarea);
+                    touched.push(textarea.name || textarea.id || 'textarea');
+                };
+
+                const setEditable = (editor) => {
+                    if (!editor) return;
+                    editor.focus && editor.focus();
+                    try {
+                        const selection = window.getSelection();
+                        const range = document.createRange();
+                        range.selectNodeContents(editor);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        document.execCommand('delete', false, null);
+                    } catch (e) {}
+                    editor.innerHTML = '';
+                    editor.textContent = '';
+                    dispatchEditorEvents(editor);
+                    editor.innerHTML = htmlPayload;
+                    dispatchEditorEvents(editor);
+                    touched.push(editor.id || editor.getAttribute('aria-label') || editor.className || 'editor_visible');
+                };
+
+                const isFeedbackKey = (text) => {
+                    const key = normalize(text);
+                    return key.includes('assignfeedbackcomments')
+                        || key.includes('feedbackcomments')
+                        || key.includes('comentarios de retroalimentacion')
+                        || key.includes('retroalimentacion')
+                        || key.includes('feedback');
+                };
 
                 const textareas = Array.from(document.querySelectorAll('textarea')).filter(el => {
                     const key = `${el.name || ''} ${el.id || ''}`.toLowerCase();
@@ -2871,40 +2927,58 @@ class ExtractorCarm:
                     );
                 });
 
+                const feedbackContainers = Array.from(document.querySelectorAll('.fitem, .form-group, .form-item, fieldset, .felement, div')).filter(el => {
+                    const ownKey = `${el.id || ''} ${el.className || ''}`.toLowerCase();
+                    if (isFeedbackKey(ownKey)) return true;
+                    const labelText = Array.from(el.querySelectorAll('label, legend, .fitemtitle, .col-form-label'))
+                        .map(label => label.innerText || label.textContent || '')
+                        .join(' ');
+                    if (isFeedbackKey(labelText)) return true;
+                    return !!el.querySelector("textarea[name*='assignfeedbackcomments'], textarea[id*='assignfeedbackcomments'], [id*='assignfeedbackcomments'][contenteditable='true']");
+                });
+
+                for (const container of feedbackContainers) {
+                    for (const textarea of container.querySelectorAll('textarea')) setTextarea(textarea);
+                    for (const editor of container.querySelectorAll('[contenteditable="true"], .editor_atto_content')) setEditable(editor);
+                    for (const iframe of container.querySelectorAll('iframe')) {
+                        try {
+                            const doc = iframe.contentDocument || iframe.contentWindow.document;
+                            const body = doc && doc.body;
+                            if (body) {
+                                body.innerHTML = '';
+                                body.innerHTML = htmlPayload;
+                                dispatchEditorEvents(body);
+                                touched.push(iframe.id || iframe.name || 'iframe_feedback');
+                            }
+                        } catch (e) {}
+                    }
+                }
+
                 const visibles = Array.from(document.querySelectorAll('[contenteditable="true"], .editor_atto_content')).filter(el => {
                     const key = `${el.id || ''} ${el.className || ''} ${el.getAttribute('aria-label') || ''}`.toLowerCase();
-                    const parent = `${el.closest('[id], [class]').id || ''} ${el.closest('[id], [class]').className || ''}`.toLowerCase();
+                    const closest = el.closest('[id], [class]');
+                    const parent = closest ? `${closest.id || ''} ${closest.className || ''} ${closest.innerText || ''}` : '';
                     return (
-                        key.includes('assignfeedbackcomments') ||
-                        key.includes('feedbackcomments') ||
-                        key.includes('retroaliment') ||
-                        parent.includes('assignfeedbackcomments') ||
-                        parent.includes('feedbackcomments')
+                        isFeedbackKey(key) ||
+                        isFeedbackKey(parent)
                     );
                 });
 
                 for (const textarea of textareas) {
-                    const key = `${textarea.name || ''} ${textarea.id || ''}`.toLowerCase();
-                    const payload = key.includes('_editor') ? (html || value.replace(/\\n/g, '<br>')) : value;
-                    textarea.value = payload;
-                    textarea.textContent = payload;
-                    textarea.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value}));
-                    textarea.dispatchEvent(new Event('change', {bubbles: true}));
+                    setTextarea(textarea);
 
                     const explicitEditable = document.getElementById(`${textarea.id}editable`)
                         || document.getElementById(textarea.id.replace(/_editor$/, '_editable'))
-                        || textarea.closest('.fitem, .form-group, .felement').querySelector('[contenteditable="true"], .editor_atto_content');
+                        || (textarea.closest('.fitem, .form-group, .felement')
+                            ? textarea.closest('.fitem, .form-group, .felement').querySelector('[contenteditable="true"], .editor_atto_content')
+                            : null);
                     if (explicitEditable) {
-                        explicitEditable.innerHTML = html || value.replace(/\\n/g, '<br>');
-                        explicitEditable.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value}));
-                        explicitEditable.dispatchEvent(new Event('change', {bubbles: true}));
+                        setEditable(explicitEditable);
                     }
                 }
 
                 for (const editor of visibles) {
-                    editor.innerHTML = html || value.replace(/\\n/g, '<br>');
-                    editor.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value}));
-                    editor.dispatchEvent(new Event('change', {bubbles: true}));
+                    setEditable(editor);
                 }
 
                 if (window.YUI) {
@@ -2922,6 +2996,10 @@ class ExtractorCarm:
                     } catch (e) {}
                 }
 
+                const unique = Array.from(new Set(touched.filter(Boolean)));
+                if (unique.length) {
+                    return unique.join(', ');
+                }
                 if (textareas.length) {
                     return textareas.map(el => el.name || el.id).join(', ');
                 }

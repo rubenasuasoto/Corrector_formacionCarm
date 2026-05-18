@@ -41,9 +41,9 @@ La version local esta en `VERSION`. La interfaz y `verificar_app.py` muestran ve
 .\INSTALAR_CORRECTOR_CARM.cmd
 ```
 
-Es la entrada recomendada para una instalacion guiada en Windows. Crea `.venv`, instala dependencias, instala Chromium de Playwright si falta, deja `.env` preparado si no existe y crea accesos directos. Si faltan credenciales, el panel se bloquea y guia la configuracion desde la interfaz.
+Es la entrada recomendada para una instalacion guiada en Windows. Detecta Python 3.12+ y, si falta, intenta instalarlo con `winget`; despues crea `.venv`, instala dependencias, instala Chromium de Playwright si falta, deja `.env` preparado si no existe y crea accesos directos. Si faltan credenciales, el panel se bloquea y guia la configuracion desde la interfaz.
 
-El instalador abre una ventana de configuracion basica: carpeta donde instalar la app, carpeta de datos/descargas, acceso directo, inicio con Windows y apertura al terminar. Tambien muestra una comprobacion previa de Python, dependencias que se prepararan, OCR opcional, carpetas existentes y estado de Node.js/npm/Codex. Por defecto activa el inicio con Windows y separa datos por curso dentro de la carpeta de datos elegida.
+El instalador abre una ventana de configuracion basica: carpeta donde instalar la app, carpeta de datos/descargas, acceso directo, inicio con Windows y apertura al terminar. Tambien muestra una comprobacion previa de Python, dependencias que se prepararan, OCR opcional, carpetas existentes y estado de Node.js/npm/Codex. Si Python o Node.js faltan y Windows dispone de `winget`, el instalador intenta prepararlos automaticamente. Por defecto activa el inicio con Windows y separa datos por curso dentro de la carpeta de datos elegida.
 
 Si reinstalas sobre carpetas existentes, el instalador actualiza la app, conserva `.env` y reutiliza datos/configuracion compatibles. La carpeta de datos queda organizada en `pendientes`, `temporal` y `cursos`; con separacion por curso, cada curso vive en `cursos\<course_id>`.
 
