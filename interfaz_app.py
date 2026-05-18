@@ -154,7 +154,7 @@ def load_app_config() -> dict:
     if not APP_CONFIG_PATH.exists():
         return {}
     try:
-        return json.loads(APP_CONFIG_PATH.read_text(encoding="utf-8"))
+        return json.loads(APP_CONFIG_PATH.read_text(encoding="utf-8-sig"))
     except Exception:
         return {}
 

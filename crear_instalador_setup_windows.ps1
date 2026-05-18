@@ -105,11 +105,10 @@ internal static class CorrectorCarmSetup
 
             ProcessStartInfo start = new ProcessStartInfo();
             start.FileName = "powershell.exe";
-            start.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"instalador_guiado_windows.ps1\"";
+            start.Arguments = "-NoProfile -ExecutionPolicy Bypass -File \"instalador_guiado_windows.ps1\"";
             start.WorkingDirectory = appDir;
             start.UseShellExecute = false;
             start.CreateNoWindow = true;
-            start.WindowStyle = ProcessWindowStyle.Hidden;
             Process proc = Process.Start(start);
             proc.WaitForExit();
             return proc.ExitCode;
