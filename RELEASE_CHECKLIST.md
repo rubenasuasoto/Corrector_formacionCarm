@@ -17,6 +17,8 @@ Este checklist se usa antes de compartir una version, reinstalar en otro equipo 
 - [ ] Reinstalar sobre carpetas existentes conserva `.env` y reutiliza datos compatibles.
 - [ ] Desinstalar permite conservar datos o borrar selectivamente pendientes, temporal y cursos/cache/proyectos Codex.
 - [ ] La ventana de instalacion muestra comprobacion previa de dependencias, carpetas existentes y estado/login de Codex CLI.
+- [ ] La fase tecnica del instalador y el desinstalador no muestran terminales; el usuario ve progreso/checklist dentro de la ventana grafica.
+- [ ] OCR/Tesseract se trata como dependencia opcional: si falla, la instalacion continua y las entregas escaneadas quedan en revision manual.
 - [ ] El proyecto Codex por curso contiene `contexto_didactico.md`, `actividades.json`, `AGENTS.md` y `unidades/*.md` sin entregas ni datos personales.
 
 ## 2. Verificacion tecnica
@@ -39,6 +41,9 @@ Debe validar:
 - assets del icono servidos por el panel local;
 - pruebas offline de importacion y contexto cuenta/curso;
 - bloqueo offline de publicacion directa y preparacion de curso completo sin filtro de unidad;
+- menu de configuracion por secciones y tema automatico/claro/oscuro;
+- preferencias de pantalla: tamaño de letra, altura del registro, alto contraste y ultima seccion abierta;
+- horario de autoprompt guardado con formato `HH:MM`;
 - credenciales CARM, curso activo y carpetas de trabajo.
 
 Para una instalacion nueva sin credenciales:
@@ -70,6 +75,7 @@ Para regenerar el lanzador local con icono propio:
 - [ ] La interfaz escucha solo en `127.0.0.1`.
 - [ ] El panel exige token local para `/api/*`.
 - [ ] El arranque de Windows y el autoprompteo estan configurados de forma explicita.
+- [ ] Si hay varios cursos seleccionados, cada curso tiene carpetas propias en `cursos\<course_id>` y no comparte CSV/prompts con otro curso.
 - [ ] La subida a CARM sigue siendo asistida con guardado humano.
 - [ ] No hay publicacion automatica como flujo normal.
 

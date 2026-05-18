@@ -850,13 +850,90 @@ def check_autoprompt_hora() -> bool:
         shutil.rmtree(base, ignore_errors=True)
 
 
+def check_preferencias_pantalla() -> bool:
+    safe_print("\n==> Preferencias de pantalla")
+    import interfaz_app as app
+
+    original_config_path = app.APP_CONFIG_PATH
+    base = ROOT / ".tmp_ui_theme_check"
+    if base.exists():
+        shutil.rmtree(base, ignore_errors=True)
+    base.mkdir(parents=True, exist_ok=True)
+    try:
+        app.APP_CONFIG_PATH = base / ".corrector_app.json"
+        for theme in ("auto", "light", "dark"):
+            result = app.save_ui_config(theme, "large", "tall", "high", "advanced")
+            if (
+                not result.get("ok")
+                or app.ui_theme() != theme
+                or app.ui_font_size() != "large"
+                or app.ui_log_height() != "tall"
+                or app.ui_contrast() != "high"
+                or app.ui_last_settings_page() != "advanced"
+            ):
+                safe_print(f"ERROR: no se guardo el tema {theme}.")
+                return False
+        try:
+            app.save_ui_config("neon")
+        except ValueError:
+            pass
+        else:
+            safe_print("ERROR: se acepto un tema visual no valido.")
+            return False
+        try:
+            app.save_ui_config("auto", "gigante", "normal", "normal", "screen")
+        except ValueError:
+            safe_print("OK: tema, letra, contraste, altura de registro y ultima seccion se guardan y validan correctamente.")
+            return True
+        safe_print("ERROR: se acepto un tema visual no valido.")
+        return False
+    except Exception as exc:
+        safe_print(f"ERROR: prueba de preferencias de pantalla fallo: {exc}")
+        return False
+    finally:
+        app.APP_CONFIG_PATH = original_config_path
+        shutil.rmtree(base, ignore_errors=True)
+
+
+def check_menu_configuracion() -> bool:
+    safe_print("\n==> Menu de configuracion")
+    try:
+        text = (ROOT / "interfaz_app.py").read_text(encoding="utf-8")
+    except Exception as exc:
+        safe_print(f"ERROR: no se pudo leer interfaz_app.py: {exc}")
+        return False
+    required = [
+        "settings-layout",
+        "settings-nav",
+        "settingsNavBtn",
+        "settings-page",
+        "showSettingsPage",
+        "data-settings-page-panel=\"screen\"",
+        "data-settings-page-panel=\"advanced\"",
+        "uiFontSize",
+        "uiLogHeight",
+        "uiContrast",
+        "logoutBtn",
+    ]
+    missing = [item for item in required if item not in text]
+    if missing:
+        safe_print("ERROR: menu de configuracion incompleto: " + ", ".join(missing))
+        return False
+    safe_print("OK: configuracion organizada por secciones navegables.")
+    return True
+
+
 def check_instalador_python() -> bool:
     safe_print("\n==> Instalador Python")
     tecnico = ROOT / "instalar_windows.ps1"
     guiado = ROOT / "instalador_guiado_windows.ps1"
+    setup = ROOT / "crear_instalador_setup_windows.ps1"
+    desinstalador = ROOT / "desinstalar_windows.ps1"
     try:
         tecnico_text = tecnico.read_text(encoding="utf-8")
         guiado_text = guiado.read_text(encoding="utf-8")
+        setup_text = setup.read_text(encoding="utf-8")
+        desinstalador_text = desinstalador.read_text(encoding="utf-8")
     except Exception as exc:
         safe_print(f"ERROR: no se pudieron leer los instaladores: {exc}")
         return False
@@ -874,12 +951,50 @@ def check_instalador_python() -> bool:
         "Find-WingetInstallerCommand",
         "El instalador intentara instalarlo con winget",
     ]
+    required_silent_ui = [
+        "Invoke-ProcessWithProgress",
+        "CreateNoWindow = $true",
+        "WindowStyle Hidden",
+        "System.Windows.Forms.ListView",
+        "En curso",
+        "Desinstalador",
+        "instalador_guiado_windows.ps1",
+        "Start-UninstallProgress",
+        "Complete-UninstallProgress",
+    ]
     missing = [item for item in required_tecnico if item not in tecnico_text]
     missing += [item for item in required_guiado if item not in guiado_text]
+    missing += [item for item in required_silent_ui[:6] if item not in guiado_text]
+    missing += [item for item in required_silent_ui[6:7] if item not in setup_text]
+    missing += [item for item in required_silent_ui[7:] if item not in desinstalador_text]
     if missing:
         safe_print("ERROR: autodeteccion/instalacion de Python incompleta: " + ", ".join(missing))
         return False
-    safe_print("OK: instalador detecta Python 3.12+ e intenta prepararlo con winget si falta.")
+    safe_print("OK: instalador detecta Python 3.12+, oculta procesos tecnicos y muestra progreso grafico.")
+    return True
+
+
+def check_instalador_ocr() -> bool:
+    safe_print("\n==> Instalador OCR")
+    script = ROOT / "instalar_ocr_windows.ps1"
+    try:
+        text = script.read_text(encoding="utf-8")
+    except Exception as exc:
+        safe_print(f"ERROR: no se pudo leer instalar_ocr_windows.ps1: {exc}")
+        return False
+    required = [
+        "Get-TesseractCommand",
+        "Add-TesseractToPath",
+        "UB-Mannheim.TesseractOCR",
+        "--silent",
+        "return $false",
+        "OCR usara ingles si esta disponible",
+    ]
+    missing = [item for item in required if item not in text]
+    if missing:
+        safe_print("ERROR: instalador OCR poco robusto: " + ", ".join(missing))
+        return False
+    safe_print("OK: instalador OCR busca Tesseract fuera del PATH y no falla por idioma espanol.")
     return True
 
 
@@ -929,7 +1044,10 @@ def main() -> int:
         ok &= check_interfaz_flujos_seguro()
         ok &= check_revision_manual_interfaz()
         ok &= check_autoprompt_hora()
+        ok &= check_preferencias_pantalla()
+        ok &= check_menu_configuracion()
         ok &= check_instalador_python()
+        ok &= check_instalador_ocr()
     if not args.sin_endpoints:
         ok &= check_local_endpoints()
 

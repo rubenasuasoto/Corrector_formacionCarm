@@ -164,8 +164,8 @@ function Register-UninstallEntry {
     New-ItemProperty -Path $UninstallKey -Name "DisplayVersion" -Value $Version -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $UninstallKey -Name "Publisher" -Value "Corrector CARM Local" -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $UninstallKey -Name "InstallLocation" -Value $Root -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $UninstallKey -Name "UninstallString" -Value "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$UninstallScript`"" -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $UninstallKey -Name "QuietUninstallString" -Value "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$UninstallScript`" -Silencioso" -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $UninstallKey -Name "UninstallString" -Value "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$UninstallScript`"" -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $UninstallKey -Name "QuietUninstallString" -Value "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$UninstallScript`" -Silencioso" -PropertyType String -Force | Out-Null
     if (Test-Path -LiteralPath $IconPath) {
         New-ItemProperty -Path $UninstallKey -Name "DisplayIcon" -Value $IconPath -PropertyType String -Force | Out-Null
     }
@@ -358,7 +358,7 @@ if ($InstalarOCR) {
     try {
         $ocrScript = Join-Path $Root "instalar_ocr_windows.ps1"
         if (Test-Path -LiteralPath $ocrScript) {
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $ocrScript
+            & powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $ocrScript
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "No se pudo instalar OCR automaticamente. La app seguira funcionando y marcara esos archivos como revision manual." -ForegroundColor Yellow
             }
@@ -398,7 +398,7 @@ if (-not (Test-Path ".env")) {
 if (Test-Path ".\crear_launcher_windows.ps1") {
     Write-Step "Preparando lanzador de escritorio"
     try {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File ".\crear_launcher_windows.ps1"
+        & ".\crear_launcher_windows.ps1"
     } catch {
         Write-Host "No se pudo crear el lanzador .exe; se usaran los accesos .cmd. Detalle: $_" -ForegroundColor Yellow
     }

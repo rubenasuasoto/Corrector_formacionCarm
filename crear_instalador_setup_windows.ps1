@@ -104,11 +104,12 @@ internal static class CorrectorCarmSetup
             }
 
             ProcessStartInfo start = new ProcessStartInfo();
-            start.FileName = "cmd.exe";
-            start.Arguments = "/c call \"INSTALAR_CORRECTOR_CARM.cmd\"";
+            start.FileName = "powershell.exe";
+            start.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"instalador_guiado_windows.ps1\"";
             start.WorkingDirectory = appDir;
             start.UseShellExecute = false;
-            start.CreateNoWindow = false;
+            start.CreateNoWindow = true;
+            start.WindowStyle = ProcessWindowStyle.Hidden;
             Process proc = Process.Start(start);
             proc.WaitForExit();
             return proc.ExitCode;
@@ -204,7 +205,7 @@ if not defined APPDIR (
   exit /b 1
 )
 cd /d "%APPDIR%"
-call INSTALAR_CORRECTOR_CARM.cmd
+powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%APPDIR%\instalador_guiado_windows.ps1"
 set "EXITCODE=%ERRORLEVEL%"
 exit /b %EXITCODE%
 '@
@@ -223,7 +224,7 @@ SEDVersion=3
 
 [Options]
 PackagePurpose=InstallApp
-ShowInstallProgramWindow=1
+ShowInstallProgramWindow=0
 HideExtractAnimation=0
 UseLongFileName=1
 InsideCompressed=0

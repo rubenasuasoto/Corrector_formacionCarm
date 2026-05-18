@@ -497,6 +497,235 @@ function Write-AppConfig {
     $config | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Root ".corrector_app.json") -Encoding UTF8
 }
 
+function Invoke-ProcessWithProgress {
+    param(
+        [string]$Title,
+        [string]$Message,
+        [string]$FilePath,
+        [string[]]$Arguments,
+        [string]$WorkingDirectory
+    )
+
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = $Title
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = "FixedDialog"
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.ControlBox = $false
+    $form.ClientSize = New-Object System.Drawing.Size(820, 520)
+    $iconPath = Join-Path $SourceRoot "assets\corrector_carm.ico"
+    if (Test-Path -LiteralPath $iconPath) {
+        try { $form.Icon = New-Object System.Drawing.Icon($iconPath) } catch {}
+    }
+
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Text = $Message
+    $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+    $titleLabel.Location = New-Object System.Drawing.Point(24, 22)
+    $titleLabel.Size = New-Object System.Drawing.Size(760, 28)
+    $form.Controls.Add($titleLabel)
+
+    $detailLabel = New-Object System.Windows.Forms.Label
+    $detailLabel.Text = "Puedes dejar esta ventana abierta. El instalador esta trabajando en segundo plano."
+    $detailLabel.ForeColor = [System.Drawing.Color]::DimGray
+    $detailLabel.Location = New-Object System.Drawing.Point(24, 54)
+    $detailLabel.Size = New-Object System.Drawing.Size(760, 24)
+    $form.Controls.Add($detailLabel)
+
+    $progress = New-Object System.Windows.Forms.ProgressBar
+    $progress.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
+    $progress.MarqueeAnimationSpeed = 35
+    $progress.Location = New-Object System.Drawing.Point(26, 90)
+    $progress.Size = New-Object System.Drawing.Size(768, 18)
+    $form.Controls.Add($progress)
+
+    $stepsLabel = New-Object System.Windows.Forms.Label
+    $stepsLabel.Text = "Pasos"
+    $stepsLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+    $stepsLabel.Location = New-Object System.Drawing.Point(26, 122)
+    $stepsLabel.Size = New-Object System.Drawing.Size(250, 20)
+    $form.Controls.Add($stepsLabel)
+
+    $stepsList = New-Object System.Windows.Forms.ListView
+    $stepsList.View = [System.Windows.Forms.View]::Details
+    $stepsList.FullRowSelect = $true
+    $stepsList.HeaderStyle = [System.Windows.Forms.ColumnHeaderStyle]::None
+    [void]$stepsList.Columns.Add("Estado", 82)
+    [void]$stepsList.Columns.Add("Paso", 190)
+    $stepsList.Location = New-Object System.Drawing.Point(26, 146)
+    $stepsList.Size = New-Object System.Drawing.Size(286, 300)
+    $form.Controls.Add($stepsList)
+
+    $logLabel = New-Object System.Windows.Forms.Label
+    $logLabel.Text = "Detalle"
+    $logLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+    $logLabel.Location = New-Object System.Drawing.Point(328, 122)
+    $logLabel.Size = New-Object System.Drawing.Size(250, 20)
+    $form.Controls.Add($logLabel)
+
+    $logBox = New-Object System.Windows.Forms.TextBox
+    $logBox.Multiline = $true
+    $logBox.ReadOnly = $true
+    $logBox.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
+    $logBox.Font = New-Object System.Drawing.Font("Consolas", 8.5)
+    $logBox.Location = New-Object System.Drawing.Point(328, 146)
+    $logBox.Size = New-Object System.Drawing.Size(466, 300)
+    $form.Controls.Add($logBox)
+
+    $closeButton = New-Object System.Windows.Forms.Button
+    $closeButton.Text = "Cerrar"
+    $closeButton.Enabled = $false
+    $closeButton.Location = New-Object System.Drawing.Point(704, 466)
+    $closeButton.Size = New-Object System.Drawing.Size(90, 28)
+    $closeButton.Add_Click({ $form.Close() })
+    $form.Controls.Add($closeButton)
+
+    $stepNames = @(
+        "Python",
+        "Entorno virtual",
+        "Dependencias",
+        "Lectura avanzada",
+        "OCR",
+        "Codex CLI",
+        "Chromium",
+        "Configuracion local",
+        "Lanzador",
+        "Verificacion",
+        "Arranque Windows",
+        "Accesos directos",
+        "Desinstalador"
+    )
+    $stepItems = @{}
+    foreach ($stepName in $stepNames) {
+        $item = New-Object System.Windows.Forms.ListViewItem("Pendiente")
+        [void]$item.SubItems.Add($stepName)
+        [void]$stepsList.Items.Add($item)
+        $stepItems[$stepName] = $item
+    }
+    $currentStep = ""
+    $setStepStatus = {
+        param([string]$Name, [string]$Status)
+        if (-not $stepItems.ContainsKey($Name)) { return }
+        $item = $stepItems[$Name]
+        $item.Text = $Status
+        if ($Status -eq "En curso") {
+            $item.BackColor = [System.Drawing.Color]::FromArgb(234, 241, 248)
+            $item.ForeColor = [System.Drawing.Color]::FromArgb(47, 95, 149)
+            $stepsList.EnsureVisible($item.Index)
+        } elseif ($Status -eq "OK") {
+            $item.BackColor = [System.Drawing.Color]::FromArgb(232, 244, 238)
+            $item.ForeColor = [System.Drawing.Color]::FromArgb(31, 122, 91)
+        } elseif ($Status -eq "Aviso") {
+            $item.BackColor = [System.Drawing.Color]::FromArgb(255, 248, 234)
+            $item.ForeColor = [System.Drawing.Color]::FromArgb(168, 98, 0)
+        } elseif ($Status -eq "Error") {
+            $item.BackColor = [System.Drawing.Color]::FromArgb(255, 241, 240)
+            $item.ForeColor = [System.Drawing.Color]::FromArgb(180, 35, 24)
+        } else {
+            $item.BackColor = [System.Drawing.Color]::White
+            $item.ForeColor = [System.Drawing.Color]::DimGray
+        }
+    }
+    $stepForLine = {
+        param([string]$Line)
+        if ($Line -match "Python") { return "Python" }
+        if ($Line -match "entorno virtual|\.venv") { return "Entorno virtual" }
+        if ($Line -match "pip|dependencias base") { return "Dependencias" }
+        if ($Line -match "opcionales|extraccion") { return "Lectura avanzada" }
+        if ($Line -match "OCR|Tesseract") { return "OCR" }
+        if ($Line -match "Codex|Node\.js|npm") { return "Codex CLI" }
+        if ($Line -match "Chromium|Playwright") { return "Chromium" }
+        if ($Line -match "\.env|configuracion local") { return "Configuracion local" }
+        if ($Line -match "lanzador") { return "Lanzador" }
+        if ($Line -match "Verificando app|Compilacion|Verificando instalacion") { return "Verificacion" }
+        if ($Line -match "arranque automatico") { return "Arranque Windows" }
+        if ($Line -match "accesos directos") { return "Accesos directos" }
+        if ($Line -match "desinstalador") { return "Desinstalador" }
+        return ""
+    }
+
+    $queue = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $process.StartInfo.FileName = $FilePath
+    $process.StartInfo.Arguments = ($Arguments -join " ")
+    $process.StartInfo.WorkingDirectory = $WorkingDirectory
+    $process.StartInfo.UseShellExecute = $false
+    $process.StartInfo.CreateNoWindow = $true
+    $process.StartInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError = $true
+
+    $outputHandler = [System.Diagnostics.DataReceivedEventHandler]{
+        param($sender, $eventArgs)
+        if ($eventArgs.Data) {
+            $queue.Enqueue($eventArgs.Data)
+        }
+    }
+    $process.add_OutputDataReceived($outputHandler)
+    $process.add_ErrorDataReceived($outputHandler)
+
+    $timer = New-Object System.Windows.Forms.Timer
+    $timer.Interval = 150
+    $exitCode = $null
+    $timer.Add_Tick({
+        $line = $null
+        while ($queue.TryDequeue([ref]$line)) {
+            $logBox.AppendText($line + [Environment]::NewLine)
+            $logBox.SelectionStart = $logBox.TextLength
+            $logBox.ScrollToCaret()
+            $detectedStep = & $stepForLine $line
+            if ($detectedStep) {
+                if ($currentStep -and $currentStep -ne $detectedStep) {
+                    & $setStepStatus $currentStep "OK"
+                }
+                $currentStep = $detectedStep
+                & $setStepStatus $currentStep "En curso"
+                $detailLabel.Text = "Ahora: $detectedStep"
+            }
+            if ($line -match "No se pudo|fallo|ERROR|Error") {
+                if ($currentStep) { & $setStepStatus $currentStep "Aviso" }
+            }
+            $line = $null
+        }
+        if ($process.HasExited) {
+            $timer.Stop()
+            $script:__CorrectorProgressExitCode = $process.ExitCode
+            $progress.Style = [System.Windows.Forms.ProgressBarStyle]::Blocks
+            $progress.MarqueeAnimationSpeed = 0
+            if ($process.ExitCode -eq 0) {
+                if ($currentStep) { & $setStepStatus $currentStep "OK" }
+                $progress.Value = 100
+                $titleLabel.Text = "Instalacion completada"
+                $detailLabel.Text = "Todo ha terminado correctamente."
+            } else {
+                if ($currentStep) { & $setStepStatus $currentStep "Error" }
+                $titleLabel.Text = "La instalacion necesita revision"
+                $detailLabel.Text = "Revisa el detalle. Si OCR fallo, la app puede seguir funcionando y marcar esos archivos para revision manual."
+            }
+            $closeButton.Text = "Continuar"
+            $closeButton.Enabled = $true
+            $form.ControlBox = $true
+        }
+    })
+
+    $script:__CorrectorProgressExitCode = $null
+    [void]$process.Start()
+    $process.BeginOutputReadLine()
+    $process.BeginErrorReadLine()
+    $timer.Start()
+    [void]$form.ShowDialog()
+    $timer.Stop()
+    if ($null -eq $script:__CorrectorProgressExitCode) {
+        $script:__CorrectorProgressExitCode = $process.ExitCode
+    }
+    return [int]$script:__CorrectorProgressExitCode
+}
+
 if ($SinInterfaz) {
     $choices = [ordered]@{
         InstallDir = if ($InstallDir) { $InstallDir } else { $DefaultInstallDir }
@@ -553,9 +782,20 @@ if ($choices.PrepararCodex) {
 }
 
 Write-Step "Instalando dependencias y accesos"
-$proc = Start-Process -FilePath "powershell.exe" -ArgumentList ($installArgs -join " ") -WorkingDirectory $TargetRoot -Wait -PassThru
-if ($proc.ExitCode -ne 0) {
-    throw "La instalacion tecnica fallo con codigo $($proc.ExitCode)."
+$exitCode = 0
+if ($SinInterfaz) {
+    $proc = Start-Process -FilePath "powershell.exe" -ArgumentList ($installArgs -join " ") -WorkingDirectory $TargetRoot -Wait -PassThru -WindowStyle Hidden
+    $exitCode = $proc.ExitCode
+} else {
+    $exitCode = Invoke-ProcessWithProgress `
+        -Title "Instalando Corrector CARM" `
+        -Message "Instalando dependencias y preparando la app" `
+        -FilePath "powershell.exe" `
+        -Arguments $installArgs `
+        -WorkingDirectory $TargetRoot
+}
+if ($exitCode -ne 0) {
+    throw "La instalacion tecnica fallo con codigo $exitCode."
 }
 
 if ($choices.AbrirAlFinal) {
