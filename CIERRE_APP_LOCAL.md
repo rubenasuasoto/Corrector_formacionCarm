@@ -38,6 +38,8 @@ Actualizacion Codex 2026-05-18: el proyecto local por curso deja de ser solo un 
 
 Actualizacion prompts 2026-05-18: las entregas legibles con señales de extraccion dudosa incorporan `calidad_extraccion` dentro del prompt. Codex debe revisar el archivo original si puede antes de penalizar por texto incompleto, caracteres raros u OCR, y no debe trasladar problemas tecnicos de extraccion al feedback del alumno salvo que se vean tambien en el archivo real.
 
+Actualizacion revision manual 2026-05-18: el panel incorpora una bandeja para casos que deben apartarse antes de subir. Desde ahi se puede guardar una nota para Codex, marcar el caso como `revision_manual_necesaria` y generar un prompt de recorreccion sin entrar en CARM. Esos casos bloquean la subida asistida hasta que se resuelvan.
+
 ## Checklist obligatoria
 
 ### Instalacion y arranque
@@ -49,6 +51,7 @@ Actualizacion prompts 2026-05-18: las entregas legibles con señales de extracci
 - [x] `ABRIR_CORRECTOR_CARM.cmd` abre el panel sin obligar a elegir scripts internos.
 - [x] `Corrector CARM.exe` puede generarse como lanzador visual de Windows encima del arranque actual.
 - [x] `crear_paquete_windows.cmd` genera un ZIP guiado para otro Windows sin secretos ni artefactos generados.
+- [x] `crear_instalador_setup_windows.cmd` genera un `Setup.exe` autoextraible que lanza el instalador guiado sin pedir descomprimir carpetas.
 - [x] El desinstalador permite conservar datos, borrar todo o borrar solo partes concretas.
 - [x] El instalador guiado detecta dependencias/carpetas y avisa de la necesidad de iniciar sesion en Codex.
 - [x] El instalador guiado ofrece preparar integracion con Codex App sin API sin instalarlo automaticamente.
@@ -56,6 +59,7 @@ Actualizacion prompts 2026-05-18: las entregas legibles con señales de extracci
 - [x] El flujo Codex comprueba version/login, reintenta fallos temporales y tolera archivos bloqueados en `codex_project` si Codex Desktop ya lo tiene abierto.
 - [x] El proyecto Codex por curso exporta indice, actividades y contenido imprimible completo por unidad, separado de los prompts/API.
 - [x] Los prompts avisan a Codex de posibles fallos de extraccion para que verifique el original y no culpe al alumno sin comprobar.
+- [x] La interfaz permite apartar casos a revision manual y crear prompts de recorreccion para Codex.
 - [x] `iniciar_app_windows.cmd` arranca la app con comprobacion rapida.
 - [x] `reparar_dependencias_windows.cmd` repara dependencias, Chromium y lock de Playwright.
 - [x] `verificar_app_windows.cmd` valida equipo, endpoints y prueba offline.

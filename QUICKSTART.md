@@ -15,6 +15,8 @@ Para uso real, el camino normal es este:
 
 No uses comandos directos de publicacion: esa ruta esta desactivada. La subida asistida es el flujo que mantiene revision humana y limpia el CSV al confirmar cada caso.
 
+Si una correccion genera dudas, usa la seccion `Revision manual` del panel: puedes apartar el caso, escribir una nota para Codex y crear un prompt de recorreccion. Las filas marcadas como `revision_manual_necesaria` bloquean la subida asistida hasta resolverlas.
+
 ## Continuar en otro ordenador
 
 Para retomar el proyecto en otro Windows, usa el paquete ZIP guiado o esta carpeta de proyecto sin copiar datos sensibles. No copies `.env`, `cache_carm`, `logs_correcciones`, `respuestas_extraidas`, `correcciones_validadas`, `.venv` ni carpetas de alumnos.
@@ -135,6 +137,14 @@ Para generar un paquete ZIP guiado para otro Windows:
 ```
 
 El paquete se crea en el Escritorio y no incluye `.env`, `.venv`, logs, cache ni entregas/correcciones generadas.
+
+Para generar un instalador descargable de un solo archivo, sin pedir al usuario que descomprima nada:
+
+```powershell
+.\crear_instalador_setup_windows.cmd
+```
+
+Esto crea `Corrector_CARM_<version>_Setup_<fecha>.exe` en el Escritorio. Al abrirlo, extrae temporalmente el paquete limpio y lanza el instalador guiado actual. Como no esta firmado digitalmente, Windows puede mostrar aviso de editor desconocido.
 
 Para instalar dependencias opcionales de lectura avanzada:
 

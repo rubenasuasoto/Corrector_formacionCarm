@@ -685,6 +685,101 @@ def check_interfaz_flujos_seguro() -> bool:
         app.revisar_publicacion_segura = original_revisar_publicacion_segura
 
 
+def check_revision_manual_interfaz() -> bool:
+    safe_print("\n==> Revision manual en interfaz")
+    import interfaz_app as app
+
+    original_temporal = app.TEMPORAL_DIR
+    original_pendientes = app.PENDIENTES_DIR
+    original_prompts = app.PROMPTS_DIR
+    original_revision = app.REVISION_CSV
+    original_notes = app.MANUAL_REVIEW_NOTES
+    base = ROOT / ".tmp_revision_manual_check"
+    if base.exists():
+        shutil.rmtree(base, ignore_errors=True)
+    base.mkdir(parents=True, exist_ok=True)
+    try:
+        temporal = base / "temporal"
+        pendientes = base / "pendientes"
+        prompts = pendientes / "prompts_codex"
+        alumno_dir = temporal / "Ana Prueba"
+        alumno_dir.mkdir(parents=True, exist_ok=True)
+        prompts.mkdir(parents=True, exist_ok=True)
+        original_pdf = alumno_dir / "ud01cp01.pdf"
+        correction_txt = alumno_dir / "ud01cp01.txt"
+        original_pdf.write_text("Entrega original legible.", encoding="utf-8")
+        correction_txt.write_text("Correccion anterior con dudas.", encoding="utf-8")
+        revision_csv = temporal / "revision_pendiente.csv"
+        notes_json = temporal / "revision_manual_notas.json"
+        try:
+            app.TEMPORAL_DIR = temporal
+            app.PENDIENTES_DIR = pendientes
+            app.PROMPTS_DIR = prompts
+            app.REVISION_CSV = revision_csv
+            app.MANUAL_REVIEW_NOTES = notes_json
+            revision_csv.parent.mkdir(parents=True, exist_ok=True)
+            with revision_csv.open("w", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=["alumno", "actividad", "nota", "estado", "retroalimentacion", "archivo_correccion"],
+                    delimiter=";",
+                )
+                writer.writeheader()
+                writer.writerow(
+                    {
+                        "alumno": "Ana Prueba",
+                        "actividad": "ud01cp01",
+                        "nota": "5",
+                        "estado": "borrador_pendiente_de_revision",
+                        "retroalimentacion": "Feedback previo.",
+                        "archivo_correccion": str(correction_txt),
+                    }
+                )
+            result = app.save_manual_review_case(
+                {
+                    "alumno": "Ana Prueba",
+                    "actividad": "ud01cp01",
+                    "nota_revision": "Revisa el PDF original antes de corregir.",
+                    "mark_manual": True,
+                }
+            )
+            if not result.get("ok"):
+                safe_print("ERROR: no se pudo marcar un caso para revision manual.")
+                return False
+            state = app.manual_review_state()
+            if state["count"] != 1 or state["blocking"] != 1:
+                safe_print("ERROR: el panel no detecta el caso marcado para revision manual.")
+                return False
+            prompt = app.build_manual_review_prompt(
+                {
+                    "alumno": "Ana Prueba",
+                    "actividad": "ud01cp01",
+                    "nota_revision": "Completa la correccion usando el archivo original.",
+                }
+            )
+            prompt_path = Path(prompt.get("prompt_path", ""))
+            if not prompt_path.exists() or not prompt_path.name.startswith("prompt_ud01cp01_revision_"):
+                safe_print("ERROR: no se genero el prompt de recorreccion manual.")
+                return False
+            text = prompt_path.read_text(encoding="utf-8")
+            if "No lo menciones" in text or "Completa la correccion" not in text:
+                safe_print("ERROR: el prompt de revision manual no contiene las instrucciones esperadas.")
+                return False
+            safe_print("OK: revision manual guarda notas, bloquea subida y genera prompt para Codex.")
+            return True
+        except Exception as exc:
+            safe_print(f"ERROR: prueba de revision manual fallo: {exc}")
+            return False
+        finally:
+            app.TEMPORAL_DIR = original_temporal
+            app.PENDIENTES_DIR = original_pendientes
+            app.PROMPTS_DIR = original_prompts
+            app.REVISION_CSV = original_revision
+            app.MANUAL_REVIEW_NOTES = original_notes
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verificacion local del Corrector CARM.")
     parser.add_argument(
@@ -729,6 +824,7 @@ def main() -> int:
         ok &= check_contexto_cursos_cuenta()
         ok &= check_export_codex_project_extenso()
         ok &= check_interfaz_flujos_seguro()
+        ok &= check_revision_manual_interfaz()
     if not args.sin_endpoints:
         ok &= check_local_endpoints()
 
