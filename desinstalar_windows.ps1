@@ -12,11 +12,96 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RootFull = [IO.Path]::GetFullPath($Root)
 $AppName = "Corrector CARM"
 $UninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Corrector CARM"
+$script:ProgressForm = $null
+$script:ProgressLog = $null
+$script:ProgressLabel = $null
+$script:ProgressBar = $null
+$script:ProgressClose = $null
+
+function Add-ProgressLine([string]$Message) {
+    if ($script:ProgressLog) {
+        $script:ProgressLog.AppendText($Message + [Environment]::NewLine)
+        $script:ProgressLog.SelectionStart = $script:ProgressLog.TextLength
+        $script:ProgressLog.ScrollToCaret()
+        [System.Windows.Forms.Application]::DoEvents()
+    }
+}
 
 function Write-Step($Message) {
     if (-not $Silencioso) {
         Write-Host ""
         Write-Host "==> $Message" -ForegroundColor Cyan
+        Add-ProgressLine "==> $Message"
+    }
+}
+
+function Start-UninstallProgress {
+    if ($Silencioso) { return }
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+        $script:ProgressForm = New-Object System.Windows.Forms.Form
+        $script:ProgressForm.Text = "Desinstalando Corrector CARM"
+        $script:ProgressForm.StartPosition = "CenterScreen"
+        $script:ProgressForm.FormBorderStyle = "FixedDialog"
+        $script:ProgressForm.MaximizeBox = $false
+        $script:ProgressForm.MinimizeBox = $false
+        $script:ProgressForm.ControlBox = $false
+        $script:ProgressForm.ClientSize = New-Object System.Drawing.Size(680, 360)
+        $iconPath = Join-Path $RootFull "assets\corrector_carm.ico"
+        if (Test-Path -LiteralPath $iconPath) {
+            try { $script:ProgressForm.Icon = New-Object System.Drawing.Icon($iconPath) } catch {}
+        }
+
+        $script:ProgressLabel = New-Object System.Windows.Forms.Label
+        $script:ProgressLabel.Text = "Quitando la app y aplicando las opciones elegidas"
+        $script:ProgressLabel.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+        $script:ProgressLabel.Location = New-Object System.Drawing.Point(22, 20)
+        $script:ProgressLabel.Size = New-Object System.Drawing.Size(620, 28)
+        $script:ProgressForm.Controls.Add($script:ProgressLabel)
+
+        $script:ProgressBar = New-Object System.Windows.Forms.ProgressBar
+        $script:ProgressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
+        $script:ProgressBar.MarqueeAnimationSpeed = 35
+        $script:ProgressBar.Location = New-Object System.Drawing.Point(24, 62)
+        $script:ProgressBar.Size = New-Object System.Drawing.Size(630, 18)
+        $script:ProgressForm.Controls.Add($script:ProgressBar)
+
+        $script:ProgressLog = New-Object System.Windows.Forms.TextBox
+        $script:ProgressLog.Multiline = $true
+        $script:ProgressLog.ReadOnly = $true
+        $script:ProgressLog.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
+        $script:ProgressLog.Font = New-Object System.Drawing.Font("Consolas", 8.5)
+        $script:ProgressLog.Location = New-Object System.Drawing.Point(24, 98)
+        $script:ProgressLog.Size = New-Object System.Drawing.Size(630, 205)
+        $script:ProgressForm.Controls.Add($script:ProgressLog)
+
+        $script:ProgressClose = New-Object System.Windows.Forms.Button
+        $script:ProgressClose.Text = "Cerrar"
+        $script:ProgressClose.Enabled = $false
+        $script:ProgressClose.Location = New-Object System.Drawing.Point(564, 318)
+        $script:ProgressClose.Size = New-Object System.Drawing.Size(90, 28)
+        $script:ProgressClose.Add_Click({ $script:ProgressForm.Close() })
+        $script:ProgressForm.Controls.Add($script:ProgressClose)
+
+        $script:ProgressForm.Show()
+        [System.Windows.Forms.Application]::DoEvents()
+    } catch {}
+}
+
+function Complete-UninstallProgress {
+    param([string]$Message)
+    if ($Silencioso -or -not $script:ProgressForm) { return }
+    $script:ProgressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Blocks
+    $script:ProgressBar.MarqueeAnimationSpeed = 0
+    $script:ProgressBar.Value = 100
+    $script:ProgressLabel.Text = $Message
+    $script:ProgressClose.Enabled = $true
+    $script:ProgressForm.ControlBox = $true
+    Add-ProgressLine $Message
+    while ($script:ProgressForm.Visible) {
+        [System.Windows.Forms.Application]::DoEvents()
+        Start-Sleep -Milliseconds 100
     }
 }
 
@@ -206,6 +291,7 @@ if ($config) {
 
 $interactiveDeleteKeys = Select-DataRemovalInteractive -DataItems $dataItems
 
+Start-UninstallProgress
 Stop-AppProcesses
 Remove-Shortcuts
 Remove-UninstallEntry
@@ -240,4 +326,5 @@ if (-not $Silencioso) {
         Write-Host "Datos conservados:" -ForegroundColor Yellow
         $kept | ForEach-Object { Write-Host " - $($_.Name): $($_.Path)" }
     }
+    Complete-UninstallProgress "Corrector CARM desinstalado"
 }

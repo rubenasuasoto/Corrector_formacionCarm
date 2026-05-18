@@ -359,6 +359,83 @@ def save_automation_config(
     return interval
 
 
+def ui_theme() -> str:
+    value = str(load_app_config().get("ui_theme") or "auto").strip().lower()
+    if value not in {"auto", "light", "dark"}:
+        return "auto"
+    return value
+
+
+def ui_font_size() -> str:
+    value = str(load_app_config().get("ui_font_size") or "normal").strip().lower()
+    if value not in {"small", "normal", "large"}:
+        return "normal"
+    return value
+
+
+def ui_log_height() -> str:
+    value = str(load_app_config().get("ui_log_height") or "normal").strip().lower()
+    if value not in {"compact", "normal", "tall"}:
+        return "normal"
+    return value
+
+
+def ui_contrast() -> str:
+    value = str(load_app_config().get("ui_contrast") or "normal").strip().lower()
+    if value not in {"normal", "high"}:
+        return "normal"
+    return value
+
+
+def ui_last_settings_page() -> str:
+    value = str(load_app_config().get("ui_last_settings_page") or "screen").strip().lower()
+    if value not in {"screen", "folders", "course", "windows", "health", "openai", "advanced"}:
+        return "screen"
+    return value
+
+
+def save_ui_config(
+    theme: str,
+    font_size: str | None = None,
+    log_height: str | None = None,
+    contrast: str | None = None,
+    last_settings_page: str | None = None,
+) -> dict:
+    clean = str(theme or "auto").strip().lower()
+    if clean not in {"auto", "light", "dark"}:
+        raise ValueError("Tema no válido.")
+    clean_font = str(font_size or ui_font_size()).strip().lower()
+    if clean_font not in {"small", "normal", "large"}:
+        raise ValueError("Tamaño de letra no válido.")
+    clean_log = str(log_height or ui_log_height()).strip().lower()
+    if clean_log not in {"compact", "normal", "tall"}:
+        raise ValueError("Altura del registro no válida.")
+    clean_contrast = str(contrast or ui_contrast()).strip().lower()
+    if clean_contrast not in {"normal", "high"}:
+        raise ValueError("Contraste no válido.")
+    clean_page = str(last_settings_page or ui_last_settings_page()).strip().lower()
+    if clean_page not in {"screen", "folders", "course", "windows", "health", "openai", "advanced"}:
+        clean_page = "screen"
+    save_app_config(
+        {
+            "ui_theme": clean,
+            "ui_font_size": clean_font,
+            "ui_log_height": clean_log,
+            "ui_contrast": clean_contrast,
+            "ui_last_settings_page": clean_page,
+        }
+    )
+    return {
+        "ok": True,
+        "message": "Preferencias de pantalla guardadas.",
+        "ui_theme": clean,
+        "ui_font_size": clean_font,
+        "ui_log_height": clean_log,
+        "ui_contrast": clean_contrast,
+        "ui_last_settings_page": clean_page,
+    }
+
+
 def correction_source_options() -> list[dict]:
     paths = [REVISION_CSV]
     if PROMPTS_DIR.exists():
@@ -908,9 +985,9 @@ def _check_codex_cli() -> dict:
             logged = False
         else:
             message = (
-                f"CLI disponible ({version_text}) y sesion ChatGPT activa."
+                f"CLI disponible ({version_text}) y sesión ChatGPT activa."
                 if logged
-                else f"CLI disponible ({version_text}), pero falta iniciar sesion en Codex."
+                else f"CLI disponible ({version_text}), pero falta iniciar sesión en Codex."
             )
         return {
             "name": "Codex Desktop",
@@ -1193,7 +1270,7 @@ def save_openai_config(api_key: str, model: str, mode: str) -> tuple[bool, str]:
         if not ok:
             return False, message
     write_env_values(updates)
-    return True, "Configuracion OpenAI guardada." if mode == "api" else "Modo solo prompts guardado."
+    return True, "Configuración OpenAI guardada." if mode == "api" else "Modo solo prompts guardado."
 
 
 def verify_openai_api(api_key: str, model: str) -> tuple[bool, str]:
@@ -2013,9 +2090,9 @@ def notify_prompts_prepared() -> None:
 def start_auto_prepare() -> tuple[bool, str]:
     global AUTO_COURSE_QUEUE
     if correction_mode() == "api" and openai_api_key_present():
-        notify("Corrector CARM", "Preparo prompts automaticamente. La API se ejecutara cuando lo confirmes.", target="activity")
+        notify("Corrector CARM", "Preparo prompts automáticamente. La API se ejecutará cuando lo confirmes.", target="activity")
     elif codex_cli_path():
-        notify("Corrector CARM", "Preparo prompts automaticamente. Puedes resolverlos con Codex App sin API key.", target="activity")
+        notify("Corrector CARM", "Preparo prompts automáticamente. Puedes resolverlos con Codex App sin API key.", target="activity")
     else:
         notify("Corrector CARM", "Sin API key o modo prompt: preparo prompts para correccion manual.", target="activity")
     courses = selected_courses_for_auto()
@@ -2057,7 +2134,7 @@ def start_startup_work() -> None:
         else:
             notify("Corrector CARM", "Cache del curso cargada. No se refresca CARM al iniciar.", target="activity")
         return
-    notify("Corrector CARM", "No hay cache didactica del curso. Hago primera deteccion en CARM.", target="activity")
+    notify("Corrector CARM", "No hay cache didáctica del curso. Hago primera detección en CARM.", target="activity")
     RUNNER.start("detect_course", ["--cachear-curso"])
 
 
@@ -2066,11 +2143,11 @@ def schedule_course_scan_if_missing(course_id: str, retries: int = 90, delay_sec
     if not course_id:
         return False, "No hay curso activo para escanear."
     if has_cached_course_data():
-        return False, "El curso ya tiene cache didactica."
+        return False, "El curso ya tiene cache didáctica."
 
     ok, message = RUNNER.start("detect_course", ["--cachear-curso"])
     if ok:
-        notify("Corrector CARM", f"Escaneando curso {course_id} para crear cache didactica.", target="activity")
+        notify("Corrector CARM", f"Escaneando curso {course_id} para crear cache didáctica.", target="activity")
         return True, "Escaneo del curso iniciado."
 
     if "marcha" not in message.lower() or retries <= 0:
@@ -2123,7 +2200,7 @@ def export_codex_course_project(course_id: str | None = None) -> Path:
         raise ValueError("Selecciona un curso CARM antes de crear el proyecto Codex.")
     cache_path = cache_path_for_course_id(course_id)
     if not cache_path:
-        raise ValueError("No hay cache didactica del curso. Primero actualiza datos didacticos desde CARM.")
+        raise ValueError("No hay cache didáctica del curso. Primero actualiza datos didácticos desde CARM.")
 
     project_dir = codex_course_project_dir(course_id)
     project_dir.mkdir(parents=True, exist_ok=True)
@@ -2294,7 +2371,7 @@ def ensure_codex_course_project(course_id: str | None = None, *, quiet: bool = T
     if not course_id.isdigit():
         return False, "No hay curso activo para preparar el proyecto Codex."
     if not cache_path_for_course_id(course_id):
-        return False, "No hay cache didactica suficiente para preparar el proyecto Codex."
+        return False, "No hay cache didáctica suficiente para preparar el proyecto Codex."
     try:
         project_dir = export_codex_course_project(course_id)
     except Exception as exc:
@@ -2569,7 +2646,7 @@ def start_auto_prepare_for_course(course: dict[str, str]) -> tuple[bool, str]:
 
 
 def start_detect_course_for_course(course: dict[str, str]) -> tuple[bool, str]:
-    notify("Corrector CARM", f"Actualizo cache didactica del curso {course['id']}.", target="activity")
+    notify("Corrector CARM", f"Actualizo cache didáctica del curso {course['id']}.", target="activity")
     return RUNNER.start(
         "detect_course",
         ["--cachear-curso"],
@@ -2609,6 +2686,11 @@ def project_state() -> dict:
         "periodic_auto_prepare": periodic_auto_prepare_enabled(),
         "auto_prepare_interval_minutes": auto_prepare_interval_minutes(),
         "auto_prepare_time": auto_prepare_time_of_day(),
+        "ui_theme": ui_theme(),
+        "ui_font_size": ui_font_size(),
+        "ui_log_height": ui_log_height(),
+        "ui_contrast": ui_contrast(),
+        "ui_last_settings_page": ui_last_settings_page(),
         "json_options": json_options(),
         "prompts": [file_info(p) for p in prompts],
         "corrections": [file_info(p) for p in corrections],
@@ -2644,19 +2726,36 @@ HTML = r"""<!doctype html>
   <link rel="icon" href="/assets/corrector_carm.ico?v=20260515">
   <style>
     :root {
-      --bg: #eef2ef;
+      --bg: #f4f7f5;
       --panel: #ffffff;
       --ink: #1d2524;
       --muted: #66736f;
-      --line: #d9ded8;
+      --line: #dfe6e1;
       --green: #1f7a5b;
       --green-soft: #e8f4ee;
       --amber: #a86200;
       --red: #b42318;
       --blue: #2f5f95;
       --blue-soft: #eaf1f8;
-      --surface: #f7f9f7;
-      --shadow: 0 10px 30px rgba(16, 24, 40, .07);
+      --surface: #f8faf8;
+      --surface-strong: #f1f5f2;
+      --shadow: 0 8px 24px rgba(16, 24, 40, .055);
+    }
+    body[data-theme="dark"] {
+      --bg: #111817;
+      --panel: #18211f;
+      --ink: #edf5f2;
+      --muted: #9daea8;
+      --line: #2d3b37;
+      --green: #58c99a;
+      --green-soft: #18392e;
+      --amber: #f0b75b;
+      --red: #ff8a7f;
+      --blue: #8bb7ee;
+      --blue-soft: #182c44;
+      --surface: #131c1a;
+      --surface-strong: #202c29;
+      --shadow: 0 10px 28px rgba(0, 0, 0, .22);
     }
     * { box-sizing: border-box; }
     body {
@@ -2665,6 +2764,25 @@ HTML = r"""<!doctype html>
       color: var(--ink);
       font-family: "Segoe UI", Arial, sans-serif;
       font-size: 14px;
+      line-height: 1.4;
+    }
+    body[data-font-size="small"] { font-size: 13px; }
+    body[data-font-size="large"] { font-size: 16px; }
+    body[data-contrast="high"] {
+      --line: #8b9b95;
+      --muted: #3f4d49;
+      --green: #146b4d;
+      --blue: #204f87;
+      --red: #97190f;
+    }
+    body[data-theme="dark"][data-contrast="high"] {
+      --line: #9fb1aa;
+      --muted: #d1ddd9;
+      --green: #7ee0b0;
+      --blue: #b6d4ff;
+      --red: #ffb4ad;
+      --surface: #0c1211;
+      --surface-strong: #24332f;
     }
     header {
       min-height: 68px;
@@ -2674,12 +2792,13 @@ HTML = r"""<!doctype html>
       gap: 20px;
       padding: 12px 24px;
       border-bottom: 1px solid var(--line);
-      background: rgba(251, 252, 250, .96);
+      background: rgba(255, 255, 255, .94);
       position: sticky;
       top: 0;
       z-index: 10;
       backdrop-filter: blur(10px);
     }
+    body[data-theme="dark"] header { background: rgba(18, 25, 24, .94); }
     h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: 0; }
     h2 { font-size: 15px; margin: 0; font-weight: 700; letter-spacing: 0; }
     h3 { font-size: 13px; margin: 0; font-weight: 700; letter-spacing: 0; }
@@ -2698,6 +2817,7 @@ HTML = r"""<!doctype html>
       box-shadow: var(--shadow);
       padding: 16px;
     }
+    body[data-theme="dark"] section { background: #18211f; }
     .brand { display: flex; align-items: center; gap: 12px; min-width: 260px; }
     .brand-mark {
       width: 38px;
@@ -2718,6 +2838,7 @@ HTML = r"""<!doctype html>
     }
     .brand small { display: block; color: var(--muted); margin-top: 2px; }
     .topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .header-tools { display: inline-flex; align-items: center; gap: 6px; }
     .course-switch { min-width: 210px; max-width: 320px; }
     .workflow {
       display: grid;
@@ -2727,7 +2848,7 @@ HTML = r"""<!doctype html>
     }
     .step {
       border: 1px solid var(--line);
-      background: var(--panel);
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdfb 100%);
       border-radius: 8px;
       padding: 11px;
       display: grid;
@@ -2736,6 +2857,7 @@ HTML = r"""<!doctype html>
       align-items: center;
       min-width: 0;
     }
+    body[data-theme="dark"] .step { background: linear-gradient(180deg, #1b2522 0%, #17201e 100%); }
     .step-num {
       width: 28px;
       height: 28px;
@@ -2756,22 +2878,30 @@ HTML = r"""<!doctype html>
     .section-head { margin-bottom: 12px; }
     .section-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
     label { color: var(--muted); font-size: 12px; display: block; margin-bottom: 4px; }
-    input, select {
+    input, select, textarea {
       width: 100%;
-      height: 36px;
+      min-height: 36px;
       border: 1px solid var(--line);
       border-radius: 6px;
       padding: 6px 8px;
       background: #fff;
       color: var(--ink);
     }
-    input:focus, select:focus {
+    body[data-theme="dark"] input,
+    body[data-theme="dark"] select,
+    body[data-theme="dark"] textarea,
+    body[data-theme="dark"] button,
+    body[data-theme="dark"] .pill {
+      background: #121a18;
+      color: var(--ink);
+    }
+    input:focus, select:focus, textarea:focus {
       outline: 2px solid rgba(47, 95, 149, .18);
       border-color: var(--blue);
     }
     .field { flex: 1 1 130px; min-width: 0; }
     button {
-      height: 36px;
+      min-height: 36px;
       border: 1px solid var(--line);
       border-radius: 6px;
       background: #fff;
@@ -2779,8 +2909,11 @@ HTML = r"""<!doctype html>
       padding: 0 12px;
       cursor: pointer;
       font-weight: 600;
+      transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, transform .08s ease;
     }
     button:hover:not(:disabled) { border-color: #b8c3bd; background: #f9fbfa; }
+    body[data-theme="dark"] button:hover:not(:disabled) { border-color: #40504b; background: #1d2926; }
+    button:active:not(:disabled) { transform: translateY(1px); }
     button.primary:hover:not(:disabled) { background: #19694e; border-color: #19694e; }
     button.primary { background: var(--green); border-color: var(--green); color: #fff; }
     button.warn { background: #fff8ea; color: var(--amber); border-color: #e7c98b; }
@@ -2793,7 +2926,7 @@ HTML = r"""<!doctype html>
       font-size: 17px;
     }
     button:disabled { opacity: .55; cursor: not-allowed; }
-    .button-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 12px; }
+    .button-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; }
     .button-row.two { grid-template-columns: 1fr 1fr; }
     .button-row.three { grid-template-columns: 1fr 1fr 1fr; }
     .badge {
@@ -2883,6 +3016,7 @@ HTML = r"""<!doctype html>
       color: #31413d;
       line-height: 1.45;
     }
+    body[data-theme="dark"] .path { color: var(--ink); }
     .list { display: grid; gap: 6px; }
     .item {
       display: grid;
@@ -2922,6 +3056,7 @@ HTML = r"""<!doctype html>
       font-size: 12px;
       line-height: 1.45;
     }
+    body[data-theme="dark"] .review-preview { background: var(--surface); color: var(--muted); }
     .review-actions {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2943,22 +3078,34 @@ HTML = r"""<!doctype html>
     .metric span { color: var(--muted); font-size: 12px; }
     .activity-panel {
       display: grid;
-      grid-template-rows: auto minmax(320px, 1fr);
+      grid-template-rows: auto minmax(300px, 1fr);
       min-height: calc(100vh - 104px);
     }
     pre {
-      min-height: 420px;
+      min-height: 360px;
       max-height: calc(100vh - 210px);
       overflow: auto;
       margin: 0;
       padding: 12px;
-      background: #17211f;
-      color: #d7eee5;
+      background: #f8fbfa;
+      color: #21312e;
+      border: 1px solid #d8e2dd;
       border-radius: 8px;
       font-family: Consolas, "Courier New", monospace;
       font-size: 12px;
       line-height: 1.45;
       white-space: pre-wrap;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    }
+    body[data-log-height="compact"] .activity-panel { min-height: 420px; }
+    body[data-log-height="compact"] pre { min-height: 220px; max-height: 42vh; }
+    body[data-log-height="tall"] .activity-panel { min-height: calc(100vh - 84px); }
+    body[data-log-height="tall"] pre { min-height: 520px; max-height: calc(100vh - 170px); }
+    body[data-theme="dark"] pre {
+      background: #0f1715;
+      color: #d7eee5;
+      border-color: #2d3b37;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
     }
     .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .check { display: flex; align-items: center; gap: 8px; color: var(--muted); }
@@ -2985,7 +3132,7 @@ HTML = r"""<!doctype html>
       user-select: none;
     }
     .modal {
-      width: min(760px, 100%);
+      width: min(960px, 100%);
       max-height: calc(100vh - 96px);
       overflow: auto;
       background: var(--panel);
@@ -3002,6 +3149,45 @@ HTML = r"""<!doctype html>
     }
     .advanced-fields { display: none; }
     .advanced-fields.active { display: grid; gap: 10px; }
+    .settings-layout {
+      display: grid;
+      grid-template-columns: 190px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .settings-nav {
+      position: sticky;
+      top: 0;
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+    .settings-nav button {
+      justify-content: flex-start;
+      text-align: left;
+      width: 100%;
+      background: transparent;
+      border-color: transparent;
+      color: var(--muted);
+    }
+    .settings-nav button.active {
+      background: var(--green-soft);
+      border-color: #b8dfc9;
+      color: var(--green);
+    }
+    .settings-content {
+      min-width: 0;
+    }
+    .settings-page {
+      display: none;
+      box-shadow: none;
+    }
+    .settings-page.active {
+      display: block;
+    }
     .folder-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -3018,6 +3204,8 @@ HTML = r"""<!doctype html>
       .button-row, .button-row.two, .button-row.three { grid-template-columns: 1fr; }
       .review-actions { grid-template-columns: 1fr; }
       .folder-row { grid-template-columns: 1fr; }
+      .settings-layout { grid-template-columns: 1fr; }
+      .settings-nav { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
   </style>
 </head>
@@ -3029,17 +3217,18 @@ HTML = r"""<!doctype html>
       </div>
       <div>
         <h1>Corrector CARM</h1>
-        <small id="releaseInfo">Panel local de preparacion, revision y subida</small>
+        <small id="releaseInfo">Panel local de preparación, revisión y subida</small>
       </div>
     </div>
     <div class="topbar-actions">
       <select id="activeCourseSelect" class="course-switch" aria-label="Curso activo"></select>
       <span id="courseSummary" class="pill"></span>
       <span id="statusBadge" class="badge idle">Parado</span>
-      <button id="refreshBtn">Actualizar</button>
-      <button id="restartBtn">Reiniciar app</button>
-      <button id="logoutBtn">Borrar credenciales CARM</button>
-      <button id="settingsBtn" class="icon" title="Configuracion" aria-label="Configuracion">&#9881;</button>
+      <span class="header-tools">
+        <button id="refreshBtn" class="icon" title="Actualizar panel" aria-label="Actualizar panel">&#8635;</button>
+        <button id="restartBtn" class="icon" title="Reiniciar app" aria-label="Reiniciar app">&#8634;</button>
+        <button id="settingsBtn" class="icon" title="Configuración" aria-label="Configuración">&#9881;</button>
+      </span>
     </div>
   </header>
   <div id="systemNotice" class="system-notice" role="status" aria-live="polite">
@@ -3073,11 +3262,11 @@ HTML = r"""<!doctype html>
             <select id="prepareMode">
               <option value="course">Todo el curso</option>
               <option value="unit">Unidad completa</option>
-              <option value="activity">Caso practico</option>
+              <option value="activity">Caso práctico</option>
             </select>
           </div>
           <div class="field" id="activityField">
-            <label for="actividad">Caso practico</label>
+            <label for="actividad">Caso práctico</label>
             <select id="actividad"></select>
           </div>
         </div>
@@ -3115,11 +3304,11 @@ HTML = r"""<!doctype html>
         </div>
         <label for="jsonPath">Archivo de correcciones</label>
         <select id="jsonPath">
-          <option value="">Cargando fuentes de correccion...</option>
+          <option value="">Cargando fuentes de corrección...</option>
         </select>
         <div id="uploadPendingDetail" class="hint"></div>
         <div class="button-row">
-          <button id="importCodexBtn">Importar JSON a revision</button>
+          <button id="importCodexBtn">Importar JSON a revisión</button>
           <button class="primary" id="assistPublishBtn">Sin pendientes para subir</button>
         </div>
         <label class="check" style="margin-top:10px">
@@ -3128,9 +3317,9 @@ HTML = r"""<!doctype html>
         </label>
         <label class="check">
           <input type="checkbox" id="uploadTraceCheck">
-          Guardar trace de diagnostico de subida
+          Guardar trace de diagnóstico de subida
         </label>
-        <p class="hint">El trace puede contener datos personales de CARM. Activalo solo para diagnosticar fallos y no lo compartas sin revisar.</p>
+        <p class="hint">El trace puede contener datos personales de CARM. Actívalo solo para diagnosticar fallos y no lo compartas sin revisar.</p>
       </section>
 
       <section id="manualReview">
@@ -3145,7 +3334,7 @@ HTML = r"""<!doctype html>
       <section>
         <div class="section-head">
           <h2>Estado de salidas</h2>
-          <p>Estos archivos son la base de la revision antes de subir a CARM.</p>
+          <p>Estos archivos son la base de la revisión antes de subir a CARM.</p>
         </div>
         <div class="summary-grid">
           <div class="metric">
@@ -3195,7 +3384,7 @@ HTML = r"""<!doctype html>
       <div class="split">
         <div class="section-head">
           <h2>Actividad</h2>
-          <p>Registro de ejecucion y avisos del backend.</p>
+          <p>Registro de ejecución y avisos del backend.</p>
         </div>
         <span id="elapsed" class="muted"></span>
       </div>
@@ -3210,22 +3399,22 @@ HTML = r"""<!doctype html>
         <span id="authSubtitle" class="muted">Acceso requerido</span>
       </div>
       <div class="stack" style="margin-top:12px">
-        <p class="hint">Introduce tus credenciales de CARM. Despues elige si la app corrige con OpenAI API o si solo genera prompts para pegarlos manualmente en Codex/ChatGPT.</p>
+        <p class="hint">Introduce tus credenciales de CARM. Después elige si la app corrige con OpenAI API o si solo genera prompts para pegarlos manualmente en Codex/ChatGPT.</p>
         <div class="grid2">
           <div>
             <label for="carmUser">Usuario CARM</label>
             <input id="carmUser" autocomplete="username">
           </div>
           <div>
-            <label for="carmPass">Contrasena CARM</label>
+            <label for="carmPass">Contraseña CARM</label>
             <input id="carmPass" type="password" autocomplete="current-password">
           </div>
         </div>
         <div class="grid2">
           <div>
-            <label for="correctionMode">Modo de correccion</label>
+            <label for="correctionMode">Modo de corrección</label>
             <select id="correctionMode">
-              <option value="api">OpenAI API: corregir automaticamente</option>
+              <option value="api">OpenAI API: corregir automáticamente</option>
               <option value="prompt">Solo prompts: corregir manualmente fuera</option>
             </select>
           </div>
@@ -3242,7 +3431,7 @@ HTML = r"""<!doctype html>
         <div>
           <label for="openaiKey">OpenAI API key</label>
           <input id="openaiKey" type="password" autocomplete="off" placeholder="sk-...">
-          <p class="hint">Opcional si eliges solo prompts. Si ya hay una key guardada puedes dejar este campo vacio.</p>
+          <p class="hint">Opcional si eliges solo prompts. Si ya hay una key guardada puedes dejar este campo vacío.</p>
         </div>
         <div class="path" id="authMessage">Pendiente de configurar.</div>
         <div class="row">
@@ -3255,11 +3444,67 @@ HTML = r"""<!doctype html>
   <div id="settingsModal" class="modal-backdrop" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="split">
-        <h2 id="settingsTitle">Configuracion</h2>
+        <h2 id="settingsTitle">Configuración</h2>
         <button id="closeSettingsBtn" class="icon" title="Cerrar" aria-label="Cerrar">×</button>
       </div>
-      <div class="stack" style="margin-top:12px">
-        <section style="box-shadow:none">
+      <div class="settings-layout" style="margin-top:12px">
+        <nav class="settings-nav" aria-label="Secciones de configuración">
+          <button type="button" class="settingsNavBtn active" data-settings-page="screen">Pantalla</button>
+          <button type="button" class="settingsNavBtn" data-settings-page="folders">Carpetas</button>
+          <button type="button" class="settingsNavBtn" data-settings-page="course">Curso y automatización</button>
+          <button type="button" class="settingsNavBtn" data-settings-page="windows">Windows</button>
+          <button type="button" class="settingsNavBtn" data-settings-page="health">Estado</button>
+          <button type="button" class="settingsNavBtn" data-settings-page="openai">OpenAI</button>
+          <button type="button" class="settingsNavBtn" data-settings-page="advanced">Avanzado</button>
+        </nav>
+        <div class="settings-content">
+        <section class="settings-page active" data-settings-page-panel="screen">
+          <div class="section-head">
+            <h2>Pantalla</h2>
+            <p>Elige cómo quieres ver el panel en este equipo.</p>
+          </div>
+          <div class="grid2">
+            <div>
+              <label for="uiTheme">Tema visual</label>
+              <select id="uiTheme">
+                <option value="auto">Usar tema de Windows</option>
+                <option value="light">Claro</option>
+                <option value="dark">Oscuro</option>
+              </select>
+            </div>
+            <div>
+              <label for="uiFontSize">Tamaño de letra</label>
+              <select id="uiFontSize">
+                <option value="small">Pequeña</option>
+                <option value="normal">Normal</option>
+                <option value="large">Grande</option>
+              </select>
+            </div>
+            <div>
+              <label for="uiLogHeight">Altura del registro</label>
+              <select id="uiLogHeight">
+                <option value="compact">Compacta</option>
+                <option value="normal">Normal</option>
+                <option value="tall">Alta</option>
+              </select>
+            </div>
+            <div>
+              <label for="uiContrast">Contraste</label>
+              <select id="uiContrast">
+                <option value="normal">Normal</option>
+                <option value="high">Alto contraste</option>
+              </select>
+            </div>
+            <div>
+              <label>&nbsp;</label>
+              <button class="primary" id="saveUiBtn" type="button">Guardar pantalla</button>
+            </div>
+          </div>
+          <p class="hint">La última sección de configuración abierta se recuerda automáticamente en este equipo.</p>
+          <div class="path" id="uiMessage">Preferencia de pantalla pendiente de cargar.</div>
+        </section>
+
+        <section class="settings-page" data-settings-page-panel="folders">
           <div class="section-head">
             <h2>Carpetas de trabajo</h2>
             <p>La app crea estas carpetas si no existen. Puedes cambiarlas con el explorador de Windows.</p>
@@ -3287,14 +3532,14 @@ HTML = r"""<!doctype html>
           </div>
         </section>
 
-        <section style="box-shadow:none">
+        <section class="settings-page" data-settings-page-panel="course">
           <div class="section-head">
             <h2>Curso CARM</h2>
             <p>Cambia el curso activo si tienes varias caches o si vas a corregir otro curso.</p>
           </div>
           <div class="stack">
             <div>
-              <label for="courseUrl">URL area personal, URL de curso o ID</label>
+              <label for="courseUrl">URL área personal, URL de curso o ID</label>
               <input id="courseUrl" placeholder="https://formacion.carm.es/my/index.php">
             </div>
             <div>
@@ -3313,14 +3558,14 @@ HTML = r"""<!doctype html>
             <div class="row">
               <button class="primary" id="saveCourseBtn" type="button">Guardar curso</button>
               <button id="useDetectedCourseBtn" type="button">Usar detectado</button>
-              <button id="saveSelectedCoursesBtn" type="button">Guardar seleccion</button>
+              <button id="saveSelectedCoursesBtn" type="button">Guardar selección</button>
               <button id="detectCoursesBtn" type="button">Detectar cursos CARM</button>
             </div>
             <label class="check">
               <input type="checkbox" id="courseScopedDirs">
               Separar carpetas por curso
             </label>
-            <p class="hint">Activado por defecto. Cada curso usa sus propias carpetas dentro de la carpeta de datos configurada para no mezclar prompts, CSV ni resumenes.</p>
+            <p class="hint">Activado por defecto. Cada curso usa sus propias carpetas dentro de la carpeta de datos configurada para no mezclar prompts, CSV ni resúmenes.</p>
             <h3>Autoescaneo</h3>
             <div class="grid2">
               <div>
@@ -3336,7 +3581,7 @@ HTML = r"""<!doctype html>
             <h3>Autoprompt</h3>
             <label class="check">
               <input type="checkbox" id="periodicAutoPrepare">
-              Preparar prompts automaticamente
+              Preparar prompts automáticamente
             </label>
             <div class="grid2">
               <div>
@@ -3348,7 +3593,7 @@ HTML = r"""<!doctype html>
                 <input id="autoPrepareTime" type="time">
               </div>
             </div>
-            <p class="hint">Usa 0 para desactivar intervalos. La hora exacta se ejecuta una vez al dia. El autoprompt no llama a la API, no guarda notas en CARM y no borra prompts pendientes sin corregir.</p>
+            <p class="hint">Usa 0 para desactivar intervalos. La hora exacta se ejecuta una vez al día. El autoprompt no llama a la API, no guarda notas en CARM y no borra prompts pendientes sin corregir.</p>
             <div class="path" id="autoPrepareMessage">Horario de autoprompt pendiente de guardar.</div>
             <div class="row">
               <button class="primary" id="saveAutoPrepareTimeBtn" type="button">Guardar hora de autoprompt</button>
@@ -3359,10 +3604,10 @@ HTML = r"""<!doctype html>
           </div>
         </section>
 
-        <section style="box-shadow:none">
+        <section class="settings-page" data-settings-page-panel="windows">
           <div class="section-head">
             <h2>Windows</h2>
-            <p>Controla que ocurre al iniciar sesion en Windows.</p>
+            <p>Controla qué ocurre al iniciar sesión en Windows.</p>
           </div>
           <div class="stack">
             <label class="check">
@@ -3371,13 +3616,13 @@ HTML = r"""<!doctype html>
             </label>
             <label class="check">
               <input type="checkbox" id="startupAutoCorrect">
-              Preparar prompts automaticamente al iniciar
+              Preparar prompts automáticamente al iniciar
             </label>
             <label class="check">
               <input type="checkbox" id="startupCodex">
               Iniciar Codex App con el proyecto del curso
             </label>
-            <p class="hint">La preparacion automatica no llama a la API ni publica en CARM. Codex se abre con contexto didactico del curso, sin entregas ni datos personales.</p>
+            <p class="hint">La preparación automática no llama a la API ni publica en CARM. Codex se abre con contexto didáctico del curso, sin entregas ni datos personales.</p>
             <div class="path" id="startupMessage">Arranque pendiente de comprobar.</div>
             <div class="row">
               <button id="saveStartupBtn" type="button">Guardar arranque</button>
@@ -3386,7 +3631,7 @@ HTML = r"""<!doctype html>
           </div>
         </section>
 
-        <section style="box-shadow:none">
+        <section class="settings-page" data-settings-page-panel="health">
           <div class="section-head">
             <h2>Estado local</h2>
             <p>Comprueba dependencias, Chromium, configuracion y que Git no versiona datos sensibles.</p>
@@ -3400,17 +3645,17 @@ HTML = r"""<!doctype html>
           </div>
         </section>
 
-        <section style="box-shadow:none">
+        <section class="settings-page" data-settings-page-panel="openai">
           <div class="section-head">
             <h2>OpenAI</h2>
-            <p>Con API key la app corrige automaticamente. Sin API key genera prompts para corregir fuera e importar el JSON.</p>
+            <p>Con API key la app corrige automáticamente. Sin API key genera prompts para corregir fuera e importar el JSON.</p>
           </div>
           <div class="stack">
             <div class="grid2">
               <div>
-                <label for="settingsCorrectionMode">Modo de correccion</label>
+                <label for="settingsCorrectionMode">Modo de corrección</label>
                 <select id="settingsCorrectionMode">
-                  <option value="api">OpenAI API: corregir automaticamente</option>
+                  <option value="api">OpenAI API: corregir automáticamente</option>
                   <option value="prompt">Solo prompts: corregir manualmente fuera</option>
                 </select>
               </div>
@@ -3427,7 +3672,7 @@ HTML = r"""<!doctype html>
             <div>
               <label for="settingsOpenaiKey">OpenAI API key</label>
               <input id="settingsOpenaiKey" type="password" autocomplete="off" placeholder="sk-...">
-              <p class="hint">Si introduces una key, la app la verifica con una llamada minima y activa el modo API. Deja el campo vacio para conservar la key actual.</p>
+              <p class="hint">Si introduces una key, la app la verifica con una llamada mínima y activa el modo API. Deja el campo vacío para conservar la key actual.</p>
             </div>
             <div class="path" id="openaiMessage">OpenAI pendiente de comprobar.</div>
             <div class="row">
@@ -3437,10 +3682,10 @@ HTML = r"""<!doctype html>
           </div>
         </section>
 
-        <div>
+        <section class="settings-page" data-settings-page-panel="advanced">
           <label for="advancedAction">Comando</label>
           <select id="advancedAction">
-            <option value="detect_course">Actualizar datos didacticos desde CARM</option>
+            <option value="detect_course">Actualizar datos didácticos desde CARM</option>
             <option value="detect_courses">Detectar cursos disponibles</option>
             <option value="check_playwright">Comprobar permisos de navegador</option>
             <option value="diagnose">Diagnosticar CARM</option>
@@ -3457,7 +3702,6 @@ HTML = r"""<!doctype html>
             <option value="delete_cache">Borrar cache del curso</option>
           </select>
           <p id="advancedHint" class="hint"></p>
-        </div>
 
         <div id="fieldsUnidad" class="advanced-fields">
           <div class="grid2">
@@ -3483,7 +3727,7 @@ HTML = r"""<!doctype html>
 
         <div id="fieldsActivity" class="advanced-fields">
           <div>
-            <label for="advancedActividad">Caso practico</label>
+            <label for="advancedActividad">Caso práctico</label>
             <select id="advancedActividad"></select>
           </div>
         </div>
@@ -3492,7 +3736,7 @@ HTML = r"""<!doctype html>
           <div>
             <label for="importJsonPath">JSON/CSV de correcciones</label>
             <select id="importJsonPath">
-              <option value="">Cargando fuentes de correccion...</option>
+              <option value="">Cargando fuentes de corrección...</option>
             </select>
           </div>
         </div>
@@ -3502,6 +3746,16 @@ HTML = r"""<!doctype html>
           <button class="primary" id="runAdvancedBtn">Ejecutar comando</button>
           <button id="cancelSettingsBtn">Cancelar</button>
         </div>
+        <div class="section-head" style="margin-top:18px">
+          <h2>Cuenta CARM</h2>
+          <p>Usa esta opción si quieres cerrar sesión en este equipo o cambiar de cuenta docente.</p>
+        </div>
+        <div class="path" id="logoutMessage">Credenciales CARM configuradas en este equipo.</div>
+        <div class="row">
+          <button class="danger" id="logoutBtn" type="button">Borrar credenciales CARM</button>
+        </div>
+        </section>
+        </div>
       </div>
     </div>
   </div>
@@ -3510,11 +3764,47 @@ HTML = r"""<!doctype html>
     const $ = (id) => document.getElementById(id);
     const API_TOKEN = "__LOCAL_API_TOKEN__";
     let refreshInProgress = false;
+    let preferredTheme = 'auto';
+    let preferredFontSize = 'normal';
+    let preferredLogHeight = 'normal';
+    let preferredContrast = 'normal';
+    let preferredSettingsPage = 'screen';
+    const systemDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    function resolvedTheme(value) {
+      const theme = ['auto', 'light', 'dark'].includes(value) ? value : 'auto';
+      if (theme === 'auto') return systemDark && systemDark.matches ? 'dark' : 'light';
+      return theme;
+    }
+    function applyTheme(value) {
+      preferredTheme = ['auto', 'light', 'dark'].includes(value) ? value : 'auto';
+      document.body.dataset.theme = resolvedTheme(preferredTheme);
+      if ($('uiTheme')) $('uiTheme').value = preferredTheme;
+      if ($('uiMessage')) {
+        const label = preferredTheme === 'auto' ? 'Usando el tema de Windows' : (preferredTheme === 'dark' ? 'Tema oscuro guardado' : 'Tema claro guardado');
+        $('uiMessage').textContent = label;
+      }
+    }
+    function applyDisplayPreferences(prefs = {}) {
+      applyTheme(prefs.ui_theme || preferredTheme);
+      preferredFontSize = ['small', 'normal', 'large'].includes(prefs.ui_font_size) ? prefs.ui_font_size : preferredFontSize;
+      preferredLogHeight = ['compact', 'normal', 'tall'].includes(prefs.ui_log_height) ? prefs.ui_log_height : preferredLogHeight;
+      preferredContrast = ['normal', 'high'].includes(prefs.ui_contrast) ? prefs.ui_contrast : preferredContrast;
+      preferredSettingsPage = ['screen', 'folders', 'course', 'windows', 'health', 'openai', 'advanced'].includes(prefs.ui_last_settings_page)
+        ? prefs.ui_last_settings_page
+        : preferredSettingsPage;
+      document.body.dataset.fontSize = preferredFontSize;
+      document.body.dataset.logHeight = preferredLogHeight;
+      document.body.dataset.contrast = preferredContrast;
+      if ($('uiFontSize')) $('uiFontSize').value = preferredFontSize;
+      if ($('uiLogHeight')) $('uiLogHeight').value = preferredLogHeight;
+      if ($('uiContrast')) $('uiContrast').value = preferredContrast;
+    }
+    if (systemDark) systemDark.addEventListener('change', () => applyTheme(preferredTheme));
     const advancedHints = {
-      diagnose: 'Entra en CARM, genera diagnostico limpio y no descarga entregas.',
-      check_playwright: 'Comprueba que Windows permite abrir Playwright/Chromium e iniciar sesion en CARM.',
-      diagnose_evidence: 'Guarda HTML/capturas redactadas para depurar selectores. Usalo solo si necesitas evidencias.',
-      detect_course: 'Entra en CARM y actualiza la cache didactica con unidades, casos practicos, enunciados y contenido estable.',
+      diagnose: 'Entra en CARM, genera diagnóstico limpio y no descarga entregas.',
+      check_playwright: 'Comprueba que Windows permite abrir Playwright/Chromium e iniciar sesión en CARM.',
+      diagnose_evidence: 'Guarda HTML/capturas redactadas para depurar selectores. Úsalo solo si necesitas evidencias.',
+      detect_course: 'Entra en CARM y actualiza la cache didáctica con unidades, casos prácticos, enunciados y contenido estable.',
       detect_courses: 'Entra en CARM y lista los cursos visibles para este usuario. No descarga entregas ni corrige.',
       list_carm: 'Lista entregas que requieren calificacion sin descargar archivos.',
       cache_course: 'Actualiza la cache local de recursos estables del curso.',
@@ -3523,7 +3813,7 @@ HTML = r"""<!doctype html>
       solve_prompts_codex_app: 'Usa Codex App con tu login de ChatGPT para resolver prompts sin OPENAI_API_KEY.',
       prepare_carm_api: 'Descarga entregas desde CARM y corrige con OpenAI API en un solo paso.',
       prepare_carm_codex: 'Descarga desde CARM y genera prompts para Codex sin llamar a la API.',
-      prepare_carm_codex_activity: 'Descarga y prepara prompts solo para el caso practico elegido.',
+      prepare_carm_codex_activity: 'Descarga y prepara prompts solo para el caso práctico elegido.',
       import_codex: 'Importa un JSON/CSV de correcciones y crea salidas revisables por alumno.',
       delete_cache: 'Borra la cache SQLite local del curso.'
     };
@@ -3600,7 +3890,7 @@ HTML = r"""<!doctype html>
       try {
         payload = await res.json();
       } catch (err) {
-        payload = {ok: false, message: `Respuesta local no valida (${res.status}).`};
+        payload = {ok: false, message: `Respuesta local no válida (${res.status}).`};
       }
       if (res.status === 403 && String(payload.message || '').toLowerCase().includes('token')) {
         if (!sessionStorage.getItem('correctorTokenReloaded')) {
@@ -3608,7 +3898,7 @@ HTML = r"""<!doctype html>
           window.location.reload();
           return new Promise(() => {});
         }
-        showSystemNotice('La sesion local del panel ha caducado. Recarga la pagina para recibir un token nuevo.');
+        showSystemNotice('La sesión local del panel ha caducado. Recarga la página para recibir un token nuevo.');
         throw new Error(payload.message || 'Token local no valido.');
       }
       if (res.status === 401 || payload.auth_required) {
@@ -3770,7 +4060,7 @@ HTML = r"""<!doctype html>
       updateAdvancedActivityOptions();
       const source = courseOptions.source === 'cache_didactica'
         ?
-         (courseOptions.didactic_units < courseOptions.units.length ? 'cache parcial' : 'cache didactica')
+         (courseOptions.didactic_units < courseOptions.units.length ? 'cache parcial' : 'cache didáctica')
         : 'valores base';
       $('courseSummary').textContent = `${courseOptions.units.length} unidades · ${courseOptions.activities.length} casos · ${source}`;
     }
@@ -3778,6 +4068,11 @@ HTML = r"""<!doctype html>
     async function loadAuth() {
       authState = await api('/api/auth');
       $('logoutBtn').disabled = !authState.configured;
+      if ($('logoutMessage')) {
+        $('logoutMessage').textContent = authState.configured
+          ? 'Credenciales CARM guardadas para este equipo.'
+          : 'No hay credenciales CARM configuradas.';
+      }
       if ($('correctionMode')) $('correctionMode').value = authState.correction_mode || 'prompt';
       if ($('openaiModel')) $('openaiModel').value = authState.openai_model || 'gpt-5-mini';
       if ($('settingsCorrectionMode')) $('settingsCorrectionMode').value = authState.correction_mode || 'prompt';
@@ -3900,7 +4195,23 @@ HTML = r"""<!doctype html>
     function toggleSettings(open) {
       $('settingsModal').classList.toggle('open', open);
       $('settingsModal').setAttribute('aria-hidden', open ? 'false' : 'true');
-      if (open) updateAdvancedForm();
+      if (open) {
+        showSettingsPage(preferredSettingsPage || 'screen', false);
+        updateAdvancedForm();
+      }
+    }
+
+    function showSettingsPage(page, persist = true) {
+      const selected = page || 'screen';
+      preferredSettingsPage = selected;
+      document.querySelectorAll('.settingsNavBtn').forEach((button) => {
+        button.classList.toggle('active', button.dataset.settingsPage === selected);
+      });
+      document.querySelectorAll('.settings-page').forEach((panel) => {
+        panel.classList.toggle('active', panel.dataset.settingsPagePanel === selected);
+      });
+      if (selected === 'advanced') updateAdvancedForm();
+      if (persist) saveUiPreferences(true);
     }
 
     function updateAdvancedForm() {
@@ -3969,7 +4280,7 @@ HTML = r"""<!doctype html>
         method: 'POST',
         body: JSON.stringify({course_ids: ids})
       });
-      $('courseMessage').textContent = result.message || (result.ok ? 'Seleccion guardada.' : 'No se pudo guardar la seleccion.');
+      $('courseMessage').textContent = result.message || (result.ok ? 'Selección guardada.' : 'No se pudo guardar la selección.');
       $('saveSelectedCoursesBtn').disabled = false;
       await refresh();
     }
@@ -4071,6 +4382,26 @@ HTML = r"""<!doctype html>
       }
     }
 
+    async function saveUiPreferences(silent = false) {
+      if ($('saveUiBtn')) $('saveUiBtn').disabled = true;
+      const result = await api('/api/config/ui', {
+        method: 'POST',
+        body: JSON.stringify({
+          ui_theme: $('uiTheme').value,
+          ui_font_size: $('uiFontSize').value,
+          ui_log_height: $('uiLogHeight').value,
+          ui_contrast: $('uiContrast').value,
+          ui_last_settings_page: preferredSettingsPage
+        })
+      });
+      if (result.ok) applyDisplayPreferences(result);
+      if (!silent && $('uiMessage')) {
+        $('uiMessage').textContent = result.message || (result.ok ? 'Preferencias guardadas.' : 'No se pudieron guardar las preferencias.');
+        showSystemNotice($('uiMessage').textContent, result.ok ? 'success' : 'error');
+      }
+      if ($('saveUiBtn')) $('saveUiBtn').disabled = false;
+    }
+
     async function setAutomationInterval(minutes, stopCurrentScan = false) {
       $('autoScanInterval').value = String(minutes);
       await saveAutomation();
@@ -4134,6 +4465,7 @@ HTML = r"""<!doctype html>
       }
       const status = await api('/api/status');
       const state = await api('/api/state');
+      applyDisplayPreferences(state);
       await loadOptions();
       if (state.release) {
         const dirty = state.release.dirty ? ' · cambios locales' : '';
@@ -4173,7 +4505,7 @@ HTML = r"""<!doctype html>
       if ($('startupMessage')) {
         $('startupMessage').textContent = state.startup_installed
           ?
-           `${state.startup_auto_correct_enabled ? 'Arranque instalado con autopreparacion de prompts.' : 'Arranque instalado sin autopreparacion de prompts.'}${state.startup_codex_enabled ? ' Codex App se abrira con el proyecto del curso.' : ''}`
+           `${state.startup_auto_correct_enabled ? 'Arranque instalado con autopreparación de prompts.' : 'Arranque instalado sin autopreparación de prompts.'}${state.startup_codex_enabled ? ' Codex App se abrirá con el proyecto del curso.' : ''}`
           : 'Arranque automatico no instalado.';
       }
       const jsonHtml = state.json_options.map(jsonOptionHtml).join('');
@@ -4214,7 +4546,7 @@ HTML = r"""<!doctype html>
       setText('courseMessage', courseOptions.cache_path
         ?
          `Curso ${courseOptions.course_id} · cache: ${courseOptions.cache_path} · proyecto Codex: ${state.codex_project && state.codex_project.exists ? 'listo' : 'se prepara al actualizar cache'} · trabajo: ${state.pendientes_dir}`
-        : `Curso ${courseOptions.course_id || 'sin ID'} · sin cache didactica · trabajo: ${state.pendientes_dir}`);
+        : `Curso ${courseOptions.course_id || 'sin ID'} · sin cache didáctica · trabajo: ${state.pendientes_dir}`);
       const badge = $('statusBadge');
       const failed = status.has_error || (status.exit_code && status.exit_code !== 0);
       badge.className = 'badge ' + (status.running ? '' : (failed ? 'err' : 'idle'));
@@ -4252,7 +4584,7 @@ HTML = r"""<!doctype html>
       setText('revisionPath', `${state.revision_csv.path} · ${state.revision_csv.exists ? 'listo' : 'pendiente'}`);
       setHtml('promptsList', state.prompts.length ? state.prompts.map(fmtFile).join('') : '<span class="muted">Sin prompts</span>');
       setHtml('correctionsList', state.corrections.length ? state.corrections.map(fmtFile).join('') : '<span class="muted">Sin correcciones</span>');
-      setHtml('summariesList', state.summaries.length ? state.summaries.map(fmtFile).join('') : '<span class="muted">Sin resumenes</span>');
+      setHtml('summariesList', state.summaries.length ? state.summaries.map(fmtFile).join('') : '<span class="muted">Sin resúmenes</span>');
       setText('promptCount', String(state.prompts.length));
       setText('correctionCount', String(state.pending_publication.rows || state.corrections.length));
       setWorkflow(status, state);
@@ -4285,7 +4617,7 @@ HTML = r"""<!doctype html>
     }
 
     async function restartApp() {
-      if (!confirm('Reiniciar la aplicacion local ahora Se detendra cualquier tarea en curso.')) return;
+      if (!confirm('Reiniciar la aplicación local ahora. Se detendrá cualquier tarea en curso.')) return;
       showSystemNotice('Reiniciando Corrector CARM...');
       try {
         await api('/api/restart', {method: 'POST'});
@@ -4312,9 +4644,11 @@ HTML = r"""<!doctype html>
     $('refreshBtn').onclick = safeRefresh;
     $('restartBtn').onclick = restartApp;
     $('logoutBtn').onclick = async () => {
-      if (!confirm('Esto vaciara CARM_USUARIO/CARM_CONTRASENA en .env y borrara la sesion recordada. Tendras que volver a introducir credenciales para usar el panel. Continuar')) return;
+      if (!confirm('Esto vaciará CARM_USUARIO/CARM_CONTRASENA en .env y borrará la sesión recordada. Tendrás que volver a introducir credenciales para usar el panel. ¿Continuar?')) return;
       const result = await api('/api/auth/logout', {method:'POST'});
-      $('authMessage').textContent = result.message || 'Sesion cerrada.';
+      $('authMessage').textContent = result.message || 'Sesión cerrada.';
+      if ($('logoutMessage')) $('logoutMessage').textContent = result.message || 'Sesión cerrada.';
+      toggleSettings(false);
       await refresh();
     };
     $('saveAuthBtn').onclick = async () => {
@@ -4345,6 +4679,9 @@ HTML = r"""<!doctype html>
     $('settingsBtn').onclick = () => toggleSettings(true);
     $('closeSettingsBtn').onclick = () => toggleSettings(false);
     $('cancelSettingsBtn').onclick = () => toggleSettings(false);
+    document.querySelectorAll('.settingsNavBtn').forEach((button) => {
+      button.onclick = () => showSettingsPage(button.dataset.settingsPage);
+    });
     $('authModal').onclick = (event) => {
       if (event.target === $('authModal') && !authState.configured) {
         $('authMessage').textContent = 'Debes verificar CARM antes de entrar al panel.';
@@ -4372,6 +4709,7 @@ HTML = r"""<!doctype html>
     $('checkHealthBtn').onclick = checkHealth;
     $('saveOpenaiBtn').onclick = () => saveOpenAIConfig(false);
     $('checkOpenaiBtn').onclick = () => saveOpenAIConfig(true);
+    $('saveUiBtn').onclick = saveUiPreferences;
     $('scanNowBtn').onclick = () => {
       toggleSettings(false);
       run('detect_course');
@@ -4577,6 +4915,21 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 send_json(self, {"ok": False, "message": str(exc)}, 400)
             return
+        if parsed.path == "/api/config/ui":
+            try:
+                body = read_json_body(self)
+                result = save_ui_config(
+                    str(body.get("ui_theme") or "auto"),
+                    str(body.get("ui_font_size") or ui_font_size()),
+                    str(body.get("ui_log_height") or ui_log_height()),
+                    str(body.get("ui_contrast") or ui_contrast()),
+                    str(body.get("ui_last_settings_page") or ui_last_settings_page()),
+                )
+                audit_ui_event("configurar_pantalla", tema=result["ui_theme"])
+                send_json(self, result)
+            except Exception as exc:
+                send_json(self, {"ok": False, "message": str(exc)}, 400)
+            return
         if parsed.path == "/api/config/course":
             try:
                 body = read_json_body(self)
@@ -4601,7 +4954,7 @@ class Handler(BaseHTTPRequestHandler):
                 if scan_message:
                     message = f"{message} {scan_message}"
                 elif not dashboard_saved:
-                    message = f"{message} Cache didactica disponible. Proyecto Codex preparado."
+                    message = f"{message} Cache didáctica disponible. Proyecto Codex preparado."
                 send_json(
                     self,
                     {
@@ -5132,7 +5485,7 @@ def main() -> None:
     parser.add_argument(
         "--auto-correct",
         action="store_true",
-        help="Tras revisar CARM al inicio, prepara correcciones automaticamente.",
+        help="Tras revisar CARM al inicio, prepara correcciones automáticamente.",
     )
     parser.add_argument(
         "--no-auto-correct",
@@ -5149,7 +5502,7 @@ def main() -> None:
     parser.add_argument(
         "--no-startup-scan",
         action="store_true",
-        help="No revisa CARM al iniciar para actualizar unidades y casos practicos.",
+        help="No revisa CARM al iniciar para actualizar unidades y casos prácticos.",
     )
     parser.add_argument(
         "--no-periodic-scan",
@@ -5185,7 +5538,7 @@ def main() -> None:
     save_app_config({"last_local_url": url, "last_local_port": active_port})
     print(f"Interfaz Corrector CARM: {url}")
     if args.port and active_port != args.port:
-        print(f"Puerto {args.port} ocupado; se ha usado automaticamente el puerto {active_port}.")
+        print(f"Puerto {args.port} ocupado; se ha usado automáticamente el puerto {active_port}.")
     notify_pending_publication()
     repair_startup_if_installed()
     start_periodic_scan(disabled=args.no_periodic_scan)

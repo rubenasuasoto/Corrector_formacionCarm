@@ -40,6 +40,8 @@ Actualizacion prompts 2026-05-18: las entregas legibles con señales de extracci
 
 Actualizacion revision manual 2026-05-18: el panel incorpora una bandeja para casos que deben apartarse antes de subir. Desde ahi se puede guardar una nota para Codex, marcar el caso como `revision_manual_necesaria` y generar un prompt de recorreccion sin entrar en CARM. Esos casos bloquean la subida asistida hasta que se resuelvan.
 
+Revision profunda 2026-05-18: se comprueba el estado completo tras los cambios de instalador, OCR, interfaz y Codex. Pasan parseo PowerShell de scripts Windows, compilacion Python y `verificar_app.py --instalacion --sin-endpoints`. La configuracion queda organizada por secciones y la preferencia de tema se guarda en `.corrector_app.json`. El instalador/desinstalador ya no deben mostrar terminales al usuario final; la fase tecnica se ve como checklist/progreso dentro del asistente. No se regenera paquete ni `Setup.exe` en esta revision.
+
 ## Checklist obligatoria
 
 ### Instalacion y arranque
@@ -55,11 +57,14 @@ Actualizacion revision manual 2026-05-18: el panel incorpora una bandeja para ca
 - [x] El desinstalador permite conservar datos, borrar todo o borrar solo partes concretas.
 - [x] El instalador guiado detecta dependencias/carpetas y avisa de la necesidad de iniciar sesion en Codex.
 - [x] El instalador guiado ofrece preparar integracion con Codex App sin API sin instalarlo automaticamente.
+- [x] El instalador guiado oculta procesos tecnicos y muestra checklist/progreso integrado sin terminales visibles.
+- [x] El instalador OCR no bloquea la instalacion si Tesseract o el idioma espanol no pueden instalarse.
 - [x] La integracion sin API usa el Codex CLI oficial instalado con npm (`codex.cmd`) y bloquea el ejecutable de la extension de VS Code.
 - [x] El flujo Codex comprueba version/login, reintenta fallos temporales y tolera archivos bloqueados en `codex_project` si Codex Desktop ya lo tiene abierto.
 - [x] El proyecto Codex por curso exporta indice, actividades y contenido imprimible completo por unidad, separado de los prompts/API.
 - [x] Los prompts avisan a Codex de posibles fallos de extraccion para que verifique el original y no culpe al alumno sin comprobar.
 - [x] La interfaz permite apartar casos a revision manual y crear prompts de recorreccion para Codex.
+- [x] La configuracion de la interfaz esta dividida por secciones y guarda tema automatico/claro/oscuro.
 - [x] `iniciar_app_windows.cmd` arranca la app con comprobacion rapida.
 - [x] `reparar_dependencias_windows.cmd` repara dependencias, Chromium y lock de Playwright.
 - [x] `verificar_app_windows.cmd` valida equipo, endpoints y prueba offline.
@@ -110,7 +115,7 @@ Actualizacion revision manual 2026-05-18: el panel incorpora una bandeja para ca
 - [x] Limpiar o archivar notas historicas con codificacion rota si molestan al mantenimiento.
 - [x] Ejecutar `preparar_release_windows.cmd` completo tras los cambios de 2026-05-14.
 - [x] Ejecutar `preparar_release_windows.cmd` y `crear_paquete_windows.cmd` tras los cambios de icono/verificacion de 2026-05-15.
-- [ ] Regenerar paquete ZIP final despues de los cambios de Codex CLI oficial y robustez de conexion.
+- [ ] Regenerar paquete ZIP final y `Setup.exe` cuando se quiera distribuir los cambios de instalador sin terminal, OCR robusto, tema y configuracion por secciones.
 
 ## Criterio para abrir Fase 5
 

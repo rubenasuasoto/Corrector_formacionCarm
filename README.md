@@ -43,7 +43,9 @@ La version local esta en `VERSION`. La interfaz y `verificar_app.py` muestran ve
 
 Es la entrada recomendada para una instalacion guiada en Windows. Detecta Python 3.12+ y, si falta, intenta instalarlo con `winget`; despues crea `.venv`, instala dependencias, instala Chromium de Playwright si falta, deja `.env` preparado si no existe y crea accesos directos. Si faltan credenciales, el panel se bloquea y guia la configuracion desde la interfaz.
 
-El instalador abre una ventana de configuracion basica: carpeta donde instalar la app, carpeta de datos/descargas, acceso directo, inicio con Windows y apertura al terminar. Tambien muestra una comprobacion previa de Python, dependencias que se prepararan, OCR opcional, carpetas existentes y estado de Node.js/npm/Codex. Si Python o Node.js faltan y Windows dispone de `winget`, el instalador intenta prepararlos automaticamente. Por defecto activa el inicio con Windows y separa datos por curso dentro de la carpeta de datos elegida.
+El instalador abre una ventana de configuracion basica: carpeta donde instalar la app, carpeta de datos/descargas, acceso directo, inicio con Windows y apertura al terminar. Tambien muestra una comprobacion previa de Python, dependencias que se prepararan, OCR opcional, carpetas existentes y estado de Node.js/npm/Codex. Si Python o Node.js faltan y Windows dispone de `winget`, el instalador intenta prepararlos automaticamente. La fase tecnica se ejecuta oculta y se muestra como progreso dentro del asistente, sin terminales visibles para el usuario final. Por defecto activa el inicio con Windows y separa datos por curso dentro de la carpeta de datos elegida.
+
+La fase tecnica del instalador se muestra como checklist integrado, no como terminal: Python, entorno virtual, dependencias, OCR, Codex, Chromium, lanzador, verificacion, accesos y desinstalador. OCR es opcional; si Tesseract no puede instalarse, la app queda operativa y esos documentos pasan a revision manual.
 
 Si reinstalas sobre carpetas existentes, el instalador actualiza la app, conserva `.env` y reutiliza datos/configuracion compatibles. La carpeta de datos queda organizada en `pendientes`, `temporal` y `cursos`; con separacion por curso, cada curso vive en `cursos\<course_id>`.
 
@@ -165,6 +167,8 @@ CARM_COURSE_URL=
 No subas `.env` al repositorio.
 
 `OPENAI_API_KEY` es opcional si corriges con el modo solo prompts y luego importas los JSON. No guardes API keys, tokens o contraseñas en archivos `.txt`. Las claves locales deben vivir solo en `.env`.
+
+Desde el panel, la configuracion esta dividida por secciones: `Pantalla`, `Carpetas`, `Curso y automatizacion`, `Windows`, `Estado`, `OpenAI` y `Avanzado`. En `Pantalla` puedes elegir tema automatico de Windows, claro u oscuro, tamaño de letra, altura del registro y alto contraste; las preferencias se guardan en `.corrector_app.json`.
 
 ## Uso sin API
 
