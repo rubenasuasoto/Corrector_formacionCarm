@@ -99,6 +99,8 @@ Ese archivo guarda la salida de Python, pip, Playwright, OCR y Codex CLI para di
 
 Desde la revision del 2026-05-18, si la instalacion termina correctamente la ventana de progreso se cierra sola. Si se queda abierta, tratalo como incidencia y revisa el log anterior antes de volver a ejecutar el setup.
 
+Al instalar una version nueva, el setup limpia primero la version anterior de la carpeta destino y conserva los datos locales. Tambien guarda y restaura `.env` y `.corrector_app.json` para no perder credenciales ni rutas si la instalacion anterior ya estaba configurada.
+
 ## No aparece el icono de bandeja
 
 1. Ejecuta:
