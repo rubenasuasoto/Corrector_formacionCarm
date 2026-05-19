@@ -951,6 +951,10 @@ def check_instalador_python() -> bool:
         "Find-WingetInstallerCommand",
         "El instalador intentara instalarlo con winget",
         "UTF8Encoding($false)",
+        "Invoke-PreviousInstallCleanup",
+        "Backup-PreviousInstallState",
+        "Restore-PreviousInstallState",
+        "Desinstalando version anterior",
     ]
     required_silent_ui = [
         "Invoke-ProcessWithProgress",

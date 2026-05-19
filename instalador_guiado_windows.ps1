@@ -71,6 +71,79 @@ function Read-ExistingAppConfig([string]$Root) {
     }
 }
 
+function Get-InstalledAppLocation {
+    $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Corrector CARM"
+    try {
+        if (Test-Path -LiteralPath $key) {
+            $props = Get-ItemProperty -LiteralPath $key -ErrorAction Stop
+            if ($props.InstallLocation) {
+                return [IO.Path]::GetFullPath([string]$props.InstallLocation)
+            }
+        }
+    } catch {}
+    return ""
+}
+
+function Backup-PreviousInstallState([string]$Root) {
+    $backup = Join-Path $env:TEMP ("Corrector_CARM_backup_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $backup -Force | Out-Null
+    foreach ($name in @(".env", ".corrector_app.json")) {
+        $source = Join-Path $Root $name
+        if (Test-Path -LiteralPath $source) {
+            Copy-Item -LiteralPath $source -Destination (Join-Path $backup $name) -Force
+        }
+    }
+    return $backup
+}
+
+function Restore-PreviousInstallState([string]$Root, [string]$BackupRoot) {
+    if (-not $BackupRoot -or -not (Test-Path -LiteralPath $BackupRoot)) {
+        return
+    }
+    foreach ($name in @(".env", ".corrector_app.json")) {
+        $source = Join-Path $BackupRoot $name
+        if (Test-Path -LiteralPath $source) {
+            Copy-Item -LiteralPath $source -Destination (Join-Path $Root $name) -Force
+        }
+    }
+    Remove-Item -LiteralPath $BackupRoot -Force -Recurse -ErrorAction SilentlyContinue
+}
+
+function Invoke-PreviousInstallCleanup([string]$TargetRoot) {
+    $targetFull = Resolve-FullPath $TargetRoot
+    $sourceFull = Resolve-FullPath $SourceRoot
+    if (-not $targetFull -or -not (Test-Path -LiteralPath $targetFull)) {
+        return ""
+    }
+    if ($targetFull.TrimEnd("\") -ieq $sourceFull.TrimEnd("\")) {
+        Write-InstallerLog "Se omite limpieza previa porque la ruta de instalacion coincide con el codigo fuente."
+        return ""
+    }
+    if ((Test-Path -LiteralPath (Join-Path $targetFull ".git"))) {
+        Write-InstallerLog "Se omite limpieza previa porque la ruta parece un repositorio Git: $targetFull"
+        return ""
+    }
+    if ($targetFull -notmatch "Corrector CARM") {
+        Write-InstallerLog "Se omite limpieza previa por seguridad; ruta no reconocida como instalacion Corrector CARM: $targetFull"
+        return ""
+    }
+
+    Write-Step "Desinstalando version anterior"
+    $backup = Backup-PreviousInstallState $targetFull
+    $oldUninstaller = Join-Path $targetFull "desinstalar_windows.ps1"
+    if (Test-Path -LiteralPath $oldUninstaller) {
+        $args = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Quote-Arg $oldUninstaller), "-Silencioso")
+        $proc = Start-Process -FilePath "powershell.exe" -ArgumentList ($args -join " ") -WorkingDirectory $targetFull -Wait -PassThru -WindowStyle Hidden
+        if ($proc.ExitCode -ne 0) {
+            throw "La desinstalacion de la version anterior fallo con codigo $($proc.ExitCode)."
+        }
+    } else {
+        Write-InstallerLog "No se encontro desinstalador anterior; se elimina carpeta de app conservando copia de configuracion."
+        Remove-Item -LiteralPath $targetFull -Force -Recurse -ErrorAction Stop
+    }
+    return $backup
+}
+
 function Get-DefaultDataDir {
     if ($DataDir) {
         return $DataDir
@@ -869,10 +942,13 @@ if (-not $TargetRoot -or -not $TargetData) {
 }
 
 Write-Step "Copiando app a la carpeta de instalacion"
-if (Test-Path -LiteralPath $TargetRoot) {
-    Write-Host "Carpeta de instalacion existente detectada; se actualizaran archivos de la app sin borrar .env ni datos locales." -ForegroundColor Yellow
+$previousInstallLocation = Get-InstalledAppLocation
+if ($previousInstallLocation -and $previousInstallLocation.TrimEnd("\") -ine $TargetRoot.TrimEnd("\")) {
+    Write-InstallerLog "Version previa registrada en otra ruta: $previousInstallLocation. La nueva instalacion usara: $TargetRoot"
 }
+$previousBackup = Invoke-PreviousInstallCleanup $TargetRoot
 Copy-AppFiles -From $SourceRoot -To $TargetRoot
+Restore-PreviousInstallState -Root $TargetRoot -BackupRoot $previousBackup
 
 Write-Step "Preparando carpetas de datos"
 if (Test-Path -LiteralPath $TargetData) {
