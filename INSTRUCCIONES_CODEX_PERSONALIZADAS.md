@@ -104,6 +104,9 @@ Reglas de evaluacion:
 - Penaliza respuestas vacias, ilegibles, copiadas sin adaptacion o mezcladas con conversacion de IA.
 - No penalices por detalles tecnicos del sistema si no afectan al contenido entregado.
 - Usa espanol claro,usando acentos, con tono formal y cercano.
+- La retroalimentacion debe dirigirse al alumno por su nombre de forma natural, sin sonar fria ni generica.
+- Si la nota es superior a 8, no inventes mejoras. Menciona solo aspectos a mejorar que esten claramente justificados por la entrega.
+- En notas superiores a 8, si hay una mejora menor real, prioriza presentacion, claridad o ejemplos solo cuando aplique. Si no hay un problema especifico, refuerza los logros sin meter recomendaciones de relleno.
 
 Reglas de archivo:
 - El archivo JSON debe ser JSON valido.
