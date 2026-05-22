@@ -438,6 +438,31 @@ def sanitizar_feedback(texto: str, max_chars: int = 6000) -> str:
     return limpio
 
 
+def nombre_para_feedback(alumno: object) -> str:
+    texto = str(alumno or "").strip()
+    if not texto:
+        return ""
+    texto = re.sub(r"<[^>]+>", " ", texto)
+    texto = re.sub(r"\S+@\S+", " ", texto)
+    texto = re.sub(r"\s+", " ", texto).strip(" ,;-")
+    if not texto:
+        return ""
+    partes = [p for p in texto.split() if re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", p)]
+    if not partes:
+        return ""
+    return partes[0].strip(" ,.;:-")
+
+
+def personalizar_feedback_alumno(feedback: str, alumno: object = "", nota: object = None) -> str:
+    limpio = sanitizar_feedback(feedback)
+    nombre = nombre_para_feedback(alumno)
+    if not limpio or not nombre:
+        return limpio
+    if re.search(rf"\b{re.escape(nombre)}\b", limpio, flags=re.I):
+        return limpio
+    return f"{nombre}, {limpio[0].lower() + limpio[1:] if len(limpio) > 1 else limpio.lower()}"
+
+
 def normalizar_texto_para_cli(texto: str) -> str:
     reemplazos = {
         "\ufb00": "ff",
@@ -900,6 +925,15 @@ REGLA_IDIOMA_CORRECCION = (
     "Usa solo alfabeto latino, números y puntuación común; no uses caracteres de otros alfabetos."
 )
 
+REGLA_RETROALIMENTACION_PERSONALIZADA = (
+    "REGLA DE RETROALIMENTACIÓN PERSONALIZADA: redacta la retroalimentación final dirigiéndote "
+    "al alumno por su nombre de forma natural, con tono formal, cercano y concreto. Evita frases "
+    "frías o genéricas. Si la nota es superior a 8, no fuerces una mejora: menciona solo aspectos "
+    "a mejorar que estén claramente justificados por la entrega. En notas superiores a 8, si hay "
+    "una mejora menor real, prioriza presentación, claridad o ejemplos únicamente cuando aplique; "
+    "si no hay un problema específico, cierra reforzando los logros sin inventar recomendaciones."
+)
+
 PROMPT_CRITERIOS = """
 Corrige la entrega del alumno usando el enunciado extraído de CARM, el contexto de unidad y la rúbrica disponible.
 Evalúa en escala de 0 a 10. Devuelve JSON con este formato exacto:
@@ -912,6 +946,7 @@ Evalúa en escala de 0 a 10. Devuelve JSON con este formato exacto:
   ],
   "retroalimentacion": "Feedback final, coloquial pero formal, adaptado al caso, al enunciado y a la unidad"
 }
+La retroalimentación final debe dirigirse al alumno por su nombre de forma natural. Si la nota es superior a 8, no inventes mejoras: solo menciona mejoras reales y específicas; si no las hay, refuerza los logros.
 """.strip()
 
 MAX_CONTEXTO_PROMPT_CHARS = 14000
@@ -1573,6 +1608,7 @@ class CorrectorIA:
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
             f"{REGLA_IDIOMA_CORRECCION}\n\n"
+            f"{REGLA_RETROALIMENTACION_PERSONALIZADA}\n\n"
             f"ACTIVIDAD: {actividad_codigo}\n\n"
             f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_api or 'No disponible'}\n\n"
             f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_api}\n\n"
@@ -1643,6 +1679,7 @@ class CorrectorIA:
         prompt_usuario = (
             f"{prompt_cfg['criterios']}\n\n"
             f"{REGLA_IDIOMA_CORRECCION}\n\n"
+            f"{REGLA_RETROALIMENTACION_PERSONALIZADA}\n\n"
             f"ACTIVIDAD: {actividad_codigo}\n\n"
             f"ENUNCIADO EXTRAÍDO DE CARM:\n{enunciado_api or 'No disponible'}\n\n"
             f"CONTEXTO DE UNIDAD (Contenido imprimible):\n{contexto_api}\n\n"
@@ -3423,7 +3460,7 @@ class ExtractorCarm:
         alumno = str(correccion.get("alumno", "")).strip()
         actividad_codigo = str(correccion.get("actividad") or correccion.get("actividad_codigo") or "").strip().lower()
         nota = str(correccion.get("nota", "")).replace(",", ".")
-        feedback = GeneradorSalidas._texto_feedback(correccion)
+        feedback = GeneradorSalidas._texto_feedback(correccion, alumno=alumno)
 
         url_calificador, estado_busqueda = await self._buscar_url_calificador(page, actividad, alumno)
         if not url_calificador:
@@ -4646,7 +4683,7 @@ class GeneradorSalidas:
             "actividad": actividad_codigo,
             "actividad_nombre": envio.actividad_nombre,
             "nota": float(correccion.get("nota", 0)),
-            "retroalimentacion": self._texto_feedback(correccion),
+            "retroalimentacion": self._texto_feedback(correccion, alumno=envio.alumno),
             "archivo_original": str(envio.archivo),
             "archivo_copiado": str(copia_entrega),
             "archivo_correccion": str(archivo_correccion),
@@ -4660,11 +4697,15 @@ class GeneradorSalidas:
         return f"{actividad_codigo}{extension}"
 
     @staticmethod
-    def _texto_feedback(correccion: dict) -> str:
+    def _texto_feedback(correccion: dict, alumno: str = "") -> str:
         for clave in ("retroalimentacion", "comentario", "feedback", "observaciones"):
             valor = correccion.get(clave)
             if valor:
-                return sanitizar_feedback(str(valor))
+                return personalizar_feedback_alumno(
+                    str(valor),
+                    alumno=alumno or correccion.get("alumno", ""),
+                    nota=correccion.get("nota"),
+                )
         return ""
 
     def eliminar_pendiente_calificado(self, envio: EnvioPendiente) -> None:
@@ -4758,7 +4799,7 @@ class GeneradorSalidas:
                     "actividad": actividad,
                     "actividad_nombre": actividad_nombre,
                     "nota": float(correccion_normalizada.get("nota", 0)),
-                    "retroalimentacion": self._texto_feedback(correccion_normalizada),
+                    "retroalimentacion": self._texto_feedback(correccion_normalizada, alumno=alumno),
                     "archivo_original": archivo_original,
                     "archivo_copiado": archivo_copiado,
                     "archivo_correccion": str(archivo_correccion),
@@ -4781,7 +4822,10 @@ class GeneradorSalidas:
     @staticmethod
     def _normalizar_correccion_importada(correccion: dict) -> dict:
         normalizada = dict(correccion)
-        normalizada["retroalimentacion"] = GeneradorSalidas._texto_feedback(correccion)
+        normalizada["retroalimentacion"] = GeneradorSalidas._texto_feedback(
+            correccion,
+            alumno=str(correccion.get("alumno", "")),
+        )
         criterios = normalizada.get("criterios")
         if isinstance(criterios, list):
             normalizada["criterios"] = [
@@ -5086,6 +5130,7 @@ class GeneradorSalidas:
                 "Si no puedes comprobar el archivo original, evalúa solo el contenido claro disponible y evita atribuir al alumno errores técnicos de extracción.",
                 "Evalúa solo lo que el alumno ha escrito, sin inventar méritos.",
                 REGLA_IDIOMA_CORRECCION,
+                REGLA_RETROALIMENTACION_PERSONALIZADA,
                 "Devuelve únicamente JSON válido, sin Markdown, con este formato exacto:",
                 "",
                 "```json",
