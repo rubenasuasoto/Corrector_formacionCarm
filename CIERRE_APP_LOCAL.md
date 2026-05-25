@@ -42,6 +42,8 @@ Actualizacion revision manual 2026-05-18: el panel incorpora una bandeja para ca
 
 Revision profunda 2026-05-18: se comprueba el estado completo tras los cambios de instalador, OCR, interfaz y Codex. Pasan parseo PowerShell de scripts Windows, compilacion Python y `verificar_app.py --instalacion --sin-endpoints`. La configuracion queda organizada por secciones y la preferencia de tema se guarda en `.corrector_app.json`. El instalador/desinstalador ya no deben mostrar terminales al usuario final; la fase tecnica se ve como checklist/progreso dentro del asistente. No se regenera paquete ni `Setup.exe` en esta revision.
 
+Actualizacion arranque 2026-05-25: el uso normal de la app tambien queda desacoplado de una consola visible. `Corrector CARM.exe` lanza directamente `pythonw.exe interfaz_app.py` en segundo plano y el inicio con Windows usa `Corrector CARM.vbs` oculto en vez del `.cmd` anterior. El `.cmd` queda como fallback para compatibilidad, pero los accesos directos deben apuntar al `.exe`.
+
 ## Checklist obligatoria
 
 ### Instalacion y arranque

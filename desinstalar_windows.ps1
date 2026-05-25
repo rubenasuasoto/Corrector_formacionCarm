@@ -241,6 +241,7 @@ function Remove-Shortcuts {
     Remove-IfExists (Join-Path $desktop "Corrector CARM.lnk")
     Remove-IfExists (Join-Path $programs "Corrector CARM")
     Remove-IfExists (Join-Path $startup "Corrector CARM.cmd")
+    Remove-IfExists (Join-Path $startup "Corrector CARM.vbs")
 }
 
 function Remove-UninstallEntry {
