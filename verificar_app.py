@@ -284,6 +284,16 @@ def check_filtro_requiere_calificacion() -> bool:
     if resumen_con_pendientes.get("sin_calificar") != 1:
         safe_print("ERROR: no se detecta correctamente el contador Sin calificar.")
         return False
+    resumen_opcional = ExtractorCarm._extraer_resumen_accion_actividad("26 de 120 Enviados, 3 Sin calificar")
+    if resumen_opcional.get("enviados") != 26 or resumen_opcional.get("sin_calificar") != 3:
+        safe_print("ERROR: no se detectan correctamente actividades opcionales con varios Sin calificar.")
+        return False
+    url = ExtractorCarm._url_grading_requiere_calificacion(
+        "https://formacion.carm.es/mod/assign/view.php?action=grading&id=19195&tifirst=C&filter=submitted"
+    )
+    if "filter=requiregrading" not in url or "tifirst" in url or "filter=submitted" in url:
+        safe_print("ERROR: la URL de Requiere calificacion no limpia iniciales o no usa el valor real del filtro CARM.")
+        return False
     if ExtractorCarm._es_estado_requiere_calificacion("Enviado para calificarCalificado"):
         safe_print("ERROR: una fila ya calificada no debe entrar en revision pendiente.")
         return False
@@ -313,6 +323,19 @@ def check_formatos_lectura() -> bool:
         return False
     if {".bmp", ".tif", ".tiff", ".webp"} & GeneradorSalidas.EXTENSIONES_MULTIMEDIA:
         safe_print("ERROR: formatos OCR ampliados siguen clasificados como multimedia.")
+        return False
+    texto_pdf = (
+        "Durante el mes de agosto un destino costero recibe consultas sobre horarios de playas. "
+        "Diseña un esquema básico de automatización controlada."
+    )
+    texto_ocr = texto_pdf + (
+        " Entrada multicanal web redes sociales mensajeria. Capa de deteccion IA reglas. "
+        "Motor de respuestas frecuentes FAQ. Bloques de respuestas estructuradas. "
+        "Repositorio central unico. Respuesta automatizada con enlace oficial. "
+        "Derivacion visible a atencion humana. Resultado final coherencia entre canales."
+    )
+    if not GeneradorSalidas._preferir_ocr_si_aporta_contenido_visual(texto_pdf, texto_ocr):
+        safe_print("ERROR: un PDF con esquema visual OCR adicional no se aprovecha.")
         return False
     safe_print("OK: formatos ampliados de Office, ODF, EPUB, ZIP e imagen OCR configurados.")
     return True
@@ -346,6 +369,39 @@ def check_prompt_ortografia() -> bool:
         safe_print("ERROR: el saneado de feedback no corrige tildes frecuentes.")
         return False
     safe_print("OK: prompts y saneado piden feedback en español con acentos.")
+    return True
+
+
+def check_retroalimentacion_importada() -> bool:
+    safe_print("\n==> Retroalimentacion importada")
+    from corrector_agente import GeneradorSalidas
+
+    correccion = {
+        "alumno": "Silvia Penalva Garcia",
+        "nota": 7.8,
+        "criterios": [
+            {
+                "nombre": "Presentacion del trabajo",
+                "maximo": 3,
+                "puntuacion": 2.4,
+                "comentario": "Trabajo claro.",
+            },
+            {
+                "nombre": "Retroalimentacion",
+                "maximo": 0,
+                "puntuacion": 0,
+                "comentario": "Silvia, feedback final para CARM.",
+            },
+        ],
+    }
+    normalizada = GeneradorSalidas._normalizar_correccion_importada(correccion)
+    if normalizada.get("retroalimentacion") != "Silvia, feedback final para CARM.":
+        safe_print("ERROR: no se rescata la retroalimentacion cuando llega como criterio.")
+        return False
+    if any("retroaliment" in str(item.get("nombre", "")).lower() for item in normalizada.get("criterios", [])):
+        safe_print("ERROR: la retroalimentacion sigue apareciendo como criterio evaluable.")
+        return False
+    safe_print("OK: la retroalimentacion se importa al campo correcto y no como criterio 0/0.")
     return True
 
 
@@ -1080,6 +1136,113 @@ def check_arranque_sin_consola() -> bool:
     return True
 
 
+def check_prompts_codex_noop_no_se_archivan() -> bool:
+    safe_print("\n==> Prompts sin entregas legibles")
+    try:
+        from corrector_agente import (
+            correccion_json_tiene_correcciones,
+            filtrar_prompts_para_correccion,
+            prompt_tiene_entregas_legibles,
+        )
+    except Exception as exc:
+        safe_print(f"ERROR: no se pudieron importar validadores de prompts: {exc}")
+        return False
+
+    base = ROOT / ".tmp_verificacion" / "prompts_codex_noop"
+    base.mkdir(parents=True, exist_ok=True)
+    for path in base.glob("*"):
+        try:
+            if path.is_file():
+                path.unlink()
+        except Exception:
+            pass
+    try:
+        prompt_vacio = base / "prompt_ud01cp01.md"
+        prompt_vacio.write_text(
+            "\n".join(
+                [
+                    "# Prompt",
+                    "## Entregas legibles",
+                    "```json",
+                    "[]",
+                    "```",
+                    "## Entregas que requieren revision manual",
+                    "```json",
+                    '[{"alumno": "Alumno Manual"}]',
+                    "```",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        correccion_vacia = base / "prompt_ud01cp01_correccion.json"
+        correccion_vacia.write_text('{"actividad":"ud01cp01","correcciones":[]}', encoding="utf-8")
+
+        prompt_ok = base / "prompt_ud01cp02.md"
+        prompt_ok.write_text(
+            "\n".join(
+                [
+                    "# Prompt",
+                    "## Entregas legibles",
+                    "```json",
+                    '[{"id": "1", "alumno": "Alumno Correcto", "respuesta": "Contenido"}]',
+                    "```",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        correccion_ok = base / "prompt_ud01cp02_correccion.json"
+        correccion_ok.write_text(
+            '{"actividad":"ud01cp02","correcciones":[{"id":"1","alumno":"Alumno Correcto","nota":8}]}',
+            encoding="utf-8",
+        )
+
+        if prompt_tiene_entregas_legibles(prompt_vacio):
+            safe_print("ERROR: un prompt manual sin entregas legibles aparece como corregible.")
+            return False
+        if not prompt_tiene_entregas_legibles(prompt_ok):
+            safe_print("ERROR: un prompt con entregas legibles no aparece como corregible.")
+            return False
+        prompt_revision = base / "prompt_ud01cp03_revision_alumno_20260525_120000.md"
+        prompt_revision.write_text(
+            "\n".join(
+                [
+                    "# Recorreccion manual ud01cp03",
+                    "",
+                    "Corrige de nuevo solo este caso. Devuelve un JSON valido con una unica correccion.",
+                    "",
+                    "## Archivos originales candidatos",
+                    "",
+                    "- C:\\temp\\vscodec\\cursos\\1592\\pendientes\\ud01cp03\\Alumno.pages",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        if not prompt_tiene_entregas_legibles(prompt_revision):
+            safe_print("ERROR: un prompt de recorreccion manual no aparece como corregible.")
+            return False
+        if correccion_json_tiene_correcciones(correccion_vacia):
+            safe_print("ERROR: una correccion vacia cuenta como resuelta.")
+            return False
+        if not correccion_json_tiene_correcciones(correccion_ok):
+            safe_print("ERROR: una correccion con filas no cuenta como resuelta.")
+            return False
+
+        prompts, sin_entregas = filtrar_prompts_para_correccion([prompt_vacio], "verificacion")
+        if prompts or sin_entregas != [prompt_vacio] or not prompt_vacio.exists():
+            safe_print("ERROR: el filtro no conserva correctamente prompts manuales sin archivar.")
+            return False
+    finally:
+        for path in base.glob("*"):
+            try:
+                if path.is_file():
+                    path.unlink()
+            except Exception:
+                pass
+
+    safe_print("OK: los prompts manuales no consumen Codex/API y los JSON vacios no se tratan como resueltos.")
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verificacion local del Corrector CARM.")
     parser.add_argument(
@@ -1119,6 +1282,8 @@ def main() -> int:
     ok &= check_filtro_requiere_calificacion()
     ok &= check_formatos_lectura()
     ok &= check_prompt_ortografia()
+    ok &= check_retroalimentacion_importada()
+    ok &= check_prompts_codex_noop_no_se_archivan()
     ok &= print_health(operacion=not args.instalacion)
     if not args.sin_prueba_offline:
         ok &= check_importacion_json_csv()
