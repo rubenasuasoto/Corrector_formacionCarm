@@ -31,11 +31,15 @@ namespace CorrectorCarmLauncher
         private static void Main(string[] args)
         {
             string root = AppDomain.CurrentDomain.BaseDirectory;
-            string script = Path.Combine(root, "iniciar_app_windows.ps1");
-            if (!File.Exists(script))
+            string pythonw = Path.Combine(root, ".venv", "Scripts", "pythonw.exe");
+            string python = Path.Combine(root, ".venv", "Scripts", "python.exe");
+            string runner = File.Exists(pythonw) ? pythonw : python;
+            string app = Path.Combine(root, "interfaz_app.py");
+
+            if (!File.Exists(runner))
             {
                 MessageBox.Show(
-                    "No se encontro iniciar_app_windows.ps1 junto al lanzador. Reinstala o extrae el paquete completo.",
+                    "No se encontro el entorno de Python de la app. Reinstala Corrector CARM o ejecuta el reparador de dependencias.",
                     "Corrector CARM",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
@@ -43,16 +47,26 @@ namespace CorrectorCarmLauncher
                 return;
             }
 
-            string extraArgs = "";
-            if (args != null && args.Length > 0)
+            if (!File.Exists(app))
             {
-                extraArgs = " " + string.Join(" ", Array.ConvertAll(args, QuoteArg));
+                MessageBox.Show(
+                    "No se encontro interfaz_app.py junto al lanzador. Reinstala o extrae el paquete completo.",
+                    "Corrector CARM",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                return;
             }
+
+            EnsureEnvTemplate(root);
+
+            string extraArgs = BuildExtraArgs(args);
+            string appArgs = QuoteArg(app) + " --tray --host 127.0.0.1 --port 8765" + extraArgs;
 
             var psi = new ProcessStartInfo
             {
-                FileName = "powershell.exe",
-                Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File " + QuoteArg(script) + " -AbrirNavegador" + extraArgs,
+                FileName = runner,
+                Arguments = appArgs,
                 WorkingDirectory = root,
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -72,6 +86,57 @@ namespace CorrectorCarmLauncher
                     MessageBoxIcon.Error
                 );
             }
+        }
+
+        private static void EnsureEnvTemplate(string root)
+        {
+            string env = Path.Combine(root, ".env");
+            string example = Path.Combine(root, ".env.example");
+            if (!File.Exists(env) && File.Exists(example))
+            {
+                File.Copy(example, env);
+            }
+        }
+
+        private static bool HasArg(string[] args, string name)
+        {
+            if (args == null)
+            {
+                return false;
+            }
+            foreach (string arg in args)
+            {
+                if (string.Equals(arg, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static string BuildExtraArgs(string[] args)
+        {
+            if (args == null || args.Length == 0)
+            {
+                return "";
+            }
+            string output = "";
+            foreach (string arg in args)
+            {
+                if (string.Equals(arg, "--no-browser", StringComparison.OrdinalIgnoreCase))
+                {
+                    output += " --no-browser";
+                }
+                else if (string.Equals(arg, "-AutoPreparar", StringComparison.OrdinalIgnoreCase) || string.Equals(arg, "--auto-correct", StringComparison.OrdinalIgnoreCase))
+                {
+                    output += " --auto-correct";
+                }
+                else if (string.Equals(arg, "-SinEscaneoInicial", StringComparison.OrdinalIgnoreCase) || string.Equals(arg, "--no-startup-scan", StringComparison.OrdinalIgnoreCase))
+                {
+                    output += " --no-startup-scan";
+                }
+            }
+            return output;
         }
 
         private static string QuoteArg(string value)

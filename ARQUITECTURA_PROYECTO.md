@@ -159,7 +159,7 @@ El flujo de despliegue seguro se aplica en escala local:
 - Codigo: raiz del proyecto, con `corrector_agente.py` e `interfaz_app.py` como ejecutables activos.
 - Git: no versionar `.env`, caches, logs, entregas, salidas ni correcciones generadas.
 - Build local: `crear_paquete_windows.cmd` y futuro `.exe` local.
-- Lanzador Windows: `crear_launcher_windows.cmd` genera `Corrector CARM.exe` con icono propio; delega en `iniciar_app_windows.ps1` y no contiene credenciales ni datos.
+- Lanzador Windows: `crear_launcher_windows.cmd` genera `Corrector CARM.exe` con icono propio; arranca directamente `pythonw.exe interfaz_app.py` sin consola visible y no contiene credenciales ni datos.
 - Instalador guiado: `INSTALAR_CORRECTOR_CARM.cmd` llama a `instalador_guiado_windows.ps1`, copia la app a la carpeta elegida, prepara `.corrector_app.json` con carpeta de datos configurable y despues ejecuta el instalador tecnico.
 - Test: `verificar_app.py`, endpoints locales, importacion JSON/CSV, aislamiento cuenta/curso, JS embebido e iconos.
 - Instalacion limpia: probar ZIP/paquete en una carpeta temporal sin secretos.

@@ -1034,6 +1034,52 @@ def check_instalador_ocr() -> bool:
     return True
 
 
+def check_arranque_sin_consola() -> bool:
+    safe_print("\n==> Arranque sin consola")
+    files = {
+        "crear_launcher_windows.ps1": ROOT / "crear_launcher_windows.ps1",
+        "interfaz_app.py": ROOT / "interfaz_app.py",
+        "desinstalar_windows.ps1": ROOT / "desinstalar_windows.ps1",
+        "ABRIR_CORRECTOR_CARM.cmd": ROOT / "ABRIR_CORRECTOR_CARM.cmd",
+    }
+    try:
+        texts = {name: path.read_text(encoding="utf-8") for name, path in files.items()}
+    except Exception as exc:
+        safe_print(f"ERROR: no se pudieron leer los archivos de arranque: {exc}")
+        return False
+
+    required = {
+        "crear_launcher_windows.ps1": [
+            'FileName = runner',
+            'CreateNoWindow = true',
+            'WindowStyle = ProcessWindowStyle.Hidden',
+            'interfaz_app.py',
+        ],
+        "interfaz_app.py": [
+            'Corrector CARM.vbs',
+            'legacy_startup_cmd_path',
+            'shell.Run',
+            '--no-browser',
+        ],
+        "desinstalar_windows.ps1": ['Corrector CARM.vbs'],
+        "ABRIR_CORRECTOR_CARM.cmd": ['Corrector CARM.exe'],
+    }
+    missing = [
+        f"{name}:{item}"
+        for name, items in required.items()
+        for item in items
+        if item not in texts[name]
+    ]
+    launcher_source = texts["crear_launcher_windows.ps1"]
+    if 'FileName = "powershell.exe"' in launcher_source:
+        missing.append("crear_launcher_windows.ps1:launcher todavia usa powershell.exe")
+    if missing:
+        safe_print("ERROR: arranque sin consola incompleto: " + ", ".join(missing))
+        return False
+    safe_print("OK: lanzador y arranque de Windows usan procesos ocultos sin depender de una consola visible.")
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verificacion local del Corrector CARM.")
     parser.add_argument(
@@ -1085,6 +1131,7 @@ def main() -> int:
         ok &= check_menu_configuracion()
         ok &= check_instalador_python()
         ok &= check_instalador_ocr()
+        ok &= check_arranque_sin_consola()
     if not args.sin_endpoints:
         ok &= check_local_endpoints()
 

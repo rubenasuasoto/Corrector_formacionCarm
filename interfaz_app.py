@@ -2677,7 +2677,7 @@ def project_state() -> dict:
         "selected_courses": selected_course_summaries(),
         "auto_course_queue": [course.get("id", "") for course in AUTO_COURSE_QUEUE],
         "auto_correct_after_scan": AUTO_CORRECT_AFTER_SCAN,
-        "startup_installed": startup_cmd_path().exists(),
+        "startup_installed": startup_installed(),
         "startup_auto_correct_enabled": startup_auto_correct_enabled(),
         "startup_codex_enabled": startup_codex_enabled(),
         "codex_project_dir": str(codex_project) if active_course_id() else "",
@@ -5302,7 +5302,26 @@ def startup_cmd_path() -> Path:
     appdata = os.getenv("APPDATA")
     if not appdata:
         raise RuntimeError("No se pudo localizar APPDATA para la carpeta de inicio.")
+    return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "Corrector CARM.vbs"
+
+
+def legacy_startup_cmd_path() -> Path:
+    appdata = os.getenv("APPDATA")
+    if not appdata:
+        raise RuntimeError("No se pudo localizar APPDATA para la carpeta de inicio.")
     return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "Corrector CARM.cmd"
+
+
+def startup_path_candidates() -> tuple[Path, Path]:
+    return (startup_cmd_path(), legacy_startup_cmd_path())
+
+
+def vbs_quote(value: str | Path) -> str:
+    return '"' + str(value).replace('"', '""') + '"'
+
+
+def startup_installed() -> bool:
+    return any(path.exists() for path in startup_path_candidates())
 
 
 def install_startup(auto_correct: bool = False, start_codex: bool = False) -> Path:
@@ -5314,39 +5333,48 @@ def install_startup(auto_correct: bool = False, start_codex: bool = False) -> Pa
         if venv_pythonw.exists()
         else (venv_python if venv_python.exists() else (current_pythonw if current_pythonw.exists() else Path(sys.executable)))
     )
-    cmd_path = startup_cmd_path()
-    cmd_path.parent.mkdir(parents=True, exist_ok=True)
+    startup_path = startup_cmd_path()
+    startup_path.parent.mkdir(parents=True, exist_ok=True)
     auto_correct_arg = " --auto-correct" if auto_correct else ""
-    codex_lines = ""
+    lines = [
+        'Set shell = CreateObject("WScript.Shell")',
+        f"shell.CurrentDirectory = {vbs_quote(ROOT)}",
+    ]
     if start_codex:
         codex = codex_cli_path()
         if not codex:
             raise RuntimeError("No se detecta Codex App/CLI. Instala o inicia Codex antes de activar su arranque automatico.")
         project_dir = export_codex_course_project()
-        codex_lines = f'start "" "{codex}" app "{project_dir}"\n'
-    cmd_path.write_text(
-        "@echo off\n"
-        f'cd /d "{ROOT}"\n'
-        f"{codex_lines}"
-        f'start "" /min "{runner}" "{ROOT / "interfaz_app.py"}" --tray --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser{auto_correct_arg}\n',
-        encoding="utf-8",
+        lines.append(f"shell.Run {vbs_quote(f'{vbs_quote(codex)} app {vbs_quote(project_dir)}')}, 0, False")
+    app_command = (
+        f'{vbs_quote(runner)} {vbs_quote(ROOT / "interfaz_app.py")} '
+        f"--tray --host {DEFAULT_HOST} --port {DEFAULT_PORT} --no-browser{auto_correct_arg}"
     )
-    return cmd_path
+    lines.append(f"shell.Run {vbs_quote(app_command)}, 0, False")
+    startup_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    legacy_path = legacy_startup_cmd_path()
+    if legacy_path.exists():
+        legacy_path.unlink()
+    return startup_path
 
 
 def startup_auto_correct_enabled() -> bool:
     try:
-        path = startup_cmd_path()
-        return path.exists() and "--auto-correct" in path.read_text(encoding="utf-8", errors="replace")
+        return any(
+            path.exists() and "--auto-correct" in path.read_text(encoding="utf-8", errors="replace")
+            for path in startup_path_candidates()
+        )
     except Exception:
         return False
 
 
 def startup_codex_enabled() -> bool:
     try:
-        path = startup_cmd_path()
-        text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
-        return "codex" in text.lower() and " app " in text.lower()
+        for path in startup_path_candidates():
+            text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+            if "codex" in text.lower() and " app " in text.lower():
+                return True
+        return False
     except Exception:
         return False
 
@@ -5358,11 +5386,12 @@ def repair_startup_if_installed() -> bool:
 
 
 def uninstall_startup() -> bool:
-    path = startup_cmd_path()
-    if path.exists():
-        path.unlink()
-        return True
-    return False
+    removed = False
+    for path in startup_path_candidates():
+        if path.exists():
+            path.unlink()
+            removed = True
+    return removed
 
 
 def tray_image():
