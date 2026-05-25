@@ -796,6 +796,8 @@ def actualizar_revision_pendiente_tras_subida(correcciones_path: Path, resultado
     estados_subidos = {
         "publicado",
         "guardado_manual_confirmado_por_usuario",
+        "actividad_sin_pendientes_requiere_calificacion",
+        "pendiente_no_abierto_sin_filas_requiere_calificacion",
     }
     claves_subidas = {
         _clave_revision_csv(resultado)
@@ -2559,10 +2561,60 @@ class ExtractorCarm:
                 return self._texto_limpio(texto)
         return self._texto_limpio(await celda.text_content() or "")
 
+    async def _goto_carm(self, page, url: str, *, motivo: str = "") -> None:
+        ultimo_error: Exception | None = None
+        for intento in range(1, 4):
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=CARM_NAV_TIMEOUT_MS)
+                return
+            except Exception as exc:
+                ultimo_error = exc
+                mensaje = str(exc)
+                if page.is_closed() or "Target page, context or browser has been closed" in mensaje:
+                    raise
+                tolerable = any(
+                    patron in mensaje
+                    for patron in (
+                        "ERR_ABORTED",
+                        "Timeout",
+                        "Execution context was destroyed",
+                    )
+                )
+                if not tolerable:
+                    raise
+                try:
+                    if await page.locator("body").first.count():
+                        actual = self._url_grading_requiere_calificacion(page.url)
+                        esperado = self._url_grading_requiere_calificacion(url)
+                        if actual == esperado or urlparse(actual).path == urlparse(esperado).path:
+                            logger.warning(
+                                "Navegacion CARM recuperada tras aviso en %s (intento %s): %s",
+                                motivo or urlparse(url).path,
+                                intento,
+                                mensaje.splitlines()[0],
+                            )
+                            return
+                except Exception:
+                    pass
+                if intento < 3:
+                    await page.wait_for_timeout(700 * intento)
+                    try:
+                        await page.goto(url, wait_until="commit", timeout=15000)
+                        await page.wait_for_load_state("domcontentloaded", timeout=8000)
+                        return
+                    except Exception as exc_commit:
+                        ultimo_error = exc_commit
+                        if page.is_closed():
+                            raise
+                        await page.wait_for_timeout(700 * intento)
+                        continue
+        if ultimo_error:
+            raise ultimo_error
+
     async def _asegurar_filtros_grading(self, page, actividad: dict) -> None:
         url_normalizada = self._url_grading_requiere_calificacion(actividad["url_grading"])
         if page.url != url_normalizada:
-            await page.goto(url_normalizada, wait_until="domcontentloaded")
+            await self._goto_carm(page, url_normalizada, motivo=f"grading {actividad.get('codigo', '')}")
         actividad["url_grading"] = url_normalizada
 
         try:
@@ -2585,7 +2637,7 @@ class ExtractorCarm:
 
         url_actual = self._url_grading_requiere_calificacion(page.url)
         if page.url != url_actual:
-            await page.goto(url_actual, wait_until="domcontentloaded")
+            await self._goto_carm(page, url_actual, motivo=f"filtros grading {actividad.get('codigo', '')}")
 
         parsed = dict(parse_qsl(urlparse(page.url).query))
         filtro = parsed.get("filter", "")
@@ -2618,7 +2670,7 @@ class ExtractorCarm:
     async def _descargar_envios_actividad(self, page, actividad: dict, descargar: bool = True) -> list[EnvioPendiente]:
         descargados: list[EnvioPendiente] = []
         actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
-        await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
+        await self._goto_carm(page, actividad["url_grading"], motivo=f"descarga {actividad.get('codigo', '')}")
         await self._asegurar_filtros_grading(page, actividad)
 
         columnas = await self._mapear_columnas_grading(page)
@@ -2801,7 +2853,7 @@ class ExtractorCarm:
 
     async def _actividad_tiene_filas_pendientes(self, page, actividad: dict) -> bool:
         actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
-        await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
+        await self._goto_carm(page, actividad["url_grading"], motivo=f"filas pendientes {actividad.get('codigo', '')}")
         await self._asegurar_filtros_grading(page, actividad)
         columnas = await self._mapear_columnas_grading(page)
         total = await self._contar_filas_grading(page, columnas)
@@ -2812,7 +2864,7 @@ class ExtractorCarm:
 
     async def _buscar_url_calificador(self, page, actividad: dict, alumno: str) -> tuple[str, str]:
         actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
-        await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
+        await self._goto_carm(page, actividad["url_grading"], motivo=f"buscar calificador {actividad.get('codigo', '')}")
         await self._asegurar_filtros_grading(page, actividad)
         columnas = await self._mapear_columnas_grading(page)
         href, encontrado = await self._buscar_url_calificador_en_tabla(page, alumno, columnas)
@@ -2828,6 +2880,34 @@ class ExtractorCarm:
         if encontrado or filas_requieren_calificacion == 0:
             return "", "ya_no_requiere_calificacion"
         return "", "no_encontrado"
+
+    async def _filas_pendientes_en_requiere_calificacion(self, page, actividad: dict) -> list[dict]:
+        actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
+        await self._goto_carm(page, actividad["url_grading"], motivo=f"leer pendientes {actividad.get('codigo', '')}")
+        await self._asegurar_filtros_grading(page, actividad)
+        columnas = await self._mapear_columnas_grading(page)
+        indice_alumno = columnas.get("alumno", 0)
+        pendientes: list[dict] = []
+        filas = await page.query_selector_all("table.generaltable tbody tr")
+        for fila in filas:
+            clase = await fila.get_attribute("class") or ""
+            if "emptyrow" in clase or not await self._fila_requiere_calificacion(fila, columnas):
+                continue
+            celdas = await fila.query_selector_all("td")
+            if indice_alumno >= len(celdas):
+                continue
+            alumno = await self._nombre_alumno_desde_celda(celdas[indice_alumno])
+            if not alumno:
+                continue
+            enlace = await fila.query_selector("a[href*='action=grader'][href*='userid=']")
+            if enlace is None:
+                enlace = await fila.query_selector("a[href*='action=grader']")
+            href = await enlace.get_attribute("href") if enlace is not None else ""
+            pendientes.append({"alumno": alumno, "href": href or ""})
+        return pendientes
+
+    async def _alumnos_pendientes_en_requiere_calificacion(self, page, actividad: dict) -> list[str]:
+        return [item["alumno"] for item in await self._filas_pendientes_en_requiere_calificacion(page, actividad)]
 
     async def _rellenar_primero(self, page, selectores: list[str], valor: str) -> str:
         for selector in selectores:
@@ -2903,7 +2983,7 @@ class ExtractorCarm:
 
     async def _abrir_formulario_calificacion(self, page, url_calificador: str, alumno: str) -> str:
         for intento in range(1, 3):
-            await page.goto(url_calificador, wait_until="domcontentloaded")
+            await self._goto_carm(page, url_calificador, motivo="formulario calificacion")
             try:
                 await page.wait_for_load_state("domcontentloaded", timeout=5000)
             except Exception:
@@ -3409,7 +3489,7 @@ class ExtractorCarm:
     ) -> bool:
         try:
             url_grading = self._url_grading_requiere_calificacion(url_formulario)
-            await page.goto(url_grading, wait_until="domcontentloaded")
+            await self._goto_carm(page, url_grading, motivo="confirmar guardado")
             await self._asegurar_filtros_grading(page, {"codigo": "", "url_grading": url_grading})
             columnas = await self._mapear_columnas_grading(page)
             href, encontrado = await self._buscar_url_calificador_en_tabla(page, alumno, columnas)
@@ -3514,13 +3594,18 @@ class ExtractorCarm:
         asistida: bool = False,
         indice: int = 1,
         total: int = 1,
+        url_calificador_confirmado: str = "",
     ) -> dict:
         alumno = str(correccion.get("alumno", "")).strip()
         actividad_codigo = str(correccion.get("actividad") or correccion.get("actividad_codigo") or "").strip().lower()
         nota = str(correccion.get("nota", "")).replace(",", ".")
         feedback = GeneradorSalidas._texto_feedback(correccion, alumno=alumno)
 
-        url_calificador, estado_busqueda = await self._buscar_url_calificador(page, actividad, alumno)
+        if url_calificador_confirmado:
+            url_calificador = url_calificador_confirmado
+            estado_busqueda = "pendiente_confirmado_en_requiere_calificacion"
+        else:
+            url_calificador, estado_busqueda = await self._buscar_url_calificador(page, actividad, alumno)
         if not url_calificador:
             if estado_busqueda == "ya_no_requiere_calificacion":
                 return {
@@ -3528,7 +3613,7 @@ class ExtractorCarm:
                     "actividad": actividad_codigo,
                     "nota": nota,
                     "estado": "pendiente_no_abierto_sin_filas_requiere_calificacion",
-                    "mensaje": "No se abrio el formulario porque el alumno no aparecio en la tabla Requiere calificacion. Queda pendiente de revision/subida manual.",
+                    "mensaje": "No se abrio el formulario porque el alumno ya no aparece como pendiente en Requiere calificacion. Se retirara del CSV de subida.",
                 }
             return {
                 "alumno": alumno,
@@ -3654,6 +3739,8 @@ class ExtractorCarm:
                         actividades_por_codigo[codigo] = self.cache.enriquecer_actividad(act)
 
                 correcciones_a_procesar = correcciones
+                pendientes_por_actividad: dict[str, list[dict]] = {}
+                actividades_con_error_navegacion: set[str] = set()
 
                 total = len(correcciones_a_procesar)
                 for indice, correccion in enumerate(correcciones_a_procesar):
@@ -3674,24 +3761,96 @@ class ExtractorCarm:
                             {
                                 "alumno": correccion.get("alumno", ""),
                                 "actividad": actividad_codigo,
-                                "estado": "no_encontrado",
-                                "mensaje": "No se encontró la actividad en CARM.",
+                                "estado": "actividad_sin_pendientes_requiere_calificacion",
+                                "mensaje": "CARM no muestra esta actividad con contador de Sin calificar; se retira del CSV de subida.",
                             }
                         )
                         continue
-
-                    resultado = (
-                        await self._subir_correccion_actividad(
-                            page,
-                            actividad,
-                            correccion,
-                            publicar=publicar,
-                            mostrar_siguiente=mostrar_siguiente,
-                            asistida=asistida,
-                            indice=indice + 1,
-                            total=total,
+                    if actividad_codigo in actividades_con_error_navegacion:
+                        resultados.append(
+                            {
+                                "alumno": correccion.get("alumno", ""),
+                                "actividad": actividad_codigo,
+                                "estado": "error_navegacion_carm",
+                                "mensaje": "No se pudo cargar Requiere calificacion para esta actividad. Se conserva en el CSV para reintentar.",
+                            }
                         )
+                        continue
+                    if actividad_codigo not in pendientes_por_actividad:
+                        try:
+                            pendientes_por_actividad[actividad_codigo] = (
+                                await self._filas_pendientes_en_requiere_calificacion(page, actividad)
+                            )
+                        except Exception as exc:
+                            actividades_con_error_navegacion.add(actividad_codigo)
+                            logger.warning(
+                                "No se pudo cargar Requiere calificacion para %s; se conserva en CSV para reintentar: %s",
+                                actividad_codigo,
+                                str(exc).splitlines()[0],
+                            )
+                            resultados.append(
+                                {
+                                    "alumno": correccion.get("alumno", ""),
+                                    "actividad": actividad_codigo,
+                                    "estado": "error_navegacion_carm",
+                                    "mensaje": "No se pudo cargar Requiere calificacion para esta actividad. Se conserva en el CSV para reintentar.",
+                                }
+                            )
+                            continue
+                        logger.info(
+                            "%s: %s alumno(s) detectado(s) en Requiere calificacion.",
+                            actividad_codigo,
+                            len(pendientes_por_actividad[actividad_codigo]),
+                        )
+                    alumno_correccion = str(correccion.get("alumno", "")).strip()
+                    fila_pendiente = next(
+                        (
+                            fila
+                            for fila in pendientes_por_actividad[actividad_codigo]
+                            if self._coincide_alumno(alumno_correccion, fila.get("alumno", ""))
+                        ),
+                        None,
                     )
+                    if not fila_pendiente:
+                        resultados.append(
+                            {
+                                "alumno": alumno_correccion,
+                                "actividad": actividad_codigo,
+                                "nota": correccion.get("nota", ""),
+                                "estado": "pendiente_no_abierto_sin_filas_requiere_calificacion",
+                                "mensaje": "El alumno no aparece en Requiere calificacion para esta actividad; se retira del CSV de subida.",
+                            }
+                        )
+                        continue
+                    if not fila_pendiente.get("href"):
+                        logger.warning(
+                            "%s %s aparece en Requiere calificacion pero no tiene enlace directo de calificacion; se intentara busqueda segura.",
+                            actividad_codigo,
+                            pseudonimo(alumno_correccion),
+                        )
+
+                    try:
+                        resultado = (
+                            await self._subir_correccion_actividad(
+                                page,
+                                actividad,
+                                correccion,
+                                publicar=publicar,
+                                mostrar_siguiente=mostrar_siguiente,
+                                asistida=asistida,
+                                indice=indice + 1,
+                                total=total,
+                                url_calificador_confirmado=str(fila_pendiente.get("href") or ""),
+                            )
+                        )
+                    except Exception as exc:
+                        mensaje = str(exc)
+                        if page.is_closed() or "Target page, context or browser has been closed" in mensaje:
+                            logger.warning(
+                                "Subida interrumpida por cierre del navegador; se conservaran los resultados parciales."
+                            )
+                            break
+                        raise
                     resultados.append(resultado)
                     if solo_primera_previsualizacion and not publicar and not asistida and resultado.get("estado") == "previsualizado":
                         break
