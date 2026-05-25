@@ -683,6 +683,101 @@ def archivar_prompts_resueltos(prompts: list[Path], modo: str = "resueltos_api")
     return None
 
 
+def correccion_json_tiene_correcciones(correccion_path: Path) -> bool:
+    if not correccion_path.exists() or not correccion_path.is_file():
+        return False
+    try:
+        data = json.loads(correccion_path.read_text(encoding="utf-8-sig"))
+    except Exception:
+        return False
+
+    def tiene_items_importables(value) -> bool:
+        if isinstance(value, list):
+            return any(isinstance(item, dict) and bool(item) for item in value)
+        return False
+
+    if tiene_items_importables(data):
+        return True
+    if isinstance(data, dict):
+        for key in ("correcciones", "resultados", "entregas"):
+            if tiene_items_importables(data.get(key)):
+                return True
+    return False
+
+
+def prompt_tiene_entregas_legibles(prompt_path: Path) -> bool:
+    try:
+        texto = prompt_path.read_text(encoding="utf-8-sig", errors="replace")
+    except Exception:
+        return True
+    def sin_acentos(value: str) -> str:
+        return "".join(
+            char for char in unicodedata.normalize("NFKD", value)
+            if not unicodedata.combining(char)
+        )
+
+    texto_normalizado = sin_acentos(texto).lower()
+    nombre_normalizado = sin_acentos(prompt_path.name).lower()
+    if (
+        "_revision_" in nombre_normalizado
+        or "# recorreccion manual" in texto_normalizado
+        or "corrige de nuevo solo este caso" in texto_normalizado
+    ):
+        return True
+    match = re.search(
+        r"^##\s+Entregas legibles\b(?P<section>.*?)(?=^##\s+|\Z)",
+        texto,
+        flags=re.I | re.M | re.S,
+    )
+    if not match:
+        return True
+    section = match.group("section")
+    bloque = re.search(r"```(?:json)?\s*(?P<json>.*?)\s*```", section, flags=re.I | re.S)
+    if not bloque:
+        return True
+    try:
+        data = json.loads(bloque.group("json"))
+    except Exception:
+        return True
+    if isinstance(data, list):
+        return len(data) > 0
+    if isinstance(data, dict):
+        for key in ("entregas", "correcciones", "resultados"):
+            value = data.get(key)
+            if isinstance(value, list):
+                return len(value) > 0
+    return True
+
+
+def filtrar_prompts_para_correccion(candidatos: list[Path], motor: str) -> tuple[list[Path], list[Path]]:
+    prompts_ya_resueltos = [
+        ruta
+        for ruta in candidatos
+        if correccion_json_tiene_correcciones(ruta.with_name(f"{ruta.stem}_correccion.json"))
+    ]
+    if prompts_ya_resueltos:
+        archivar_prompts_resueltos(prompts_ya_resueltos, modo="ya_tenian_correccion")
+
+    prompts: list[Path] = []
+    prompts_sin_entregas: list[Path] = []
+    for ruta in candidatos:
+        if not ruta.exists() or not ruta.is_file():
+            continue
+        correccion_path = ruta.with_name(f"{ruta.stem}_correccion.json")
+        if correccion_json_tiene_correcciones(correccion_path):
+            continue
+        if not prompt_tiene_entregas_legibles(ruta):
+            prompts_sin_entregas.append(ruta)
+            logger.info(
+                "Se omite %s para %s: no contiene entregas legibles ni es un prompt de recorreccion manual.",
+                ruta.name,
+                motor,
+            )
+            continue
+        prompts.append(ruta)
+    return prompts, prompts_sin_entregas
+
+
 def archivar_archivos_auxiliares_prompts(prompts_dir: Path, modo: str = "auxiliares") -> Path | None:
     candidatos = [
         prompts_dir / "correcciones_codex_combinadas.json",
@@ -2090,7 +2185,7 @@ class ExtractorCarm:
         p = urlparse(url)
         q = dict(parse_qsl(p.query))
         q["action"] = "grading"
-        q["filter"] = "require_grading"
+        q["filter"] = "requiregrading"
         q["perpage"] = "1000"
         for clave in (
             "page",
@@ -2138,6 +2233,33 @@ class ExtractorCarm:
         return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
 
     @staticmethod
+    def _url_grading_reset_preferencias(url: str) -> str:
+        p = urlparse(url)
+        q = dict(parse_qsl(p.query))
+        q["action"] = "grading"
+        q["treset"] = "1"
+        for clave in (
+            "page",
+            "filter",
+            "perpage",
+            "tifirst",
+            "tilast",
+            "tfirst",
+            "tlast",
+            "ifirst",
+            "ilast",
+            "sifirst",
+            "silast",
+            "firstname",
+            "lastname",
+            "firstinitial",
+            "lastinitial",
+            "initial",
+        ):
+            q.pop(clave, None)
+        return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
+
+    @staticmethod
     def _url_vista_actividad(url: str) -> str:
         p = urlparse(url)
         q = dict(parse_qsl(p.query))
@@ -2162,7 +2284,7 @@ class ExtractorCarm:
 
         return {
             "texto": texto.strip(),
-            "enviados": numero_antes_de(r"(\d[\d.]*)\s+(:de\s+\d[\d.]*\s+)enviad"),
+            "enviados": numero_antes_de(r"(\d[\d.]*)\s+(?:de\s+\d[\d.]*\s+)?enviad"),
             "total": numero_antes_de(r"\d[\d.]*\s+de\s+(\d[\d.]*)\s+enviad"),
             "sin_calificar": numero_antes_de(r"(\d[\d.]*)\s+sin\s+calificar"),
             "menciona_enviados": "enviad" in normalizado,
@@ -2534,8 +2656,33 @@ class ExtractorCarm:
             )
         return resultado
 
+    @staticmethod
+    def _es_error_navegacion_transitoria(exc: Exception) -> bool:
+        mensaje = str(exc)
+        return any(
+            patron in mensaje
+            for patron in (
+                "ERR_ABORTED",
+                "Timeout",
+                "Execution context was destroyed",
+                "most likely because of a navigation",
+            )
+        )
+
     async def _mapear_columnas_grading(self, page) -> dict[str, int]:
-        headers = await page.query_selector_all("table.generaltable thead th")
+        headers = []
+        for intento in range(3):
+            try:
+                await page.wait_for_load_state("domcontentloaded", timeout=5000)
+                headers = await page.query_selector_all(
+                    "table.generaltable thead th, table.gradingtable thead th, "
+                    "table#attempts thead th, table[data-region='grading-table'] thead th"
+                )
+                break
+            except Exception as exc:
+                if intento == 2 or not self._es_error_navegacion_transitoria(exc):
+                    raise
+                await page.wait_for_timeout(500 * (intento + 1))
         columnas: dict[str, int] = {}
         for idx, th in enumerate(headers):
             texto = self._normalizar(await th.text_content() or "")
@@ -2546,6 +2693,31 @@ class ExtractorCarm:
             elif "archivos enviados" in texto or "archivo enviado" in texto:
                 columnas["archivos"] = idx
         return columnas
+
+    async def _filas_tabla_grading(self, page) -> list:
+        for intento in range(3):
+            try:
+                await page.wait_for_load_state("domcontentloaded", timeout=5000)
+                filas = await page.query_selector_all(
+                    "table.generaltable tbody tr, table.gradingtable tbody tr, "
+                    "table#attempts tbody tr, table[data-region='grading-table'] tbody tr"
+                )
+                if filas:
+                    return filas
+                candidatas = await page.query_selector_all("tr")
+                filtradas = []
+                for fila in candidatas:
+                    try:
+                        if await fila.query_selector("a[href*='user/view.php']") is not None:
+                            filtradas.append(fila)
+                    except Exception:
+                        continue
+                return filtradas
+            except Exception as exc:
+                if intento == 2 or not self._es_error_navegacion_transitoria(exc):
+                    raise
+                await page.wait_for_timeout(500 * (intento + 1))
+        return []
 
     @staticmethod
     async def _texto_celda(celdas: list, indice: int | None) -> str:
@@ -2611,24 +2783,128 @@ class ExtractorCarm:
         if ultimo_error:
             raise ultimo_error
 
+    async def _esperar_grading_estable(self, page, timeout_ms: int = 15000) -> None:
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
+        except Exception:
+            pass
+        try:
+            await page.wait_for_load_state("networkidle", timeout=min(timeout_ms, 10000))
+        except Exception:
+            pass
+        try:
+            await page.wait_for_selector("select[name='filter'], #id_filter, table, tr", timeout=timeout_ms)
+        except Exception:
+            pass
+        await page.wait_for_timeout(700)
+
+    async def _hay_iniciales_grading_activas(self, page) -> bool:
+        try:
+            return bool(
+                await page.query_selector(
+                    ".gradingtable .initialbar .page-item.active,"
+                    ".gradingtable .initialbar li.active"
+                )
+            )
+        except Exception:
+            return False
+
+    async def _guardar_opciones_grading(self, page, actividad: dict) -> None:
+        ultimo_error: Exception | None = None
+        for intento in range(2):
+            cambios = False
+            try:
+                await self._esperar_grading_estable(page)
+                filtro = await page.query_selector("select[name='filter'], #id_filter")
+                if filtro:
+                    valor_filtro = ""
+                    for option in await filtro.query_selector_all("option"):
+                        text = self._normalizar(await option.text_content() or "")
+                        value = (await option.get_attribute("value") or "").strip()
+                        if value in {"requiregrading", "require_grading"} or "requiere calificacion" in text:
+                            valor_filtro = value
+                            break
+                    if valor_filtro:
+                        actual = await filtro.evaluate("(el) => el.value")
+                        if actual != valor_filtro:
+                            await filtro.select_option(valor_filtro)
+                            cambios = True
+
+                perpage = await page.query_selector("select[name='perpage'], #id_perpage")
+                if perpage:
+                    valores = [
+                        (await option.get_attribute("value") or "").strip()
+                        for option in await perpage.query_selector_all("option")
+                    ]
+                    valor_perpage = "-1" if "-1" in valores else ("100" if "100" in valores else "")
+                    if valor_perpage:
+                        actual = await perpage.evaluate("(el) => el.value")
+                        if actual != valor_perpage:
+                            await perpage.select_option(valor_perpage)
+                            cambios = True
+
+                if cambios:
+                    boton = await page.query_selector(
+                        "#id_submitbutton, input[name='submitbutton'], "
+                        ".gradingoptionsform input[type='submit'], .gradingoptionsform button[type='submit']"
+                    )
+                    if boton:
+                        await boton.click()
+                        await self._esperar_grading_estable(page)
+                    else:
+                        logger.warning(
+                            f"No se encontró el botón para guardar opciones de grading en {actividad.get('codigo')}"
+                        )
+                return
+            except Exception as exc:
+                ultimo_error = exc
+                if self._es_error_navegacion_transitoria(exc) and intento == 0:
+                    await self._esperar_grading_estable(page)
+                    continue
+                break
+        if ultimo_error:
+            logger.warning(f"No se pudieron guardar opciones de grading en {actividad.get('codigo')}: {ultimo_error}")
+
     async def _asegurar_filtros_grading(self, page, actividad: dict) -> None:
         url_normalizada = self._url_grading_requiere_calificacion(actividad["url_grading"])
         if page.url != url_normalizada:
             await self._goto_carm(page, url_normalizada, motivo=f"grading {actividad.get('codigo', '')}")
+        await self._esperar_grading_estable(page)
+
+        if await self._hay_iniciales_grading_activas(page) and not actividad.get("_grading_preferencias_reseteadas"):
+            logger.info(
+                f"{actividad.get('codigo')}: se detectaron iniciales activas en grading; "
+                "restablezco preferencias de tabla."
+            )
+            await self._goto_carm(
+                page,
+                self._url_grading_reset_preferencias(url_normalizada),
+                motivo=f"reset tabla grading {actividad.get('codigo', '')}",
+            )
+            await self._esperar_grading_estable(page)
+            await self._goto_carm(page, url_normalizada, motivo=f"grading limpio {actividad.get('codigo', '')}")
+            await self._esperar_grading_estable(page)
+            actividad["_grading_preferencias_reseteadas"] = True
+
+        await self._guardar_opciones_grading(page, actividad)
         actividad["url_grading"] = url_normalizada
 
         try:
             selects = await page.query_selector_all("select")
             for select in selects:
                 name = (await select.get_attribute("name") or "").lower()
-                option_texts = [
-                    self._normalizar(await option.text_content() or "")
-                    for option in await select.query_selector_all("option")
-                ]
+                option_value = ""
+                option_texts = []
+                for option in await select.query_selector_all("option"):
+                    text = self._normalizar(await option.text_content() or "")
+                    value = (await option.get_attribute("value") or "").strip()
+                    option_texts.append(text)
+                    if value in {"requiregrading", "require_grading"} or "requiere calificacion" in text:
+                        option_value = value
                 if "filter" in name or any("requiere calificacion" in text for text in option_texts):
                     try:
-                        await select.select_option("require_grading")
-                        await page.wait_for_load_state("domcontentloaded", timeout=5000)
+                        await select.select_option(option_value or "requiregrading")
+                        await self._esperar_grading_estable(page)
                     except Exception:
                         pass
                     break
@@ -2638,6 +2914,21 @@ class ExtractorCarm:
         url_actual = self._url_grading_requiere_calificacion(page.url)
         if page.url != url_actual:
             await self._goto_carm(page, url_actual, motivo=f"filtros grading {actividad.get('codigo', '')}")
+        await self._esperar_grading_estable(page)
+        if (
+            await self._hay_iniciales_grading_activas(page)
+            and not actividad.get("_grading_preferencias_reseteadas")
+            and not await self._filas_tabla_grading(page)
+        ):
+            await self._goto_carm(
+                page,
+                self._url_grading_reset_preferencias(page.url),
+                motivo=f"reset final tabla grading {actividad.get('codigo', '')}",
+            )
+            await self._esperar_grading_estable(page)
+            await self._goto_carm(page, url_actual, motivo=f"filtros grading limpio {actividad.get('codigo', '')}")
+            await self._esperar_grading_estable(page)
+            actividad["_grading_preferencias_reseteadas"] = True
 
         parsed = dict(parse_qsl(urlparse(page.url).query))
         filtro = parsed.get("filter", "")
@@ -2661,7 +2952,7 @@ class ExtractorCarm:
                 "initial",
             }
         }
-        if filtro != "require_grading" or filtros_letra:
+        if filtro not in {"requiregrading", "require_grading"} or filtros_letra:
             raise RuntimeError(
                 f"Filtros de grading no seguros en {actividad.get('codigo')}: "
                 f"filter={filtro or 'vacio'}, iniciales={filtros_letra or 'todos'}"
@@ -2669,18 +2960,33 @@ class ExtractorCarm:
 
     async def _descargar_envios_actividad(self, page, actividad: dict, descargar: bool = True) -> list[EnvioPendiente]:
         descargados: list[EnvioPendiente] = []
-        actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
+        if actividad.get("_fallback_grading_completo"):
+            actividad["url_grading"] = self._url_grading_todos(actividad["url_grading"])
+        else:
+            actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
         await self._goto_carm(page, actividad["url_grading"], motivo=f"descarga {actividad.get('codigo', '')}")
-        await self._asegurar_filtros_grading(page, actividad)
+        if not actividad.get("_fallback_grading_completo"):
+            await self._asegurar_filtros_grading(page, actividad)
 
         columnas = await self._mapear_columnas_grading(page)
         if "alumno" not in columnas:
             logger.warning(f"No se detectó la columna de alumno en {actividad.get('codigo')}")
 
-        filas = await page.query_selector_all("table.generaltable tbody tr")
+        filas = await self._filas_tabla_grading(page)
         if not filas:
+            if actividad.get("sin_calificar_carm", 0) and not actividad.get("_fallback_grading_completo"):
+                logger.warning(
+                    "CARM indica %s pendiente(s) en %s, pero Requiere calificacion no muestra filas. Reintento en vista completa filtrando localmente.",
+                    actividad.get("sin_calificar_carm"),
+                    actividad.get("codigo", ""),
+                )
+                fallback = dict(actividad)
+                fallback["_fallback_grading_completo"] = True
+                fallback["url_grading"] = self._url_grading_todos(actividad.get("url") or actividad["url_grading"])
+                return await self._descargar_envios_actividad(page, fallback, descargar)
             logger.info("Sin entregas pendientes en %s.", actividad.get("codigo", ""))
             return descargados
+        pendientes_detectados = 0
         for fila in filas:
             clase = await fila.get_attribute("class") or ""
             if "emptyrow" in clase:
@@ -2698,7 +3004,7 @@ class ExtractorCarm:
                 continue
 
             estado = await self._texto_celda(celdas, columnas.get("estado"))
-            if not self._es_estado_requiere_calificacion(estado):
+            if not await self._fila_requiere_calificacion(fila, columnas):
                 logger.info(
                     "Se omite fila no pendiente en %s: %s (%s)",
                     actividad.get("codigo", ""),
@@ -2706,6 +3012,7 @@ class ExtractorCarm:
                     estado or "sin estado",
                 )
                 continue
+            pendientes_detectados += 1
             celda_archivos = celdas[columnas["archivos"]] if "archivos" in columnas and columnas["archivos"] < len(celdas) else fila
             enlaces_archivo = await celda_archivos.query_selector_all(
                 "a[href*='pluginfile.php'], a[href*='forcedownload=1'], a[download]"
@@ -2809,18 +3116,42 @@ class ExtractorCarm:
             )
             self.registros_envios.append(registro_base)
 
+        if pendientes_detectados == 0 and actividad.get("sin_calificar_carm", 0) and not actividad.get("_fallback_grading_completo"):
+            logger.warning(
+                "CARM indica %s pendiente(s) en %s, pero el filtro no deja filas validas. Reintento en vista completa filtrando localmente.",
+                actividad.get("sin_calificar_carm"),
+                actividad.get("codigo", ""),
+            )
+            fallback = dict(actividad)
+            fallback["_fallback_grading_completo"] = True
+            fallback["url_grading"] = self._url_grading_todos(actividad.get("url") or actividad["url_grading"])
+            return await self._descargar_envios_actividad(page, fallback, descargar)
+
         return descargados
+
+    async def _fila_tiene_marcador_sin_calificar(self, fila) -> bool:
+        try:
+            if await fila.query_selector(".submissionnotgraded, [class*='submissionnotgraded']") is not None:
+                return True
+        except Exception:
+            pass
+        texto = self._normalizar(await fila.text_content() or "")
+        return "sin calificar" in texto or "not graded" in texto
 
     async def _fila_requiere_calificacion(self, fila, columnas: dict[str, int] | None = None) -> bool:
         columnas = columnas or {}
         celdas = await fila.query_selector_all("td")
         estado = await self._texto_celda(celdas, columnas.get("estado"))
+        if await self._fila_tiene_marcador_sin_calificar(fila):
+            return True
+        if estado and self._es_estado_requiere_calificacion(estado):
+            return True
         if not estado:
             estado = await fila.text_content() or ""
         return self._es_estado_requiere_calificacion(estado)
 
     async def _buscar_url_calificador_en_tabla(self, page, alumno: str, columnas: dict[str, int] | None = None) -> tuple[str, bool]:
-        filas = await page.query_selector_all("table.generaltable tbody tr")
+        filas = await self._filas_tabla_grading(page)
         for fila in filas:
             if not await self._fila_requiere_calificacion(fila, columnas):
                 continue
@@ -2840,7 +3171,7 @@ class ExtractorCarm:
 
     async def _contar_filas_grading(self, page, columnas: dict[str, int] | None = None) -> int:
         total = 0
-        filas = await page.query_selector_all("table.generaltable tbody tr")
+        filas = await self._filas_tabla_grading(page)
         for fila in filas:
             clase = await fila.get_attribute("class") or ""
             texto = (await fila.text_content() or "").strip()
@@ -2857,6 +3188,16 @@ class ExtractorCarm:
         await self._asegurar_filtros_grading(page, actividad)
         columnas = await self._mapear_columnas_grading(page)
         total = await self._contar_filas_grading(page, columnas)
+        if total <= 0 and actividad.get("sin_calificar_carm", 0):
+            url_completa = self._url_grading_todos(actividad.get("url") or actividad["url_grading"])
+            logger.warning(
+                "CARM indica %s pendiente(s) en %s, pero Requiere calificacion no devuelve filas. Compruebo vista completa.",
+                actividad.get("sin_calificar_carm"),
+                actividad.get("codigo", ""),
+            )
+            await self._goto_carm(page, url_completa, motivo=f"filas pendientes vista completa {actividad.get('codigo', '')}")
+            columnas = await self._mapear_columnas_grading(page)
+            total = await self._contar_filas_grading(page, columnas)
         if total <= 0:
             logger.info("Sin filas en Requiere calificacion para %s; se omite.", actividad.get("codigo", ""))
             return False
@@ -2871,6 +3212,19 @@ class ExtractorCarm:
         filas_requieren_calificacion = await self._contar_filas_grading(page, columnas)
         if href:
             return href, "pendiente"
+        if not href and filas_requieren_calificacion == 0 and actividad.get("sin_calificar_carm", 0):
+            url_completa = self._url_grading_todos(actividad.get("url") or actividad["url_grading"])
+            logger.warning(
+                "No se encontro %s en Requiere calificacion para %s, pero CARM indica pendientes. Reintento en vista completa filtrando localmente.",
+                alumno,
+                actividad.get("codigo", ""),
+            )
+            await self._goto_carm(page, url_completa, motivo=f"buscar calificador vista completa {actividad.get('codigo', '')}")
+            columnas = await self._mapear_columnas_grading(page)
+            href, encontrado = await self._buscar_url_calificador_en_tabla(page, alumno, columnas)
+            filas_requieren_calificacion = await self._contar_filas_grading(page, columnas)
+            if href:
+                return href, "pendiente"
 
         logger.warning(
             "No se encontro %s en Requiere calificacion para %s; no se abre la vista completa por seguridad.",
@@ -2885,10 +3239,23 @@ class ExtractorCarm:
         actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
         await self._goto_carm(page, actividad["url_grading"], motivo=f"leer pendientes {actividad.get('codigo', '')}")
         await self._asegurar_filtros_grading(page, actividad)
+        pendientes = await self._leer_filas_pendientes_en_pagina(page)
+        if not pendientes and actividad.get("sin_calificar_carm", 0):
+            url_completa = self._url_grading_todos(actividad.get("url") or actividad["url_grading"])
+            logger.warning(
+                "CARM indica %s pendiente(s) en %s, pero Requiere calificacion no lista alumnos. Reintento en vista completa filtrando localmente.",
+                actividad.get("sin_calificar_carm"),
+                actividad.get("codigo", ""),
+            )
+            await self._goto_carm(page, url_completa, motivo=f"leer pendientes vista completa {actividad.get('codigo', '')}")
+            pendientes = await self._leer_filas_pendientes_en_pagina(page)
+        return pendientes
+
+    async def _leer_filas_pendientes_en_pagina(self, page) -> list[dict]:
         columnas = await self._mapear_columnas_grading(page)
         indice_alumno = columnas.get("alumno", 0)
         pendientes: list[dict] = []
-        filas = await page.query_selector_all("table.generaltable tbody tr")
+        filas = await self._filas_tabla_grading(page)
         for fila in filas:
             clase = await fila.get_attribute("class") or ""
             if "emptyrow" in clase or not await self._fila_requiere_calificacion(fila, columnas):
@@ -2953,7 +3320,7 @@ class ExtractorCarm:
         return False
 
     async def _pulsar_calificar_en_fila(self, page, alumno: str) -> str:
-        filas = await page.query_selector_all("table.generaltable tbody tr, tr")
+        filas = await self._filas_tabla_grading(page)
         for fila in filas:
             texto_fila = await fila.text_content() or ""
             if not self._coincide_alumno(alumno, texto_fila):
@@ -3873,6 +4240,118 @@ class ExtractorCarm:
                 await context.close()
                 await browser.close()
 
+    async def contrastar_correcciones_carm(self, correcciones: list[dict]) -> list[dict]:
+        if async_playwright is None:
+            raise RuntimeError(
+                "Playwright no esta disponible. Ejecuta: pip install -r requirements.txt y luego playwright install chromium"
+            )
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=CARM_HEADLESS)
+            context = await self._crear_contexto(browser)
+            page = await context.new_page()
+            self._configurar_page(page)
+            resultados: list[dict] = []
+            try:
+                await self._login(page)
+                destino = CARM_COURSE_URL or CARM_MY_URL
+                await page.goto(destino, wait_until="domcontentloaded")
+                actividades = await self._obtener_actividades_obligatorias(page)
+                actividades_por_codigo = {act["codigo"]: act for act in actividades}
+                if self.cache:
+                    for codigo, act in list(actividades_por_codigo.items()):
+                        actividades_por_codigo[codigo] = self.cache.enriquecer_actividad(act)
+
+                correcciones_por_actividad: dict[str, list[dict]] = {}
+                for correccion in correcciones:
+                    actividad_codigo = str(
+                        correccion.get("actividad") or correccion.get("actividad_codigo") or ""
+                    ).strip().lower()
+                    correcciones_por_actividad.setdefault(actividad_codigo, []).append(correccion)
+
+                for actividad_codigo, filas_csv in sorted(correcciones_por_actividad.items()):
+                    actividad = actividades_por_codigo.get(actividad_codigo)
+                    if not actividad:
+                        for correccion in filas_csv:
+                            resultados.append(
+                                {
+                                    "actividad": actividad_codigo,
+                                    "alumno": correccion.get("alumno", ""),
+                                    "nota_preparada": correccion.get("nota", ""),
+                                    "estado": "actividad_sin_pendientes_requiere_calificacion",
+                                    "mensaje": "CARM no muestra esta actividad con contador de Sin calificar.",
+                                }
+                            )
+                        logger.info(
+                            "%s: %s fila(s) preparadas, pero CARM no muestra pendientes.",
+                            actividad_codigo,
+                            len(filas_csv),
+                        )
+                        continue
+
+                    try:
+                        pendientes = await self._filas_pendientes_en_requiere_calificacion(page, actividad)
+                    except Exception as exc:
+                        for correccion in filas_csv:
+                            resultados.append(
+                                {
+                                    "actividad": actividad_codigo,
+                                    "alumno": correccion.get("alumno", ""),
+                                    "nota_preparada": correccion.get("nota", ""),
+                                    "estado": "error_navegacion_carm",
+                                    "mensaje": str(exc).splitlines()[0],
+                                }
+                            )
+                        logger.warning("No se pudo contrastar %s: %s", actividad_codigo, str(exc).splitlines()[0])
+                        continue
+
+                    alumnos_csv = [str(item.get("alumno", "")).strip() for item in filas_csv]
+                    alumnos_carm = [str(item.get("alumno", "")).strip() for item in pendientes]
+                    logger.info(
+                        "%s: CSV=%s | CARM Requiere calificacion=%s",
+                        actividad_codigo,
+                        len(filas_csv),
+                        len(pendientes),
+                    )
+
+                    for correccion in filas_csv:
+                        alumno = str(correccion.get("alumno", "")).strip()
+                        fila_pendiente = next(
+                            (
+                                fila
+                                for fila in pendientes
+                                if self._coincide_alumno(alumno, fila.get("alumno", ""))
+                            ),
+                            None,
+                        )
+                        resultados.append(
+                            {
+                                "actividad": actividad_codigo,
+                                "alumno": alumno,
+                                "nota_preparada": correccion.get("nota", ""),
+                                "estado": "pendiente_en_carm" if fila_pendiente else "no_aparece_en_requiere_calificacion",
+                                "alumno_carm": fila_pendiente.get("alumno", "") if fila_pendiente else "",
+                                "archivo_correccion": correccion.get("archivo_correccion", ""),
+                            }
+                        )
+
+                    for alumno_carm in alumnos_carm:
+                        if not any(self._coincide_alumno(alumno_carm, alumno_csv) for alumno_csv in alumnos_csv):
+                            resultados.append(
+                                {
+                                    "actividad": actividad_codigo,
+                                    "alumno": alumno_carm,
+                                    "nota_preparada": "",
+                                    "estado": "pendiente_en_carm_sin_correccion_preparada",
+                                    "mensaje": "CARM lo muestra pendiente, pero no hay fila preparada en el CSV.",
+                                }
+                            )
+                return resultados
+            finally:
+                await self._cerrar_contexto(context, page)
+                await context.close()
+                await browser.close()
+
     async def ejecutar(self, solo_listar: bool = False) -> tuple[str, list[EnvioPendiente]]:
         if async_playwright is None:
             raise RuntimeError(
@@ -4127,7 +4606,7 @@ class ExtractorCarm:
                                 diagnostico_dir,
                                 f"04_grading_{actividad['codigo']}",
                             )
-                        filas = await page.query_selector_all("table.generaltable tbody tr")
+                        filas = await self._filas_tabla_grading(page)
                         actividad["filas_grading_detectadas"] = len(filas)
                         actividad["columnas_grading"] = await self._mapear_columnas_grading(page)
                     except Exception as e:
@@ -4515,16 +4994,61 @@ class GeneradorSalidas:
 
         reader = PdfReader(str(path))
         textos = []
+        tiene_imagenes = False
         for page in reader.pages:
             textos.append(page.extract_text() or "")
+            try:
+                if len(getattr(page, "images", []) or []) > 0:
+                    tiene_imagenes = True
+            except Exception:
+                pass
         texto = "\n".join(textos)
         if not GeneradorSalidas._texto_extraido_insuficiente(texto):
+            if tiene_imagenes:
+                texto_ocr = GeneradorSalidas._leer_pdf_ocr(path, max_paginas=len(reader.pages))
+                combinado = GeneradorSalidas._preferir_ocr_si_aporta_contenido_visual(texto, texto_ocr)
+                if combinado:
+                    return combinado
             return texto
 
         texto_ocr = GeneradorSalidas._leer_pdf_ocr(path, max_paginas=len(reader.pages))
         if texto_ocr.strip():
             return texto_ocr
         return texto
+
+    @staticmethod
+    def _preferir_ocr_si_aporta_contenido_visual(texto_pdf: str, texto_ocr: str) -> str:
+        limpio_pdf = GeneradorSalidas._limpiar_texto_extraido(texto_pdf)
+        limpio_ocr = GeneradorSalidas._limpiar_texto_extraido(texto_ocr)
+        if not limpio_ocr:
+            return ""
+        if len(limpio_ocr) < max(len(limpio_pdf) * 1.25, len(limpio_pdf) + 250):
+            return ""
+
+        palabras_pdf = set(re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]{4,}", limpio_pdf.lower()))
+        palabras_ocr = set(re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]{4,}", limpio_ocr.lower()))
+        nuevas = palabras_ocr - palabras_pdf
+        if len(nuevas) < 12:
+            return ""
+
+        marcadores_esquema = {
+            "entrada",
+            "multicanal",
+            "deteccion",
+            "reglas",
+            "faq",
+            "bloques",
+            "repositorio",
+            "sincronizacion",
+            "automatizada",
+            "derivacion",
+            "humana",
+            "resultado",
+            "final",
+        }
+        if marcadores_esquema & nuevas or any(m in limpio_ocr.lower() for m in marcadores_esquema):
+            return limpio_ocr
+        return limpio_ocr if len(nuevas) >= 25 else ""
 
     @staticmethod
     def _leer_pdf_ocr(path: Path, max_paginas: int | None = None) -> str:
@@ -4923,6 +5447,75 @@ class GeneradorSalidas:
                     alumno=alumno or correccion.get("alumno", ""),
                     nota=correccion.get("nota"),
                 )
+        valor_criterios = GeneradorSalidas._feedback_desde_criterios(correccion)
+        if valor_criterios:
+            return personalizar_feedback_alumno(
+                valor_criterios,
+                alumno=alumno or correccion.get("alumno", ""),
+                nota=correccion.get("nota"),
+            )
+        return ""
+
+    @staticmethod
+    def _es_criterio_feedback(criterio: dict) -> bool:
+        nombre = _normalizar_linea_comparable(str(criterio.get("nombre", "")))
+        return any(
+            patron in nombre
+            for patron in (
+                "retroalimentacion",
+                "retroalimentaci",
+                "feedback",
+                "comentario final",
+                "observacion final",
+                "valoracion final",
+            )
+        )
+
+    @staticmethod
+    def _feedback_desde_criterios(correccion: dict) -> str:
+        criterios = correccion.get("criterios")
+        if not isinstance(criterios, list):
+            return ""
+        for criterio in criterios:
+            if not isinstance(criterio, dict) or not GeneradorSalidas._es_criterio_feedback(criterio):
+                continue
+            comentario = str(criterio.get("comentario", "")).strip()
+            if comentario:
+                return sanitizar_feedback(comentario, max_chars=6000)
+        return ""
+
+    @staticmethod
+    def _criterios_evaluacion(correccion: dict) -> list:
+        criterios = correccion.get("criterios")
+        if not isinstance(criterios, list):
+            return []
+        return [
+            criterio
+            for criterio in criterios
+            if not (isinstance(criterio, dict) and GeneradorSalidas._es_criterio_feedback(criterio))
+        ]
+
+    @staticmethod
+    def _retroalimentacion_desde_archivo_correccion(path: Path) -> str:
+        if not path.exists() or not path.is_file():
+            return ""
+        try:
+            texto = path.read_text(encoding="utf-8-sig")
+        except Exception:
+            return ""
+        lineas = texto.splitlines()
+        for idx, linea in enumerate(lineas):
+            if re.match(r"(?i)^\s*retroalimentaci[oó]n\s*:\s*$", linea):
+                bloque = "\n".join(lineas[idx + 1 :]).strip()
+                if bloque:
+                    return sanitizar_feedback(bloque, max_chars=6000)
+            match = re.match(
+                r"(?i)^\s*-\s*retroalimentaci[oó]n\s*:\s*"
+                r"(?:\d+(?:[.,]\d+)?\s*/\s*\d+(?:[.,]\d+)?\.\s*)?(.*)$",
+                linea,
+            )
+            if match and match.group(1).strip():
+                return sanitizar_feedback(match.group(1).strip(), max_chars=6000)
         return ""
 
     def eliminar_pendiente_calificado(self, envio: EnvioPendiente) -> None:
@@ -4946,7 +5539,7 @@ class GeneradorSalidas:
         lineas.append("")
         lineas.append(f"Nota final: {correccion.get('nota', 0)}/10")
         lineas.append("")
-        criterios = correccion.get("criterios", [])
+        criterios = GeneradorSalidas._criterios_evaluacion(correccion)
         if criterios:
             lineas.append("Detalle por criterios:")
 
@@ -5039,10 +5632,6 @@ class GeneradorSalidas:
     @staticmethod
     def _normalizar_correccion_importada(correccion: dict) -> dict:
         normalizada = dict(correccion)
-        normalizada["retroalimentacion"] = GeneradorSalidas._texto_feedback(
-            correccion,
-            alumno=str(correccion.get("alumno", "")),
-        )
         criterios = normalizada.get("criterios")
         if isinstance(criterios, list):
             normalizada["criterios"] = [
@@ -5055,6 +5644,11 @@ class GeneradorSalidas:
                 else crit
                 for crit in criterios
             ]
+            normalizada["criterios"] = GeneradorSalidas._criterios_evaluacion(normalizada)
+        normalizada["retroalimentacion"] = GeneradorSalidas._texto_feedback(
+            correccion,
+            alumno=str(correccion.get("alumno", "")),
+        )
         estado = str(normalizada.get("estado") or normalizada.get("resultado") or "").strip().lower()
         if not estado:
             estado = "borrador_pendiente_de_revision"
@@ -5078,13 +5672,17 @@ class GeneradorSalidas:
                 raise ValueError("El CSV de correcciones no contiene filas.")
             correcciones_csv: list[dict] = []
             for fila in filas:
+                archivo_correccion = fila.get("archivo_correccion") or ""
+                retroalimentacion = fila.get("retroalimentacion") or ""
+                if not retroalimentacion and archivo_correccion:
+                    retroalimentacion = self._retroalimentacion_desde_archivo_correccion(Path(archivo_correccion))
                 correccion = {
                     "alumno": (fila.get("alumno") or "").strip(),
                     "actividad": (fila.get("actividad") or "").strip().lower(),
                     "nota": fila.get("nota") or 0,
                     "estado": (fila.get("estado") or "").strip(),
-                    "retroalimentacion": fila.get("retroalimentacion") or "",
-                    "archivo_correccion": fila.get("archivo_correccion") or "",
+                    "retroalimentacion": retroalimentacion,
+                    "archivo_correccion": archivo_correccion,
                 }
                 correcciones_csv.append(self._normalizar_correccion_importada(correccion))
             return correcciones_csv
@@ -5416,19 +6014,13 @@ class GeneradorSalidas:
             ruta for ruta in (rutas_prompts or sorted(prompts_dir.glob("prompt_*.md")))
             if ruta.suffix.lower() == ".md" and ruta.name.startswith("prompt_")
         ]
-        prompts_ya_resueltos = [
-            ruta
-            for ruta in candidatos
-            if ruta.with_name(f"{ruta.stem}_correccion.json").exists()
-        ]
-        if prompts_ya_resueltos:
-            archivar_prompts_resueltos(prompts_ya_resueltos, modo="ya_tenian_correccion")
-        prompts = [
-            ruta
-            for ruta in candidatos
-            if ruta.exists() and not ruta.with_name(f"{ruta.stem}_correccion.json").exists()
-        ]
+        prompts, prompts_sin_entregas = filtrar_prompts_para_correccion(candidatos, "OpenAI API")
         if not prompts:
+            if prompts_sin_entregas:
+                raise ValueError(
+                    "No hay prompts con entregas legibles ni recorrecciones manuales para enviar a OpenAI API; "
+                    "las entregas pendientes requieren crear un prompt de revision manual."
+                )
             raise ValueError("No hay prompts .md preparados para enviar a OpenAI API.")
 
         output_dir = output_dir or prompts_dir
@@ -5485,9 +6077,18 @@ class GeneradorSalidas:
             )
             contenido = respuesta_api.choices[0].message.content or "{}"
             salida_path.write_text(contenido, encoding="utf-8")
+            if not correccion_json_tiene_correcciones(salida_path):
+                logger.warning(
+                    "OpenAI API genero una correccion sin filas importables; se conserva el prompt sin archivar: %s",
+                    prompt_path,
+                )
+                continue
             rutas_correcciones.append(salida_path)
             prompts_resueltos.append(prompt_path)
             logger.info("Correccion API guardada en: %s", salida_path)
+
+        if not rutas_correcciones:
+            raise ValueError("No se obtuvo ninguna correccion importable desde OpenAI API.")
 
         combinado_path = output_dir / "correcciones_codex_combinadas.json"
         correcciones_combinadas: list[dict] = []
@@ -5545,19 +6146,13 @@ class GeneradorSalidas:
             ruta for ruta in (rutas_prompts or sorted(prompts_dir.glob("prompt_*.md")))
             if ruta.suffix.lower() == ".md" and ruta.name.startswith("prompt_")
         ]
-        prompts_ya_resueltos = [
-            ruta
-            for ruta in candidatos
-            if ruta.with_name(f"{ruta.stem}_correccion.json").exists()
-        ]
-        if prompts_ya_resueltos:
-            archivar_prompts_resueltos(prompts_ya_resueltos, modo="ya_tenian_correccion")
-        prompts = [
-            ruta
-            for ruta in candidatos
-            if not ruta.with_name(f"{ruta.stem}_correccion.json").exists()
-        ]
+        prompts, prompts_sin_entregas = filtrar_prompts_para_correccion(candidatos, "Codex App")
         if not prompts:
+            if prompts_sin_entregas:
+                raise ValueError(
+                    "No hay prompts con entregas legibles ni recorrecciones manuales para resolver con Codex App; "
+                    "las entregas pendientes requieren crear un prompt de revision manual."
+                )
             raise ValueError("No hay prompts .md preparados para resolver con Codex App.")
 
         output_dir = output_dir or prompts_dir
@@ -5642,9 +6237,18 @@ class GeneradorSalidas:
                 salida_raw.unlink()
             except Exception:
                 pass
+            if not correccion_json_tiene_correcciones(salida_path):
+                logger.warning(
+                    "Codex App genero una correccion sin filas importables; se conserva el prompt sin archivar: %s",
+                    prompt_path,
+                )
+                continue
             rutas_correcciones.append(salida_path)
             prompts_resueltos.append(prompt_path)
             logger.info("Correccion Codex App guardada en: %s", salida_path)
+
+        if not rutas_correcciones:
+            raise ValueError("No se obtuvo ninguna correccion importable desde Codex App.")
 
         combinado_path = output_dir / "correcciones_codex_combinadas.json"
         correcciones_combinadas: list[dict] = []
@@ -5964,6 +6568,89 @@ async def ejecutar_flujo(args) -> None:
             logger.info("Modo subida asistida: solo se eliminan del CSV las filas confirmadas por el usuario.")
         elif not publicar:
             logger.info("Modo previsualización: no se ha pulsado guardar en CARM.")
+        return
+
+    if getattr(args, "contrastar_correcciones_carm", ""):
+        if not requiere_curso_carm_configurado("contrastar correcciones con CARM"):
+            return
+        credenciales = obtener_credenciales_carm_interactivo("contrastar correcciones con CARM")
+        if not credenciales:
+            return
+        usuario, contrasena = credenciales
+
+        salida = GeneradorSalidas(pendientes_dir, temporal_dir, actividad_codigo=args.actividad_codigo)
+        correcciones_path = Path(args.contrastar_correcciones_carm)
+        try:
+            correcciones = salida._leer_correcciones_codex(correcciones_path)
+        except Exception as e:
+            logger.error(f"No se pudieron leer correcciones para contrastar con CARM: {e}")
+            return
+
+        extractor = ExtractorCarm(
+            usuario,
+            contrasena,
+            pendientes_dir,
+            mantener_navegador=False,
+            guardar_evidencias=getattr(args, "guardar_evidencias", False),
+            unidades=unidades_filtro,
+            actividades=actividades_filtro,
+            cache=cache_curso,
+            usar_cache=True,
+        )
+        try:
+            resultados_contraste = await extractor.contrastar_correcciones_carm(correcciones)
+        except Exception as e:
+            logger.error(f"No se pudo completar el contraste con CARM: {e}")
+            return
+
+        salida_path = RESPUESTAS_DIR / "contraste_carm_revision.json"
+        resumen = {
+            "archivo": str(correcciones_path),
+            "total_filas_csv": len(correcciones),
+            "coinciden": sum(1 for item in resultados_contraste if item.get("estado") == "pendiente_en_carm"),
+            "sobran_csv": sum(
+                1
+                for item in resultados_contraste
+                if item.get("estado")
+                in {
+                    "actividad_sin_pendientes_requiere_calificacion",
+                    "no_aparece_en_requiere_calificacion",
+                }
+            ),
+            "faltan_csv": sum(
+                1
+                for item in resultados_contraste
+                if item.get("estado") == "pendiente_en_carm_sin_correccion_preparada"
+            ),
+            "errores": sum(1 for item in resultados_contraste if item.get("estado") == "error_navegacion_carm"),
+            "resultados": resultados_contraste,
+        }
+        salida_path.write_text(json.dumps(resumen, indent=2, ensure_ascii=False), encoding="utf-8")
+        registrar_auditoria(
+            "contrastar_correcciones_carm",
+            correcciones=len(correcciones),
+            coinciden=resumen["coinciden"],
+            sobran_csv=resumen["sobran_csv"],
+            faltan_csv=resumen["faltan_csv"],
+            errores=resumen["errores"],
+            salida=salida_path,
+        )
+        logger.info(
+            "Contraste CARM: %s coinciden, %s sobran del CSV, %s pendientes en CARM sin correccion, %s errores.",
+            resumen["coinciden"],
+            resumen["sobran_csv"],
+            resumen["faltan_csv"],
+            resumen["errores"],
+        )
+        for resultado in resultados_contraste:
+            if resultado.get("estado") != "pendiente_en_carm":
+                logger.warning(
+                    "%s %s: %s",
+                    resultado.get("actividad", ""),
+                    resultado.get("alumno", ""),
+                    resultado.get("estado", ""),
+                )
+        logger.info("Contraste guardado en: %s", salida_path)
         return
 
     usar_cache = (
@@ -6426,6 +7113,11 @@ def parse_args() -> argparse.Namespace:
         "--subida-asistida-carm",
         action="store_true",
         help="Con --subir-correcciones-carm, rellena cada calificacion y espera a que el usuario pulse guardar.",
+    )
+    parser.add_argument(
+        "--contrastar-correcciones-carm",
+        default="",
+        help="Contrasta un CSV/JSON de correcciones con Requiere calificacion en CARM sin rellenar ni guardar nada.",
     )
     parser.add_argument(
         "--guardar-trace-subida",
