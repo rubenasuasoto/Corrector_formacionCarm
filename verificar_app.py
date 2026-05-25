@@ -272,6 +272,31 @@ def check_extraccion_insuficiente() -> bool:
     return True
 
 
+def check_filtro_requiere_calificacion() -> bool:
+    safe_print("\n==> Filtro Requiere calificacion CARM")
+    from corrector_agente import ExtractorCarm
+
+    resumen_sin_pendientes = ExtractorCarm._extraer_resumen_accion_actividad("24 de 120 Enviados")
+    if resumen_sin_pendientes.get("sin_calificar") is not None:
+        safe_print("ERROR: el contador de solo enviados no debe crear pendientes.")
+        return False
+    resumen_con_pendientes = ExtractorCarm._extraer_resumen_accion_actividad("55 de 120 Enviados, 1 Sin calificar")
+    if resumen_con_pendientes.get("sin_calificar") != 1:
+        safe_print("ERROR: no se detecta correctamente el contador Sin calificar.")
+        return False
+    if ExtractorCarm._es_estado_requiere_calificacion("Enviado para calificarCalificado"):
+        safe_print("ERROR: una fila ya calificada no debe entrar en revision pendiente.")
+        return False
+    if not ExtractorCarm._es_estado_requiere_calificacion("Enviado para calificar"):
+        safe_print("ERROR: una fila enviada para calificar debe entrar como pendiente.")
+        return False
+    if not ExtractorCarm._es_estado_requiere_calificacion("Enviado para calificarCalificado - entrega de seguimiento recibida"):
+        safe_print("ERROR: una entrega de seguimiento recibida debe seguir tratandose como reenvio pendiente.")
+        return False
+    safe_print("OK: el filtro distingue enviados, calificados y reenvios pendientes.")
+    return True
+
+
 def check_formatos_lectura() -> bool:
     safe_print("\n==> Formatos de lectura")
     from corrector_agente import GeneradorSalidas
@@ -1045,6 +1070,7 @@ def main() -> int:
     ok &= check_iconos_app()
     ok &= check_cache_sqlite_basica()
     ok &= check_extraccion_insuficiente()
+    ok &= check_filtro_requiere_calificacion()
     ok &= check_formatos_lectura()
     ok &= check_prompt_ortografia()
     ok &= print_health(operacion=not args.instalacion)
