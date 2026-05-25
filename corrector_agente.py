@@ -1983,6 +1983,41 @@ class ExtractorCarm:
         )
 
     @classmethod
+    def _es_estado_reenvio_calificado(cls, estado: str) -> bool:
+        normalizado = cls._normalizar(estado)
+        return any(
+            patron in normalizado
+            for patron in (
+                "entrega de seguimiento recibida",
+                "seguimiento recibido",
+                "nueva entrega",
+                "reenvio",
+                "reenviado",
+                "resubmitted",
+            )
+        )
+
+    @classmethod
+    def _es_estado_requiere_calificacion(cls, estado: str) -> bool:
+        normalizado = cls._normalizar(estado)
+        if not normalizado:
+            return False
+        if cls._es_estado_sin_entrega(normalizado):
+            return False
+        if "calificado" in normalizado and not cls._es_estado_reenvio_calificado(normalizado):
+            return False
+        return any(
+            patron in normalizado
+            for patron in (
+                "sin calificar",
+                "enviado para calificar",
+                "requiere calificacion",
+                "submitted for grading",
+                "not graded",
+            )
+        )
+
+    @classmethod
     def _inferir_codigo_actividad(cls, nombre_actividad: str, nombre_unidad: str = "") -> str:
         texto = cls._normalizar(f"{nombre_unidad} {nombre_actividad}")
 
@@ -2445,6 +2480,12 @@ class ExtractorCarm:
             if sin_calificar is None and resumen_accion.get("menciona_enviados") and not resumen_accion.get("menciona_sin_calificar"):
                 sin_calificar = 0
                 resumen_accion["sin_calificar"] = 0
+            if sin_calificar is None:
+                logger.info(
+                    "Se omite %s: CARM no muestra contador explicito de Sin calificar.",
+                    codigo,
+                )
+                continue
             if sin_calificar == 0:
                 logger.info(
                     "Se omite %s desde el contador de CARM: sin casos por calificar.",
@@ -2605,6 +2646,14 @@ class ExtractorCarm:
                 continue
 
             estado = await self._texto_celda(celdas, columnas.get("estado"))
+            if not self._es_estado_requiere_calificacion(estado):
+                logger.info(
+                    "Se omite fila no pendiente en %s: %s (%s)",
+                    actividad.get("codigo", ""),
+                    pseudonimo(alumno),
+                    estado or "sin estado",
+                )
+                continue
             celda_archivos = celdas[columnas["archivos"]] if "archivos" in columnas and columnas["archivos"] < len(celdas) else fila
             enlaces_archivo = await celda_archivos.query_selector_all(
                 "a[href*='pluginfile.php'], a[href*='forcedownload=1'], a[download]"
@@ -2710,9 +2759,19 @@ class ExtractorCarm:
 
         return descargados
 
-    async def _buscar_url_calificador_en_tabla(self, page, alumno: str) -> tuple[str, bool]:
+    async def _fila_requiere_calificacion(self, fila, columnas: dict[str, int] | None = None) -> bool:
+        columnas = columnas or {}
+        celdas = await fila.query_selector_all("td")
+        estado = await self._texto_celda(celdas, columnas.get("estado"))
+        if not estado:
+            estado = await fila.text_content() or ""
+        return self._es_estado_requiere_calificacion(estado)
+
+    async def _buscar_url_calificador_en_tabla(self, page, alumno: str, columnas: dict[str, int] | None = None) -> tuple[str, bool]:
         filas = await page.query_selector_all("table.generaltable tbody tr")
         for fila in filas:
+            if not await self._fila_requiere_calificacion(fila, columnas):
+                continue
             texto_fila = await fila.text_content() or ""
             if not self._coincide_alumno(alumno, texto_fila):
                 continue
@@ -2727,14 +2786,15 @@ class ExtractorCarm:
             return "", True
         return "", False
 
-    @staticmethod
-    async def _contar_filas_grading(page) -> int:
+    async def _contar_filas_grading(self, page, columnas: dict[str, int] | None = None) -> int:
         total = 0
         filas = await page.query_selector_all("table.generaltable tbody tr")
         for fila in filas:
             clase = await fila.get_attribute("class") or ""
             texto = (await fila.text_content() or "").strip()
             if not texto or "emptyrow" in clase:
+                continue
+            if not await self._fila_requiere_calificacion(fila, columnas):
                 continue
             total += 1
         return total
@@ -2743,7 +2803,8 @@ class ExtractorCarm:
         actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
         await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
         await self._asegurar_filtros_grading(page, actividad)
-        total = await self._contar_filas_grading(page)
+        columnas = await self._mapear_columnas_grading(page)
+        total = await self._contar_filas_grading(page, columnas)
         if total <= 0:
             logger.info("Sin filas en Requiere calificacion para %s; se omite.", actividad.get("codigo", ""))
             return False
@@ -2753,22 +2814,18 @@ class ExtractorCarm:
         actividad["url_grading"] = self._url_grading_requiere_calificacion(actividad["url_grading"])
         await page.goto(actividad["url_grading"], wait_until="domcontentloaded")
         await self._asegurar_filtros_grading(page, actividad)
-        href, encontrado = await self._buscar_url_calificador_en_tabla(page, alumno)
-        filas_requieren_calificacion = await self._contar_filas_grading(page)
+        columnas = await self._mapear_columnas_grading(page)
+        href, encontrado = await self._buscar_url_calificador_en_tabla(page, alumno, columnas)
+        filas_requieren_calificacion = await self._contar_filas_grading(page, columnas)
         if href:
             return href, "pendiente"
 
-        url_todos = self._url_grading_todos(actividad["url_grading"])
         logger.warning(
-            "No se encontro %s en Requiere calificacion para %s; probando vista completa de la actividad.",
+            "No se encontro %s en Requiere calificacion para %s; no se abre la vista completa por seguridad.",
             alumno,
             actividad.get("codigo", ""),
         )
-        await page.goto(url_todos, wait_until="domcontentloaded")
-        href, encontrado_todos = await self._buscar_url_calificador_en_tabla(page, alumno)
-        if href:
-            return href, "fuera_de_requiere_calificacion"
-        if encontrado or encontrado_todos or filas_requieren_calificacion == 0:
+        if encontrado or filas_requieren_calificacion == 0:
             return "", "ya_no_requiere_calificacion"
         return "", "no_encontrado"
 
@@ -3354,8 +3411,9 @@ class ExtractorCarm:
             url_grading = self._url_grading_requiere_calificacion(url_formulario)
             await page.goto(url_grading, wait_until="domcontentloaded")
             await self._asegurar_filtros_grading(page, {"codigo": "", "url_grading": url_grading})
-            href, encontrado = await self._buscar_url_calificador_en_tabla(page, alumno)
-            filas = await self._contar_filas_grading(page)
+            columnas = await self._mapear_columnas_grading(page)
+            href, encontrado = await self._buscar_url_calificador_en_tabla(page, alumno, columnas)
+            filas = await self._contar_filas_grading(page, columnas)
             if href:
                 return False
             if not encontrado:
