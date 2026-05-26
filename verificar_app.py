@@ -1231,6 +1231,10 @@ def check_prompts_codex_noop_no_se_archivan() -> bool:
         if prompts or sin_entregas != [prompt_vacio] or not prompt_vacio.exists():
             safe_print("ERROR: el filtro no conserva correctamente prompts manuales sin archivar.")
             return False
+        prompts, sin_entregas = filtrar_prompts_para_correccion([prompt_ok], "verificacion")
+        if prompts or sin_entregas or not prompt_ok.exists() or not correccion_ok.exists():
+            safe_print("ERROR: un prompt ya corregido se mueve o se vuelve a procesar antes de importar a revision.")
+            return False
     finally:
         for path in base.glob("*"):
             try:
