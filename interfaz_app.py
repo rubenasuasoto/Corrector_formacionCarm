@@ -1849,6 +1849,7 @@ def correction_file_preview(path_value: object, limit: int = 1200) -> str:
 def original_delivery_candidates(row: dict) -> list[str]:
     correction_path = Path(str(row.get("archivo_correccion") or ""))
     actividad = str(row.get("actividad") or "").strip().lower()
+    alumno = str(row.get("alumno") or "").strip()
     if not correction_path.exists() or not correction_path.parent.exists() or not actividad:
         return []
     candidates: list[str] = []
@@ -1860,8 +1861,17 @@ def original_delivery_candidates(row: dict) -> list[str]:
     for path in sorted(correction_path.parent.glob("*")):
         if path == correction_path or not path.is_file() or str(path) in candidates:
             continue
-        if path.suffix.lower() in {".pdf", ".odt", ".docx", ".doc", ".txt", ".rtf", ".html", ".htm", ".pptx", ".xlsx", ".ods", ".csv", ".png", ".jpg", ".jpeg"}:
+        if path.suffix.lower() in {".pdf", ".odt", ".docx", ".doc", ".pages", ".numbers", ".key", ".rtf", ".html", ".htm", ".pptx", ".xlsx", ".ods", ".csv", ".png", ".jpg", ".jpeg"}:
             candidates.append(str(path))
+    if alumno:
+        patrones = [
+            PENDIENTES_DIR / actividad / f"{alumno}.*",
+            PENDIENTES_DIR / "archivados_prompt" / "*" / actividad / f"{alumno}.*",
+        ]
+        for patron in patrones:
+            for path in sorted(PENDIENTES_DIR.glob(str(patron.relative_to(PENDIENTES_DIR)).replace("\\", "/"))):
+                if path.is_file() and str(path) not in candidates:
+                    candidates.append(str(path))
     return candidates[:8]
 
 
@@ -2005,6 +2015,8 @@ Corrige de nuevo solo este caso. Devuelve un JSON valido con una unica correccio
 ## Reglas especificas
 
 - Revisa la entrega original si puedes acceder a alguno de los archivos listados.
+- Si el archivo ya no esta en su ruta original, busca una copia en archivados_prompt de este curso antes de dejarlo en revision.
+- Si el archivo es Pages, intenta revisar preview.jpg, preview-web.jpg o QuickLook/Preview.pdf dentro del paquete.
 - Si el problema venia de extraccion, OCR, caracteres raros o texto incompleto, no lo menciones en la retroalimentacion al alumno salvo que tambien aparezca asi en el archivo original.
 - No inventes informacion que no este en la entrega.
 - Mantén el nombre del alumno exactamente como aparece arriba.
