@@ -756,7 +756,12 @@ def filtrar_prompts_para_correccion(candidatos: list[Path], motor: str) -> tuple
         if correccion_json_tiene_correcciones(ruta.with_name(f"{ruta.stem}_correccion.json"))
     ]
     if prompts_ya_resueltos:
-        archivar_prompts_resueltos(prompts_ya_resueltos, modo="ya_tenian_correccion")
+        for ruta in prompts_ya_resueltos:
+            logger.info(
+                "Se omite %s para %s: ya tiene correccion importable; se conserva en pendientes hasta importarla a revision.",
+                ruta.name,
+                motor,
+            )
 
     prompts: list[Path] = []
     prompts_sin_entregas: list[Path] = []
@@ -6104,7 +6109,6 @@ class GeneradorSalidas:
         if importar:
             _, revision_path, _ = self.importar_correcciones_codex(combinado_path)
 
-        archivar_prompts_resueltos(prompts_resueltos, modo="resueltos_api")
         archivar_archivos_auxiliares_prompts(output_dir, modo="post_api")
         return rutas_correcciones, revision_path
 
@@ -6264,7 +6268,6 @@ class GeneradorSalidas:
         if importar:
             _, revision_path, _ = self.importar_correcciones_codex(combinado_path)
 
-        archivar_prompts_resueltos(prompts_resueltos, modo="resueltos_codex_app")
         archivar_archivos_auxiliares_prompts(output_dir, modo="post_codex_app")
         return rutas_correcciones, revision_path
 
