@@ -809,8 +809,12 @@ def check_revision_manual_interfaz() -> bool:
         prompts.mkdir(parents=True, exist_ok=True)
         original_pdf = alumno_dir / "ud01cp01.pdf"
         correction_txt = alumno_dir / "ud01cp01.txt"
+        archived_pages_dir = pendientes / "archivados_prompt" / "20260526_090000" / "ud01cp01"
+        archived_pages = archived_pages_dir / "Ana Prueba.pages"
         original_pdf.write_text("Entrega original legible.", encoding="utf-8")
         correction_txt.write_text("Correccion anterior con dudas.", encoding="utf-8")
+        archived_pages_dir.mkdir(parents=True, exist_ok=True)
+        archived_pages.write_text("Paquete Pages simulado para localizar archivo archivado.", encoding="utf-8")
         revision_csv = temporal / "revision_pendiente.csv"
         notes_json = temporal / "revision_manual_notas.json"
         try:
@@ -852,6 +856,10 @@ def check_revision_manual_interfaz() -> bool:
             if state["count"] != 1 or state["blocking"] != 1:
                 safe_print("ERROR: el panel no detecta el caso marcado para revision manual.")
                 return False
+            original_files = state["rows"][0].get("original_files", [])
+            if str(archived_pages) not in original_files:
+                safe_print("ERROR: el panel no localiza originales Pages archivados para revision manual.")
+                return False
             prompt = app.build_manual_review_prompt(
                 {
                     "alumno": "Ana Prueba",
@@ -864,7 +872,7 @@ def check_revision_manual_interfaz() -> bool:
                 safe_print("ERROR: no se genero el prompt de recorreccion manual.")
                 return False
             text = prompt_path.read_text(encoding="utf-8")
-            if "No lo menciones" in text or "Completa la correccion" not in text:
+            if "No lo menciones" in text or "Completa la correccion" not in text or "preview.jpg" not in text:
                 safe_print("ERROR: el prompt de revision manual no contiene las instrucciones esperadas.")
                 return False
             safe_print("OK: revision manual guarda notas, bloquea subida y genera prompt para Codex.")
@@ -1143,6 +1151,7 @@ def check_prompts_codex_noop_no_se_archivan() -> bool:
             correccion_json_tiene_correcciones,
             filtrar_prompts_para_correccion,
             prompt_tiene_entregas_legibles,
+            prompt_tiene_revision_manual_pendiente,
         )
     except Exception as exc:
         safe_print(f"ERROR: no se pudieron importar validadores de prompts: {exc}")
@@ -1199,6 +1208,9 @@ def check_prompts_codex_noop_no_se_archivan() -> bool:
         if prompt_tiene_entregas_legibles(prompt_vacio):
             safe_print("ERROR: un prompt manual sin entregas legibles aparece como corregible.")
             return False
+        if not prompt_tiene_revision_manual_pendiente(prompt_vacio):
+            safe_print("ERROR: no se detecta la seccion de revision manual pendiente.")
+            return False
         if not prompt_tiene_entregas_legibles(prompt_ok):
             safe_print("ERROR: un prompt con entregas legibles no aparece como corregible.")
             return False
@@ -1226,10 +1238,41 @@ def check_prompts_codex_noop_no_se_archivan() -> bool:
         if not correccion_json_tiene_correcciones(correccion_ok):
             safe_print("ERROR: una correccion con filas no cuenta como resuelta.")
             return False
+        correccion_manual = base / "prompt_ud01cp03_revision_correccion.json"
+        correccion_manual.write_text(
+            json.dumps(
+                {
+                    "actividad": "ud01cp03",
+                    "correcciones": [],
+                    "revision_manual_necesaria": [
+                        {
+                            "id": "0",
+                            "alumno": "Alumno Manual",
+                            "motivo": "No se pudo leer el archivo original.",
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        if not correccion_json_tiene_correcciones(correccion_manual):
+            safe_print("ERROR: una salida con revision_manual_necesaria no cuenta como importable.")
+            return False
+        from corrector_agente import GeneradorSalidas
+
+        rows = GeneradorSalidas(base, base)._leer_correcciones_codex(correccion_manual)
+        if len(rows) != 1 or rows[0].get("estado") != "revision_manual_necesaria":
+            safe_print("ERROR: revision_manual_necesaria no se normaliza como fila bloqueada.")
+            return False
 
         prompts, sin_entregas = filtrar_prompts_para_correccion([prompt_vacio], "verificacion")
         if prompts or sin_entregas != [prompt_vacio] or not prompt_vacio.exists():
             safe_print("ERROR: el filtro no conserva correctamente prompts manuales sin archivar.")
+            return False
+        prompts, sin_entregas = filtrar_prompts_para_correccion([prompt_vacio], "Codex App")
+        if prompts != [prompt_vacio] or sin_entregas:
+            safe_print("ERROR: Codex App no acepta prompts con revision manual pendiente.")
             return False
         prompts, sin_entregas = filtrar_prompts_para_correccion([prompt_ok], "verificacion")
         if prompts or sin_entregas or not prompt_ok.exists() or not correccion_ok.exists():

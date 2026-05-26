@@ -27,6 +27,7 @@ import tempfile
 import time
 import unicodedata
 import zipfile
+from io import BytesIO
 from dataclasses import dataclass, field
 from datetime import datetime
 from html import escape as html_escape, unescape
@@ -699,7 +700,7 @@ def correccion_json_tiene_correcciones(correccion_path: Path) -> bool:
     if tiene_items_importables(data):
         return True
     if isinstance(data, dict):
-        for key in ("correcciones", "resultados", "entregas"):
+        for key in ("correcciones", "resultados", "entregas", "revision_manual_necesaria"):
             if tiene_items_importables(data.get(key)):
                 return True
     return False
@@ -749,6 +750,28 @@ def prompt_tiene_entregas_legibles(prompt_path: Path) -> bool:
     return True
 
 
+def prompt_tiene_revision_manual_pendiente(prompt_path: Path) -> bool:
+    try:
+        texto = prompt_path.read_text(encoding="utf-8-sig", errors="replace")
+    except Exception:
+        return False
+    match = re.search(
+        r"^##\s+Entregas que requieren revisi[oó]n manual\b(?P<section>.*?)(?=^##\s+|\Z)",
+        texto,
+        flags=re.I | re.M | re.S,
+    )
+    if not match:
+        return False
+    bloque = re.search(r"```(?:json)?\s*(?P<json>.*?)\s*```", match.group("section"), flags=re.I | re.S)
+    if not bloque:
+        return False
+    try:
+        data = json.loads(bloque.group("json"))
+    except Exception:
+        return False
+    return isinstance(data, list) and len(data) > 0
+
+
 def filtrar_prompts_para_correccion(candidatos: list[Path], motor: str) -> tuple[list[Path], list[Path]]:
     prompts_ya_resueltos = [
         ruta
@@ -772,6 +795,13 @@ def filtrar_prompts_para_correccion(candidatos: list[Path], motor: str) -> tuple
         if correccion_json_tiene_correcciones(correccion_path):
             continue
         if not prompt_tiene_entregas_legibles(ruta):
+            if motor.lower().startswith("codex") and prompt_tiene_revision_manual_pendiente(ruta):
+                logger.info(
+                    "Se procesa %s con Codex App como recorreccion manual: no tiene entregas legibles, pero si revision manual pendiente.",
+                    ruta.name,
+                )
+                prompts.append(ruta)
+                continue
             prompts_sin_entregas.append(ruta)
             logger.info(
                 "Se omite %s para %s: no contiene entregas legibles ni es un prompt de recorreccion manual.",
@@ -4868,7 +4898,7 @@ class GeneradorSalidas:
                 f"Archivo multimedia o comprimido ({ext}); requiere revisión manual.",
             )
 
-        if ext in self.EXTENSIONES_REVISION_MANUAL:
+        if ext in self.EXTENSIONES_REVISION_MANUAL and ext != ".pages":
             return LecturaEntrega(
                 "",
                 True,
@@ -4908,6 +4938,9 @@ class GeneradorSalidas:
                 texto = self._leer_epub(path)
             elif ext in self.EXTENSIONES_OCR:
                 texto = self._leer_imagen_ocr(path)
+            elif ext == ".pages":
+                texto = self._leer_pages(path)
+                advertencia = "Texto extraido mediante OCR de la vista previa de Pages."
             else:
                 texto = self._leer_archivo_texto(path)
                 if not texto.strip():
@@ -5179,6 +5212,39 @@ class GeneradorSalidas:
                 textos.append(f"--- {info.filename} ---")
                 textos.append(lectura.texto or lectura.motivo)
         return "\n".join(textos)
+
+    @staticmethod
+    def _leer_pages(path: Path) -> str:
+        try:
+            from PIL import Image
+            import pytesseract
+        except ImportError as e:
+            raise RuntimeError("Instala pillow y pytesseract para OCR de documentos Pages") from e
+
+        tesseract_cmd = resolver_tesseract_cmd()
+        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+        idioma = idioma_ocr_preferido(tesseract_cmd)
+        candidatos = ("preview.jpg", "preview-web.jpg", "QuickLook/Preview.pdf")
+        textos: list[str] = []
+        with zipfile.ZipFile(path) as z:
+            nombres = set(z.namelist())
+            for nombre in candidatos:
+                if nombre not in nombres:
+                    continue
+                contenido = z.read(nombre)
+                if Path(nombre).suffix.lower() == ".pdf":
+                    with tempfile.TemporaryDirectory(dir=str(path.parent)) as tmp:
+                        tmp_path = Path(tmp) / Path(nombre).name
+                        tmp_path.write_bytes(contenido)
+                        textos.append(GeneradorSalidas._leer_pdf_ocr(tmp_path))
+                else:
+                    textos.append(pytesseract.image_to_string(Image.open(BytesIO(contenido)), lang=idioma) or "")
+                if not GeneradorSalidas._texto_extraido_insuficiente("\n".join(textos)):
+                    break
+        texto = "\n".join(part for part in textos if part.strip()).strip()
+        if not texto:
+            raise RuntimeError("El documento Pages no contiene preview legible para OCR.")
+        return texto
 
     def _leer_epub(self, path: Path) -> str:
         textos = []
@@ -5699,7 +5765,7 @@ class GeneradorSalidas:
         datos = json.loads(texto)
         if isinstance(datos, dict):
             for clave in ("correcciones", "resultados", "entregas"):
-                if isinstance(datos.get(clave), list):
+                if isinstance(datos.get(clave), list) and datos.get(clave):
                     actividad_global = datos.get("actividad") or datos.get("actividad_codigo")
                     datos = [
                         {
@@ -5711,7 +5777,37 @@ class GeneradorSalidas:
                     ]
                     break
             else:
-                datos = [datos]
+                manuales = datos.get("revision_manual_necesaria")
+                if isinstance(manuales, list):
+                    actividad_global = datos.get("actividad") or datos.get("actividad_codigo")
+                    datos = []
+                    for item in manuales:
+                        if not isinstance(item, dict):
+                            continue
+                        motivo = str(item.get("motivo") or "Codex no pudo obtener una correccion automatica importable.").strip()
+                        datos.append(
+                            {
+                                **item,
+                                **({"actividad": actividad_global} if actividad_global and not item.get("actividad") else {}),
+                                "nota": item.get("nota", 0),
+                                "estado": "revision_manual_necesaria",
+                                "retroalimentacion": (
+                                    item.get("retroalimentacion")
+                                    or f"Esta entrega queda pendiente de revision manual. Motivo: {motivo}"
+                                ),
+                                "criterios": item.get("criterios")
+                                or [
+                                    {
+                                        "nombre": "Revision manual",
+                                        "maximo": 10,
+                                        "puntuacion": 0,
+                                        "comentario": motivo,
+                                    }
+                                ],
+                            }
+                        )
+                else:
+                    datos = [datos]
 
         if not isinstance(datos, list):
             raise ValueError("El JSON debe ser una lista de correcciones o un objeto con clave 'correcciones'.")
@@ -5916,7 +6012,7 @@ class GeneradorSalidas:
             lotes = [
                 entregas[i:i + tamano_lote]
                 for i in range(0, len(entregas), tamano_lote)
-            ] or [[]]
+            ]
 
             for numero_lote, entregas_lote in enumerate(lotes, start=1):
                 sufijo_lote = f"_lote{numero_lote:02d}" if len(lotes) > 1 else ""
@@ -5990,6 +6086,75 @@ class GeneradorSalidas:
                 json.dumps(revision_manual, ensure_ascii=False, indent=2),
                 "```",
                 "",
+                ]
+                prompt_path.write_text("\n".join(lineas), encoding="utf-8")
+                rutas.append(prompt_path)
+
+            if revision_manual:
+                prompt_path = self._ruta_prompt_disponible(
+                    prompts_dir,
+                    f"prompt_{actividad_codigo}_revision_manual.md",
+                )
+                lineas = [
+                    f"# Recorreccion manual {actividad_codigo}",
+                    "",
+                    "Corrige estas entregas de revision manual solo si puedes leer el archivo original indicado.",
+                    "Este prompt existe porque la extraccion automatica no obtuvo texto suficiente o el formato no era textual.",
+                    "No inventes contenido. Si no puedes leer un archivo original, devuelve esa entrega con estado `revision_manual_necesaria` y nota 0 para que siga bloqueada.",
+                    "Si puedes leerlo, corrige normalmente usando la rubrica, el enunciado y el contexto didactico.",
+                    "Si el archivo indicado ya no existe, busca una copia en `pendientes/archivados_prompt/*/<actividad>/<alumno>.*`.",
+                    "Si el archivo es Pages, intenta revisar `preview.jpg`, `preview-web.jpg` o `QuickLook/Preview.pdf` dentro del paquete.",
+                    "No menciones al alumno problemas de extraccion, OCR o formato salvo que existan tambien en el archivo real.",
+                    "",
+                    "## Instrucciones de sistema",
+                    "",
+                    prompt_cfg["sistema"],
+                    "",
+                    "## Rubrica",
+                    "",
+                    prompt_cfg["criterios"],
+                    "",
+                    "## Enunciado extraido de CARM",
+                    "",
+                    enunciado if "No hay contexto didactico limpio disponible" not in enunciado else "No se pudo extraer un enunciado especifico de CARM para esta actividad. Usa la rubrica y el contexto didactico limpio.",
+                    "",
+                    "## Contexto didactico limpio desde cache",
+                    "",
+                    contexto_actividad,
+                    "",
+                    "## Formato de salida obligatorio",
+                    "",
+                    "Devuelve un unico JSON valido, sin Markdown, con este formato:",
+                    "",
+                    "```json",
+                    "{",
+                    f'  "actividad": "{actividad_codigo}",',
+                    '  "correcciones": [',
+                    "    {",
+                    '      "id": "0",',
+                    '      "alumno": "Nombre del alumno",',
+                    '      "nota": 0,',
+                    '      "criterios": [',
+                    '        {"nombre": "Presentacion del trabajo", "maximo": 3, "puntuacion": 0, "comentario": "..."},',
+                    '        {"nombre": "Adecuacion al enunciado", "maximo": 4, "puntuacion": 0, "comentario": "..."},',
+                    '        {"nombre": "Aplicacion practica", "maximo": 3, "puntuacion": 0, "comentario": "..."}',
+                    "      ],",
+                    '      "retroalimentacion": "Feedback final para el alumno",',
+                    '      "estado": "borrador_pendiente_de_revision"',
+                    "    }",
+                    "  ]",
+                    "}",
+                    "```",
+                    "",
+                    REGLA_IDIOMA_CORRECCION,
+                    REGLA_RETROALIMENTACION_PERSONALIZADA,
+                    "",
+                    "## Entregas para revision manual",
+                    "",
+                    "```json",
+                    json.dumps(revision_manual, ensure_ascii=False, indent=2),
+                    "```",
+                    "",
                 ]
                 prompt_path.write_text("\n".join(lineas), encoding="utf-8")
                 rutas.append(prompt_path)
@@ -6163,9 +6328,11 @@ class GeneradorSalidas:
         output_dir.mkdir(parents=True, exist_ok=True)
         rutas_correcciones: list[Path] = []
         prompts_resueltos: list[Path] = []
-        workspace_dir = codex_course_project_dir_for(self.pendientes_dir)
-        if workspace_dir and workspace_dir.exists():
-            logger.info("Codex App usara el proyecto del curso como workspace: %s", workspace_dir)
+        codex_project_dir = codex_course_project_dir_for(self.pendientes_dir)
+        workspace_dir = codex_project_dir
+        if codex_project_dir and codex_project_dir.exists():
+            workspace_dir = codex_project_dir.parent
+            logger.info("Codex App usara la carpeta del curso como workspace: %s", workspace_dir)
         else:
             workspace_dir = Path(__file__).resolve().parent
             logger.info("No hay proyecto Codex del curso; uso workspace de la app: %s", workspace_dir)
@@ -6175,14 +6342,22 @@ class GeneradorSalidas:
             salida_raw = output_dir / f"{prompt_path.stem}_codex_app_raw.txt"
             prompt_texto = normalizar_texto_para_cli(prompt_path.read_text(encoding="utf-8"))
             contexto_workspace = ""
-            if workspace_dir and workspace_dir.name == "codex_project":
+            if codex_project_dir and codex_project_dir.exists():
                 contexto_workspace = (
                     "Tienes un workspace local del curso en este directorio. "
-                    "Si el prompt no trae contexto suficiente, consulta `contexto_didactico.md`, "
-                    "`actividades.json` y los archivos `unidades/*.md` antes de corregir. "
+                    "Si el prompt no trae contexto suficiente, consulta `codex_project/contexto_didactico.md`, "
+                    "`codex_project/actividades.json` y los archivos `codex_project/unidades/*.md` antes de corregir. "
                     "Esos archivos contienen más contexto didáctico que el enviado a la API y no contienen entregas de alumnos.\n"
                     "Si una entrega trae `calidad_extraccion`, intenta verificar el archivo original indicado en `archivo` antes de penalizar "
                     "por texto incompleto, caracteres extraños u OCR. No menciones esos problemas al alumno salvo que estén en el archivo real.\n"
+                    "Si el prompt es de recorreccion manual, intenta leer el archivo original indicado en `archivo` dentro de `pendientes`. "
+                    "Si esa ruta ya no existe porque la app archivo el lote, busca una copia en `pendientes/archivados_prompt/*/<actividad>/<alumno>.*`. "
+                    "Para documentos Pages intenta revisar `preview.jpg`, `preview-web.jpg` o `QuickLook/Preview.pdf` dentro del paquete si no puedes abrirlos de forma nativa. "
+                    "Si no puedes leerlo, manten esa entrega en `revision_manual_necesaria` sin inventar contenido.\n"
+                    "Si el prompt no tiene `Entregas legibles` pero si tiene `Entregas que requieren revision manual`, "
+                    "trata esa seccion como las entregas a revisar manualmente con Codex App, aunque el texto del prompt antiguo diga que no se corrijan automaticamente.\n"
+                    "Si logras leer el archivo original, devuelve la evaluacion dentro de `correcciones`, no en `revision_manual_necesaria`. "
+                    "Usa `revision_manual_necesaria` solo cuando realmente no puedas leer o valorar la entrega.\n"
                 )
             instruccion = (
                 f"{prompt_texto}\n\n"
@@ -6404,8 +6579,13 @@ async def ejecutar_flujo(args) -> None:
         resultados_totales: list[dict] = []
         revision_path: Path | None = None
         rutas_extra_totales: list[Path] = []
+        omitidos_sin_filas = 0
         try:
             for ruta_importar in correcciones_a_importar:
+                if not correccion_json_tiene_correcciones(ruta_importar):
+                    omitidos_sin_filas += 1
+                    logger.info("Se omite JSON sin correcciones importables: %s", ruta_importar)
+                    continue
                 resultados, revision_path, rutas_extra = salida.importar_correcciones_codex(ruta_importar)
                 resultados_totales.extend(resultados)
                 rutas_extra_totales.extend(rutas_extra)
@@ -6415,8 +6595,16 @@ async def ejecutar_flujo(args) -> None:
         except Exception as e:
             logger.error(f"No se pudieron importar correcciones Codex: {e}")
             return
+        if not resultados_totales:
+            logger.error(
+                "No se importo ninguna correccion. JSON omitidos sin filas importables: %s",
+                omitidos_sin_filas,
+            )
+            return
 
-        logger.info(f"Archivos JSON importados: {len(correcciones_a_importar)}")
+        logger.info(f"Archivos JSON importados: {len(correcciones_a_importar) - omitidos_sin_filas}")
+        if omitidos_sin_filas:
+            logger.info("JSON omitidos sin filas importables: %s", omitidos_sin_filas)
         logger.info(f"Correcciones importadas: {len(resultados_totales)}")
         for ruta in rutas_extra_totales:
             logger.info(f"- {ruta}")
@@ -6764,6 +6952,7 @@ async def ejecutar_flujo(args) -> None:
         archivar_tras_codex = (
             not getattr(args, "conservar_pendientes", False)
             and not getattr(args, "corregir_prompts_openai", False)
+            and not getattr(args, "corregir_prompts_codex_app", False)
         )
         if archivar_tras_codex:
             manifiesto_path = prompts_pendientes_dir(pendientes_dir) / "manifiesto_entregas.json"
@@ -6801,11 +6990,6 @@ async def ejecutar_flujo(args) -> None:
                 logger.info(f"- {ruta}")
             if revision_path:
                 logger.info(f"Correcciones importadas. Hoja de revision: {revision_path}")
-            if not getattr(args, "conservar_pendientes", False):
-                manifiesto_path = prompts_pendientes_dir(pendientes_dir) / "manifiesto_entregas.json"
-                archivados = archivar_pendientes_con_prompt(manifiesto_path, pendientes_dir)
-                if archivados:
-                    logger.info("Entregas pendientes archivadas tras correccion API correcta: %s", archivados)
         return
 
     corrector = CorrectorIA(
