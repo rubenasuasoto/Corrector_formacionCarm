@@ -817,6 +817,9 @@ def archivar_archivos_auxiliares_prompts(prompts_dir: Path, modo: str = "auxilia
     candidatos = [
         prompts_dir / "correcciones_codex_combinadas.json",
     ]
+    quedan_prompts = any(prompts_dir.glob("prompt_*.md")) or any(prompts_dir.glob("prompt_*_correccion.json"))
+    if not quedan_prompts:
+        candidatos.append(prompts_dir / "manifiesto_entregas.json")
     existentes = [path for path in candidatos if path.exists() and path.is_file()]
     if not existentes:
         return None
@@ -6273,6 +6276,7 @@ class GeneradorSalidas:
         revision_path: Path | None = None
         if importar:
             _, revision_path, _ = self.importar_correcciones_codex(combinado_path)
+            archivar_prompts_resueltos(prompts_resueltos, modo="importado_openai")
 
         archivar_archivos_auxiliares_prompts(output_dir, modo="post_api")
         return rutas_correcciones, revision_path
@@ -6442,6 +6446,7 @@ class GeneradorSalidas:
         revision_path: Path | None = None
         if importar:
             _, revision_path, _ = self.importar_correcciones_codex(combinado_path)
+            archivar_prompts_resueltos(prompts_resueltos, modo="importado_codex_app")
 
         archivar_archivos_auxiliares_prompts(output_dir, modo="post_codex_app")
         return rutas_correcciones, revision_path
@@ -6649,7 +6654,7 @@ async def ejecutar_flujo(args) -> None:
         except Exception as e:
             logger.error(f"No se pudieron corregir prompts con Codex App: {e}")
             return
-        logger.info("Correcciones generadas por OpenAI API:")
+        logger.info("Correcciones generadas por Codex App:")
         for ruta in rutas_correcciones:
             logger.info(f"- {ruta}")
         if revision_path:
@@ -6985,7 +6990,7 @@ async def ejecutar_flujo(args) -> None:
             except Exception as e:
                 logger.error(f"No se pudieron corregir prompts con Codex App: {e}")
                 return
-            logger.info("Correcciones generadas por OpenAI API:")
+            logger.info("Correcciones generadas por Codex App:")
             for ruta in rutas_correcciones:
                 logger.info(f"- {ruta}")
             if revision_path:
