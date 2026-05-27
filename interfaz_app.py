@@ -47,6 +47,7 @@ TEMPORAL_DIR = DEFAULT_TEMPORAL_DIR
 PROMPTS_DIR = PENDIENTES_DIR / "prompts_codex"
 COMBINED_JSON = PROMPTS_DIR / "correcciones_codex_combinadas.json"
 REVISION_CSV = TEMPORAL_DIR / "revision_pendiente.csv"
+REGULARIZATION_CSV = TEMPORAL_DIR / "regularizacion_suspensos_pendiente.csv"
 MANUAL_REVIEW_NOTES = TEMPORAL_DIR / "revision_manual_notas.json"
 AGENTE_LOG = ROOT / "logs_correcciones" / "agente.log"
 AUDIT_LOG = ROOT / "respuestas_extraidas" / "auditoria.jsonl"
@@ -307,7 +308,7 @@ def ensure_work_dirs() -> None:
 
 
 def configure_work_dirs(pendientes: str | Path | None = None, temporal: str | Path | None = None, persist: bool = False) -> None:
-    global BASE_PENDIENTES_DIR, BASE_TEMPORAL_DIR, COURSES_DIR, PENDIENTES_DIR, TEMPORAL_DIR, PROMPTS_DIR, COMBINED_JSON, REVISION_CSV, MANUAL_REVIEW_NOTES
+    global BASE_PENDIENTES_DIR, BASE_TEMPORAL_DIR, COURSES_DIR, PENDIENTES_DIR, TEMPORAL_DIR, PROMPTS_DIR, COMBINED_JSON, REVISION_CSV, REGULARIZATION_CSV, MANUAL_REVIEW_NOTES
     current = load_app_config()
     BASE_PENDIENTES_DIR = _normalize_dir(pendientes or current.get("pendientes_dir"), DEFAULT_PENDIENTES_DIR)
     BASE_TEMPORAL_DIR = _normalize_dir(temporal or current.get("temporal_dir"), DEFAULT_TEMPORAL_DIR)
@@ -321,6 +322,7 @@ def configure_work_dirs(pendientes: str | Path | None = None, temporal: str | Pa
     PROMPTS_DIR = PENDIENTES_DIR / "prompts_codex"
     COMBINED_JSON = PROMPTS_DIR / "correcciones_codex_combinadas.json"
     REVISION_CSV = TEMPORAL_DIR / "revision_pendiente.csv"
+    REGULARIZATION_CSV = TEMPORAL_DIR / "regularizacion_suspensos_pendiente.csv"
     MANUAL_REVIEW_NOTES = TEMPORAL_DIR / "revision_manual_notas.json"
     ensure_work_dirs()
     if persist:
@@ -438,6 +440,8 @@ def save_ui_config(
 
 def correction_source_options() -> list[dict]:
     paths = [REVISION_CSV]
+    if REGULARIZATION_CSV.exists():
+        paths.append(REGULARIZATION_CSV)
     if PROMPTS_DIR.exists():
         json_pendientes = sorted(PROMPTS_DIR.glob("*_correccion.json"))
         if json_pendientes:
@@ -471,6 +475,7 @@ def json_options() -> list[dict]:
 def allowed_json_paths() -> set[str]:
     allowed = {item["path"] for item in correction_source_options()}
     allowed.add(str(REVISION_CSV))
+    allowed.add(str(REGULARIZATION_CSV))
     allowed.add(str(COMBINED_JSON))
     allowed.update(
         str(PROMPTS_DIR / name)
@@ -1433,15 +1438,16 @@ def choose_directory(initial_dir: str | None = None) -> str:
         root.destroy()
 
 
-def revisar_publicacion_segura() -> None:
-    if not REVISION_CSV.exists():
-        raise ValueError("No existe revision_pendiente.csv. Prepara e importa correcciones antes de publicar.")
+def revisar_publicacion_segura(path: str | Path | None = None) -> None:
+    csv_path = Path(path or REVISION_CSV)
+    if not csv_path.exists():
+        raise ValueError(f"No existe {csv_path.name}. Prepara e importa correcciones antes de publicar.")
 
-    with REVISION_CSV.open("r", encoding="utf-8-sig", newline="") as handle:
+    with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle, delimiter=";"))
 
     if not rows:
-        raise ValueError("revision_pendiente.csv no contiene filas revisables.")
+        raise ValueError(f"{csv_path.name} no contiene filas revisables.")
 
     estados_bloqueantes = {
         "revision_manual_necesaria",
@@ -2675,6 +2681,8 @@ def project_state() -> dict:
         "release": release_info(),
         "combined": file_info(COMBINED_JSON),
         "revision_csv": file_info(REVISION_CSV),
+        "regularization_csv": file_info(REGULARIZATION_CSV),
+        "regularization_state": revision_csv_state(REGULARIZATION_CSV),
         "correction_source": file_info(default_correction_source_path()),
         "pendientes_dir": str(PENDIENTES_DIR),
         "base_pendientes_dir": str(BASE_PENDIENTES_DIR),
@@ -2941,6 +2949,18 @@ HTML = r"""<!doctype html>
     .button-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; }
     .button-row.two { grid-template-columns: 1fr 1fr; }
     .button-row.three { grid-template-columns: 1fr 1fr 1fr; }
+    .regularization-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--green-soft) 45%, var(--panel));
+    }
+    body[data-theme="dark"] .regularization-panel { background: #172522; }
     .badge {
       display: inline-flex;
       align-items: center;
@@ -3214,6 +3234,7 @@ HTML = r"""<!doctype html>
       header { align-items: flex-start; flex-direction: column; }
       .topbar-actions { justify-content: flex-start; }
       .button-row, .button-row.two, .button-row.three { grid-template-columns: 1fr; }
+      .regularization-panel { grid-template-columns: 1fr; }
       .review-actions { grid-template-columns: 1fr; }
       .folder-row { grid-template-columns: 1fr; }
       .settings-layout { grid-template-columns: 1fr; }
@@ -3322,6 +3343,14 @@ HTML = r"""<!doctype html>
         <div class="button-row">
           <button id="importCodexBtn">Importar JSON a revisión</button>
           <button class="primary" id="assistPublishBtn">Sin pendientes para subir</button>
+        </div>
+        <div class="regularization-panel">
+          <div>
+            <strong>Regularizar suspensos</strong>
+            <p class="hint">Busca actividades ya calificadas con menos de 5, prepara un CSV para subirlas a 5, vacia la retroalimentacion y desactiva la notificacion al alumno. La app no guarda cambios por ti.</p>
+            <div id="regularizationStatus" class="hint"></div>
+          </div>
+          <button id="prepareRegularizationBtn">Preparar regularizacion</button>
         </div>
         <label class="check" style="margin-top:10px">
           <input type="checkbox" id="publishCheck">
@@ -4139,6 +4168,7 @@ HTML = r"""<!doctype html>
       const pendingRows = Number(window.__pendingUploadRows || 0);
       const pendingBlocking = Number(window.__pendingUploadBlocking || 0);
       $('assistPublishBtn').disabled = locked || !window.__selectedCorrectionCanUpload || !$('publishCheck').checked || pendingRows <= 0 || pendingBlocking > 0;
+      if ($('prepareRegularizationBtn')) $('prepareRegularizationBtn').disabled = locked;
       $('restartBtn').disabled = running;
       $('stopBtn').disabled = !running;
       $('runAdvancedBtn').disabled = locked;
@@ -4531,6 +4561,9 @@ HTML = r"""<!doctype html>
       const selectedJsonPath = $('jsonPath').value || '';
       window.__selectedCorrectionIsImportable = selectedJsonPath === state.prompts_dir || selectedJsonPath.toLowerCase().endsWith('.json');
       window.__selectedCorrectionCanUpload = selectedJsonPath !== state.prompts_dir;
+      const selectedPendingPublication = selectedJsonPath === (state.regularization_csv && state.regularization_csv.path)
+        ? {...state.regularization_state, pending: Boolean(state.regularization_state && state.regularization_state.rows)}
+        : state.pending_publication;
       if (!settingsOpen || !previousCourseUrlInput) {
         setInputValue('courseUrl', courseOptions.course_url || courseOptions.dashboard_url || '');
       }
@@ -4580,17 +4613,27 @@ HTML = r"""<!doctype html>
       if (state.prompts.length && authState.openai_api_configured && !(state.pending_publication && state.pending_publication.pending)) {
         showSystemNotice(`Hay ${state.prompts.length} prompt(s) preparados. Pulsa "Corregir prompts con API" cuando quieras gastar la API.`);
       }
-      window.__pendingUploadRows = state.pending_publication ? state.pending_publication.rows : 0;
-      window.__pendingUploadBlocking = state.pending_publication ? state.pending_publication.blocking : 0;
+      window.__pendingUploadRows = selectedPendingPublication ? selectedPendingPublication.rows : 0;
+      window.__pendingUploadBlocking = selectedPendingPublication ? selectedPendingPublication.blocking : 0;
       window.__manualReviewRows = state.manual_review ? (state.manual_review.rows || []) : [];
-      setText('assistPublishBtn', pendingUploadLabel(state.pending_publication));
-      setText('uploadPendingDetail', pendingUploadDetail(state.pending_publication));
+      setText('assistPublishBtn', pendingUploadLabel(selectedPendingPublication));
+      setText('uploadPendingDetail', pendingUploadDetail(selectedPendingPublication));
       if (state.manual_review && state.manual_review.count) {
         setText('manualReviewSummary', `${state.manual_review.count} caso(s) en revisión. Los casos bloqueados no suben hasta resolverlos o quitar el bloqueo.`);
         setHtml('manualReviewList', window.__manualReviewRows.map(manualReviewItemHtml).join(''));
       } else {
         setText('manualReviewSummary', 'No hay casos apartados para revisión manual.');
         setHtml('manualReviewList', '<span class="muted">Cuando marques una entrega, aparecerá aquí con su nota para Codex.</span>');
+      }
+      if (state.regularization_state && state.regularization_state.rows) {
+        const reg = state.regularization_state;
+        const regActivities = Object.entries(reg.activities || {})
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([activity, count]) => `${activity.toUpperCase()} (${count})`)
+          .join(', ');
+        setText('regularizationStatus', `CSV preparado: ${reg.rows} suspenso(s) ${regActivities ? `en ${regActivities}` : ''}. Selecciona regularizacion_suspensos_pendiente.csv para iniciar la subida asistida.`);
+      } else {
+        setText('regularizationStatus', 'Sin regularizacion preparada. Primero genera el CSV y revisalo antes de subir.');
       }
       setText('combinedPath', `${state.correction_source.path} · ${state.correction_source.exists ? 'listo' : 'pendiente'}`);
       setText('revisionPath', `${state.revision_csv.path} · ${state.revision_csv.exists ? 'listo' : 'pendiente'}`);
@@ -4648,6 +4691,10 @@ HTML = r"""<!doctype html>
     $('solveApiBtn').onclick = () => run('solve_prompts_api');
     $('solveCodexBtn').onclick = () => run('solve_prompts_codex_app');
     $('importCodexBtn').onclick = () => run('import_codex', {json_path: $('jsonPath').value});
+    $('prepareRegularizationBtn').onclick = () => {
+      if (!confirm('Preparar regularizacion de suspensos revisara CARM y creara un CSV. No guardara cambios en CARM. Continuar?')) return;
+      run('prepare_regularization_suspensos');
+    };
     $('assistPublishBtn').onclick = () => {
       if (!$('publishCheck').checked) return alert('Marca la confirmación antes de iniciar la subida asistida.');
       run('assist_publish', {json_path: $('jsonPath').value, guardar_trace_subida: $('uploadTraceCheck').checked});
@@ -5182,6 +5229,14 @@ def build_args(action: str, body: dict) -> list[str]:
         args.extend(["--unidad", unidad])
         return args
 
+    if action == "prepare_regularization_suspensos":
+        return [
+            "--preparar-regularizacion-suspensos-carm",
+            "--sin-leer-feedback-suspensos",
+            "--temporal",
+            str(TEMPORAL_DIR),
+        ]
+
     if action in {"preview", "publish", "assist_publish"}:
         json_path = require_allowed(
             str(body.get("json_path") or default_correction_source_path()),
@@ -5196,7 +5251,7 @@ def build_args(action: str, body: dict) -> list[str]:
         if action == "publish":
             raise ValueError("La publicacion automatica directa esta desactivada. Usa subida asistida con guardado humano.")
         if action == "assist_publish":
-            revisar_publicacion_segura()
+            revisar_publicacion_segura(json_path)
             args.append("--subida-asistida-carm")
             if bool(body.get("guardar_trace_subida")):
                 args.append("--guardar-trace-subida")

@@ -977,6 +977,64 @@ def actualizar_revision_pendiente_tras_subida(correcciones_path: Path, resultado
     return {"aplicado": True, "eliminadas": eliminadas, "restantes": len(restantes)}
 
 
+def escribir_regularizacion_suspensos_csv(
+    suspensos: list[dict],
+    temporal_dir: Path,
+    nombre_archivo: str = "regularizacion_suspensos_pendiente.csv",
+) -> Path:
+    temporal_dir.mkdir(parents=True, exist_ok=True)
+    salida = temporal_dir / nombre_archivo
+    fieldnames = [
+        "alumno",
+        "actividad",
+        "nota",
+        "estado",
+        "retroalimentacion",
+        "nota_actual",
+        "actividad_nombre",
+        "accion",
+        "notificar_alumno",
+        "url_calificador",
+    ]
+    with salida.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
+        writer.writeheader()
+        for item in suspensos:
+            if str(item.get("estado", "")).startswith("error"):
+                continue
+            writer.writerow(
+                {
+                    "alumno": item.get("alumno", ""),
+                    "actividad": item.get("actividad", ""),
+                    "nota": "5.0",
+                    "estado": "regularizacion_suspendido_pendiente_revision",
+                    "retroalimentacion": "",
+                    "nota_actual": item.get("nota_actual", ""),
+                    "actividad_nombre": item.get("actividad_nombre", ""),
+                    "accion": "subir_a_5_y_vaciar_retroalimentacion",
+                    "notificar_alumno": "no",
+                    "url_calificador": item.get("url_calificador", ""),
+                }
+            )
+    return salida
+
+
+def es_correccion_regularizacion_suspenso(correccion: dict) -> bool:
+    estado = str(correccion.get("estado") or "").strip().lower()
+    accion = str(correccion.get("accion") or "").strip().lower()
+    return estado.startswith("regularizacion_suspendido") or accion == "subir_a_5_y_vaciar_retroalimentacion"
+
+
+def userid_carm_desde_url(url: str) -> str:
+    try:
+        query = dict(parse_qsl(urlparse(str(url or "")).query))
+        userid = str(query.get("userid") or "").strip()
+        return userid if userid.isdigit() else ""
+    except Exception:
+        match = re.search(r"[?&]userid=(\d+)", str(url or ""))
+        return match.group(1) if match else ""
+
+
 def archivar_pendientes_con_prompt(manifiesto_path: Path, pendientes_dir: Path) -> int:
     if not manifiesto_path.exists():
         return 0
@@ -2036,7 +2094,7 @@ class ExtractorCarm:
         if len(tokens) < 2:
             return False
         coincidencias = sum(1 for token in tokens if token in texto_norm)
-        minimo = len(tokens) if len(tokens) <= 3 else len(tokens) - 1
+        minimo = len(tokens) if len(tokens) == 2 else len(tokens) - 1
         return coincidencias >= minimo
 
     @staticmethod
@@ -2251,6 +2309,32 @@ class ExtractorCarm:
         q["action"] = "grading"
         q["perpage"] = "1000"
         q.pop("filter", None)
+        for clave in (
+            "page",
+            "tifirst",
+            "tilast",
+            "tfirst",
+            "tlast",
+            "ifirst",
+            "ilast",
+            "sifirst",
+            "silast",
+            "firstname",
+            "lastname",
+            "firstinitial",
+            "lastinitial",
+            "initial",
+        ):
+            q.pop(clave, None)
+        return urlunparse((p.scheme, p.netloc, p.path, p.params, urlencode(q), p.fragment))
+
+    @staticmethod
+    def _url_grading_enviada(url: str) -> str:
+        p = urlparse(url)
+        q = dict(parse_qsl(p.query))
+        q["action"] = "grading"
+        q["filter"] = "submitted"
+        q["perpage"] = "1000"
         for clave in (
             "page",
             "tifirst",
@@ -2591,7 +2675,7 @@ class ExtractorCarm:
                 return texto[:12000]
         return ""
 
-    async def _obtener_actividades_prioritarias(self, page) -> list[dict]:
+    async def _obtener_actividades_prioritarias(self, page, solo_con_pendientes: bool = True) -> list[dict]:
         actividades: list[dict] = []
         vistos: set[str] = set()
         modulos = await page.query_selector_all("li.activity.assign, .activity.assign, li.modtype_assign")
@@ -2642,13 +2726,13 @@ class ExtractorCarm:
             if sin_calificar is None and resumen_accion.get("menciona_enviados") and not resumen_accion.get("menciona_sin_calificar"):
                 sin_calificar = 0
                 resumen_accion["sin_calificar"] = 0
-            if sin_calificar is None:
+            if solo_con_pendientes and sin_calificar is None:
                 logger.info(
                     "Se omite %s: CARM no muestra contador explicito de Sin calificar.",
                     codigo,
                 )
                 continue
-            if sin_calificar == 0:
+            if solo_con_pendientes and sin_calificar == 0:
                 logger.info(
                     "Se omite %s desde el contador de CARM: sin casos por calificar.",
                     codigo,
@@ -2678,6 +2762,9 @@ class ExtractorCarm:
 
     async def _obtener_actividades_obligatorias(self, page) -> list[dict]:
         return await self._obtener_actividades_prioritarias(page)
+
+    async def _obtener_todos_casos_practicos(self, page) -> list[dict]:
+        return await self._obtener_actividades_prioritarias(page, solo_con_pendientes=False)
 
     async def _listar_enlaces_assign(self, page) -> list[dict]:
         enlaces = await page.query_selector_all("a[href*='mod/assign/view.php']")
@@ -2730,6 +2817,13 @@ class ExtractorCarm:
                 columnas["estado"] = idx
             elif "archivos enviados" in texto or "archivo enviado" in texto:
                 columnas["archivos"] = idx
+            elif (
+                "calificacion" in texto
+                or texto == "nota"
+                or texto.startswith("grade")
+                or texto == "calif."
+            ) and "estado" not in texto:
+                columnas["calificacion"] = idx
         return columnas
 
     async def _filas_tabla_grading(self, page) -> list:
@@ -2762,6 +2856,60 @@ class ExtractorCarm:
         if indice is None or indice >= len(celdas):
             return ""
         return ExtractorCarm._texto_limpio(await celdas[indice].text_content() or "")
+
+    @classmethod
+    def _extraer_nota_calificacion(cls, texto: str) -> float | None:
+        limpio = cls._normalizar(texto)
+        if not limpio or limpio in {"-", "sin calificacion", "no grade", "not graded"}:
+            return None
+        patrones = (
+            r"calificacion\s*(?:sobre|de)?\s*10\s*[:\-]?\s*(\d+(?:[,.]\d+)?)",
+            r"(\d+(?:[,.]\d+)?)\s*/\s*10",
+            r"(\d+(?:[,.]\d+)?)\s*(?:sobre|de)\s*10",
+        )
+        for patron in patrones:
+            match = re.search(patron, limpio)
+            if not match:
+                continue
+            try:
+                nota = float(match.group(1).replace(",", "."))
+            except ValueError:
+                continue
+            if 0 <= nota <= 10:
+                return round(nota, 2)
+        numeros = []
+        for match in re.finditer(r"\b(\d+(?:[,.]\d+)?)\b", limpio):
+            try:
+                numeros.append(float(match.group(1).replace(",", ".")))
+            except ValueError:
+                continue
+        candidatos = [nota for nota in numeros if 0 <= nota < 10]
+        if candidatos:
+            return round(candidatos[-1], 2)
+        if numeros and numeros[-1] == 10 and "sobre 10" not in limpio and "/ 10" not in limpio:
+            return 10.0
+        return None
+
+    async def _nota_actual_fila_grading(self, fila, columnas: dict[str, int]) -> tuple[float | None, str]:
+        celdas = await fila.query_selector_all("td")
+        textos: list[str] = []
+        indice = columnas.get("calificacion")
+        if indice is not None and indice < len(celdas):
+            textos.append(await self._texto_celda(celdas, indice))
+        for celda in celdas:
+            try:
+                if await celda.query_selector("a[href*='action=grader'], a:has-text('Calificaci')") is None:
+                    continue
+                texto_celda = self._texto_limpio(await celda.text_content() or "")
+                if texto_celda:
+                    textos.insert(0, texto_celda)
+            except Exception:
+                continue
+        for texto in textos:
+            nota = self._extraer_nota_calificacion(texto)
+            if nota is not None:
+                return nota, self._texto_limpio(texto)
+        return None, self._texto_limpio(" | ".join(textos))
 
     async def _nombre_alumno_desde_celda(self, celda) -> str:
         enlace_usuario = await celda.query_selector("a[href*='user/view.php']")
@@ -2847,7 +2995,7 @@ class ExtractorCarm:
         except Exception:
             return False
 
-    async def _guardar_opciones_grading(self, page, actividad: dict) -> None:
+    async def _guardar_opciones_grading(self, page, actividad: dict, filtro_requerido: str = "requiregrading") -> None:
         ultimo_error: Exception | None = None
         for intento in range(2):
             cambios = False
@@ -2856,16 +3004,36 @@ class ExtractorCarm:
                 filtro = await page.query_selector("select[name='filter'], #id_filter")
                 if filtro:
                     valor_filtro = ""
-                    for option in await filtro.query_selector_all("option"):
-                        text = self._normalizar(await option.text_content() or "")
-                        value = (await option.get_attribute("value") or "").strip()
-                        if value in {"requiregrading", "require_grading"} or "requiere calificacion" in text:
-                            valor_filtro = value
-                            break
+                    if filtro_requerido == "submitted":
+                        for option in await filtro.query_selector_all("option"):
+                            text = self._normalizar(await option.text_content() or "")
+                            value = (await option.get_attribute("value") or "").strip()
+                            if value == "submitted" or "enviada" in text or "submitted" in text:
+                                valor_filtro = value
+                                break
+                    elif filtro_requerido:
+                        for option in await filtro.query_selector_all("option"):
+                            text = self._normalizar(await option.text_content() or "")
+                            value = (await option.get_attribute("value") or "").strip()
+                            if value in {"requiregrading", "require_grading"} or "requiere calificacion" in text:
+                                valor_filtro = value
+                                break
+                    else:
+                        for option in await filtro.query_selector_all("option"):
+                            text = self._normalizar(await option.text_content() or "")
+                            value = (await option.get_attribute("value") or "").strip()
+                            if value == "" or "sin filtro" in text or "no filter" in text:
+                                valor_filtro = value
+                                break
                     if valor_filtro:
                         actual = await filtro.evaluate("(el) => el.value")
                         if actual != valor_filtro:
                             await filtro.select_option(valor_filtro)
+                            cambios = True
+                    elif not filtro_requerido:
+                        actual = await filtro.evaluate("(el) => el.value")
+                        if actual:
+                            await filtro.select_option("")
                             cambios = True
 
                 perpage = await page.query_selector("select[name='perpage'], #id_perpage")
@@ -2993,6 +3161,115 @@ class ExtractorCarm:
         if filtro not in {"requiregrading", "require_grading"} or filtros_letra:
             raise RuntimeError(
                 f"Filtros de grading no seguros en {actividad.get('codigo')}: "
+                f"filter={filtro or 'vacio'}, iniciales={filtros_letra or 'todos'}"
+            )
+
+    async def _asegurar_filtros_grading_todos(self, page, actividad: dict) -> None:
+        url_normalizada = self._url_grading_todos(actividad["url_grading"])
+        if page.url != url_normalizada:
+            await self._goto_carm(page, url_normalizada, motivo=f"grading completo {actividad.get('codigo', '')}")
+        await self._esperar_grading_estable(page)
+
+        if await self._hay_iniciales_grading_activas(page) and not actividad.get("_grading_preferencias_reseteadas"):
+            logger.info(
+                "%s: se detectaron iniciales activas en grading completo; restablezco preferencias de tabla.",
+                actividad.get("codigo", ""),
+            )
+            await self._goto_carm(
+                page,
+                self._url_grading_reset_preferencias(url_normalizada),
+                motivo=f"reset tabla grading completo {actividad.get('codigo', '')}",
+            )
+            await self._esperar_grading_estable(page)
+            await self._goto_carm(page, url_normalizada, motivo=f"grading completo limpio {actividad.get('codigo', '')}")
+            await self._esperar_grading_estable(page)
+            actividad["_grading_preferencias_reseteadas"] = True
+
+        await self._guardar_opciones_grading(page, actividad, filtro_requerido="")
+
+        url_actual = self._url_grading_todos(page.url)
+        if page.url != url_actual:
+            await self._goto_carm(page, url_actual, motivo=f"filtros grading completo {actividad.get('codigo', '')}")
+        await self._esperar_grading_estable(page)
+
+        parsed = dict(parse_qsl(urlparse(page.url).query))
+        filtros_letra = {
+            clave: valor
+            for clave, valor in parsed.items()
+            if clave.lower()
+            in {
+                "tifirst",
+                "tilast",
+                "tfirst",
+                "tlast",
+                "ifirst",
+                "ilast",
+                "sifirst",
+                "silast",
+                "firstname",
+                "lastname",
+                "firstinitial",
+                "lastinitial",
+                "initial",
+            }
+        }
+        if filtros_letra:
+            raise RuntimeError(
+                f"Filtros de grading completo no seguros en {actividad.get('codigo')}: iniciales={filtros_letra}"
+            )
+
+    async def _asegurar_filtros_grading_enviada(self, page, actividad: dict) -> None:
+        url_normalizada = self._url_grading_enviada(actividad["url_grading"])
+        if page.url != url_normalizada:
+            await self._goto_carm(page, url_normalizada, motivo=f"grading enviada {actividad.get('codigo', '')}")
+        await self._esperar_grading_estable(page)
+
+        if await self._hay_iniciales_grading_activas(page) and not actividad.get("_grading_preferencias_reseteadas"):
+            logger.info(
+                "%s: se detectaron iniciales activas en grading enviada; restablezco preferencias de tabla.",
+                actividad.get("codigo", ""),
+            )
+            await self._goto_carm(
+                page,
+                self._url_grading_reset_preferencias(url_normalizada),
+                motivo=f"reset tabla grading enviada {actividad.get('codigo', '')}",
+            )
+            await self._esperar_grading_estable(page)
+            await self._goto_carm(page, url_normalizada, motivo=f"grading enviada limpio {actividad.get('codigo', '')}")
+            await self._esperar_grading_estable(page)
+            actividad["_grading_preferencias_reseteadas"] = True
+
+        await self._guardar_opciones_grading(page, actividad, filtro_requerido="submitted")
+        url_actual = self._url_grading_enviada(page.url)
+        if page.url != url_actual:
+            await self._goto_carm(page, url_actual, motivo=f"filtros grading enviada {actividad.get('codigo', '')}")
+        await self._esperar_grading_estable(page)
+
+        parsed = dict(parse_qsl(urlparse(page.url).query))
+        filtro = parsed.get("filter", "")
+        filtros_letra = {
+            clave: valor
+            for clave, valor in parsed.items()
+            if clave.lower()
+            in {
+                "tifirst",
+                "tilast",
+                "tfirst",
+                "tlast",
+                "ifirst",
+                "ilast",
+                "sifirst",
+                "silast",
+                "firstname",
+                "lastname",
+                "firstinitial",
+                "lastinitial",
+                "initial",
+            }
+        }
+        if filtro != "submitted" or filtros_letra:
+            raise RuntimeError(
+                f"Filtros de grading enviada no seguros en {actividad.get('codigo')}: "
                 f"filter={filtro or 'vacio'}, iniciales={filtros_letra or 'todos'}"
             )
 
@@ -3175,6 +3452,18 @@ class ExtractorCarm:
             pass
         texto = self._normalizar(await fila.text_content() or "")
         return "sin calificar" in texto or "not graded" in texto
+
+    async def _fila_tiene_marcador_calificado(self, fila, columnas: dict[str, int] | None = None) -> bool:
+        try:
+            if await fila.query_selector(".submissiongraded, [class*='submissiongraded']") is not None:
+                return True
+        except Exception:
+            pass
+        columnas = columnas or {}
+        celdas = await fila.query_selector_all("td")
+        estado = await self._texto_celda(celdas, columnas.get("estado"))
+        normalizado = self._normalizar(estado)
+        return bool(normalizado) and ("calificado" in normalizado or "graded" in normalizado) and "sin calificar" not in normalizado
 
     async def _fila_requiere_calificacion(self, fila, columnas: dict[str, int] | None = None) -> bool:
         columnas = columnas or {}
@@ -4005,6 +4294,7 @@ class ExtractorCarm:
         actividad_codigo = str(correccion.get("actividad") or correccion.get("actividad_codigo") or "").strip().lower()
         nota = str(correccion.get("nota", "")).replace(",", ".")
         feedback = GeneradorSalidas._texto_feedback(correccion, alumno=alumno)
+        es_regularizacion = es_correccion_regularizacion_suspenso(correccion)
 
         if url_calificador_confirmado:
             url_calificador = url_calificador_confirmado
@@ -4027,7 +4317,38 @@ class ExtractorCarm:
                 "mensaje": "No se encontró enlace de calificación para el alumno en la tabla.",
             }
 
-        apertura_calificador = await self._abrir_formulario_calificacion(page, url_calificador, alumno)
+        if es_regularizacion:
+            apertura_calificador = await self._pulsar_calificar_en_fila(page, alumno)
+            if not apertura_calificador:
+                apertura_calificador = await self._abrir_formulario_calificacion(page, url_calificador, alumno)
+        else:
+            apertura_calificador = await self._abrir_formulario_calificacion(page, url_calificador, alumno)
+        if not apertura_calificador or not await self._hay_formulario_calificacion(page):
+            return {
+                "alumno": alumno,
+                "actividad": actividad_codigo,
+                "nota": nota,
+                "url_calificador": self._redactar_texto_sensible(url_calificador),
+                "apertura_calificador": apertura_calificador,
+                "regularizacion_suspenso": es_regularizacion,
+                "estado": "error_formulario_no_cargado",
+                "mensaje": "No se rellena porque CARM no ha cargado un formulario con usuario seleccionado.",
+            }
+        if es_regularizacion:
+            nota_actual_formulario, texto_nota_actual = await self._leer_nota_actual_formulario(page)
+            if not self._es_nota_suspendida(nota_actual_formulario):
+                return {
+                    "alumno": alumno,
+                    "actividad": actividad_codigo,
+                    "nota": nota,
+                    "url_calificador": self._redactar_texto_sensible(url_calificador),
+                    "apertura_calificador": apertura_calificador,
+                    "regularizacion_suspenso": True,
+                    "nota_actual_formulario": nota_actual_formulario,
+                    "texto_nota_actual": texto_nota_actual,
+                    "estado": "ya_no_suspendido_no_modificado",
+                    "mensaje": "No se rellena porque la nota actual ya no es menor de 5.",
+                }
         grade_selector = await self._rellenar_primero(
             page,
             [
@@ -4039,6 +4360,7 @@ class ExtractorCarm:
             nota,
         )
         feedback_selector = await self._rellenar_feedback(page, feedback)
+        notificaciones_desactivadas = await self._desactivar_notificacion_alumno(page) if es_regularizacion else []
 
         resultado = {
             "alumno": alumno,
@@ -4049,6 +4371,8 @@ class ExtractorCarm:
             "campo_nota": grade_selector,
             "campo_feedback": feedback_selector,
             "diagnostico_feedback": await self._diagnosticar_campos_feedback(page),
+            "notificaciones_desactivadas": notificaciones_desactivadas,
+            "regularizacion_suspenso": es_regularizacion,
             "guardar_y_mostrar_siguiente": bool(mostrar_siguiente),
             "estado_busqueda": estado_busqueda,
             "estado": "previsualizado",
@@ -4137,7 +4461,12 @@ class ExtractorCarm:
                 await self._login(page)
                 destino = CARM_COURSE_URL or CARM_MY_URL
                 await page.goto(destino, wait_until="domcontentloaded")
-                actividades = await self._obtener_actividades_obligatorias(page)
+                hay_regularizaciones = any(es_correccion_regularizacion_suspenso(c) for c in correcciones)
+                actividades = (
+                    await self._obtener_todos_casos_practicos(page)
+                    if hay_regularizaciones
+                    else await self._obtener_actividades_obligatorias(page)
+                )
                 actividades_por_codigo = {act["codigo"]: act for act in actividades}
                 if self.cache:
                     for codigo, act in list(actividades_por_codigo.items()):
@@ -4160,6 +4489,7 @@ class ExtractorCarm:
                             or ""
                         ).strip().lower()
                     mostrar_siguiente = publicar and bool(siguiente_codigo) and siguiente_codigo == actividad_codigo
+                    correccion_es_regularizacion = es_correccion_regularizacion_suspenso(correccion)
                     actividad = actividades_por_codigo.get(actividad_codigo)
                     if not actividad:
                         resultados.append(
@@ -4167,7 +4497,11 @@ class ExtractorCarm:
                                 "alumno": correccion.get("alumno", ""),
                                 "actividad": actividad_codigo,
                                 "estado": "actividad_sin_pendientes_requiere_calificacion",
-                                "mensaje": "CARM no muestra esta actividad con contador de Sin calificar; se retira del CSV de subida.",
+                                "mensaje": (
+                                    "CARM no muestra esta actividad como caso practico; se retira del CSV de subida."
+                                    if correccion_es_regularizacion
+                                    else "CARM no muestra esta actividad con contador de Sin calificar; se retira del CSV de subida."
+                                ),
                             }
                         )
                         continue
@@ -4181,15 +4515,20 @@ class ExtractorCarm:
                             }
                         )
                         continue
-                    if actividad_codigo not in pendientes_por_actividad:
+                    alumno_correccion = str(correccion.get("alumno", "")).strip()
+                    fila_pendiente = None
+                    if fila_pendiente is None and actividad_codigo not in pendientes_por_actividad:
                         try:
                             pendientes_por_actividad[actividad_codigo] = (
-                                await self._filas_pendientes_en_requiere_calificacion(page, actividad)
+                                await self._filas_suspendidas_en_enviada(page, actividad)
+                                if correccion_es_regularizacion
+                                else await self._filas_pendientes_en_requiere_calificacion(page, actividad)
                             )
                         except Exception as exc:
                             actividades_con_error_navegacion.add(actividad_codigo)
                             logger.warning(
-                                "No se pudo cargar Requiere calificacion para %s; se conserva en CSV para reintentar: %s",
+                                "No se pudo cargar %s para %s; se conserva en CSV para reintentar: %s",
+                                "Enviada" if correccion_es_regularizacion else "Requiere calificacion",
                                 actividad_codigo,
                                 str(exc).splitlines()[0],
                             )
@@ -4198,24 +4537,35 @@ class ExtractorCarm:
                                     "alumno": correccion.get("alumno", ""),
                                     "actividad": actividad_codigo,
                                     "estado": "error_navegacion_carm",
-                                    "mensaje": "No se pudo cargar Requiere calificacion para esta actividad. Se conserva en el CSV para reintentar.",
+                                    "mensaje": (
+                                        "No se pudo cargar Enviada para esta actividad. Se conserva en el CSV para reintentar."
+                                        if correccion_es_regularizacion
+                                        else "No se pudo cargar Requiere calificacion para esta actividad. Se conserva en el CSV para reintentar."
+                                    ),
                                 }
                             )
                             continue
                         logger.info(
-                            "%s: %s alumno(s) detectado(s) en Requiere calificacion.",
+                            "%s: %s alumno(s) detectado(s) en %s.",
                             actividad_codigo,
                             len(pendientes_por_actividad[actividad_codigo]),
+                            "Enviada con nota suspendida" if correccion_es_regularizacion else "Requiere calificacion",
                         )
-                    alumno_correccion = str(correccion.get("alumno", "")).strip()
-                    fila_pendiente = next(
-                        (
-                            fila
-                            for fila in pendientes_por_actividad[actividad_codigo]
-                            if self._coincide_alumno(alumno_correccion, fila.get("alumno", ""))
-                        ),
-                        None,
-                    )
+                    if fila_pendiente is None:
+                        userid_correccion = userid_carm_desde_url(str(correccion.get("url_calificador") or ""))
+                        fila_pendiente = next(
+                            (
+                                fila
+                                for fila in pendientes_por_actividad[actividad_codigo]
+                                if (
+                                    correccion_es_regularizacion
+                                    and userid_correccion
+                                    and userid_correccion == str(fila.get("userid") or "")
+                                )
+                                or self._coincide_alumno(alumno_correccion, fila.get("alumno", ""))
+                            ),
+                            None,
+                        )
                     if not fila_pendiente:
                         resultados.append(
                             {
@@ -4223,15 +4573,20 @@ class ExtractorCarm:
                                 "actividad": actividad_codigo,
                                 "nota": correccion.get("nota", ""),
                                 "estado": "pendiente_no_abierto_sin_filas_requiere_calificacion",
-                                "mensaje": "El alumno no aparece en Requiere calificacion para esta actividad; se retira del CSV de subida.",
+                                "mensaje": (
+                                    "El alumno no aparece en Enviada con nota suspendida para esta actividad; se retira del CSV de subida."
+                                    if correccion_es_regularizacion
+                                    else "El alumno no aparece en Requiere calificacion para esta actividad; se retira del CSV de subida."
+                                ),
                             }
                         )
                         continue
                     if not fila_pendiente.get("href"):
                         logger.warning(
-                            "%s %s aparece en Requiere calificacion pero no tiene enlace directo de calificacion; se intentara busqueda segura.",
+                            "%s %s aparece en %s pero no tiene enlace directo de calificacion; se intentara busqueda segura.",
                             actividad_codigo,
                             pseudonimo(alumno_correccion),
+                            "Enviada con nota suspendida" if correccion_es_regularizacion else "Requiere calificacion",
                         )
 
                     try:
@@ -4294,7 +4649,12 @@ class ExtractorCarm:
                 await self._login(page)
                 destino = CARM_COURSE_URL or CARM_MY_URL
                 await page.goto(destino, wait_until="domcontentloaded")
-                actividades = await self._obtener_actividades_obligatorias(page)
+                hay_regularizaciones = any(es_correccion_regularizacion_suspenso(c) for c in correcciones)
+                actividades = (
+                    await self._obtener_todos_casos_practicos(page)
+                    if hay_regularizaciones
+                    else await self._obtener_actividades_obligatorias(page)
+                )
                 actividades_por_codigo = {act["codigo"]: act for act in actividades}
                 if self.cache:
                     for codigo, act in list(actividades_por_codigo.items()):
@@ -4384,6 +4744,274 @@ class ExtractorCarm:
                                     "mensaje": "CARM lo muestra pendiente, pero no hay fila preparada en el CSV.",
                                 }
                             )
+                return resultados
+            finally:
+                await self._cerrar_contexto(context, page)
+                await context.close()
+                await browser.close()
+
+    @staticmethod
+    def _es_nota_suspendida(nota: float | None) -> bool:
+        return nota is not None and 0 <= nota < 5
+
+    async def _leer_feedback_actual_formulario(self, page) -> str:
+        try:
+            valor = await page.evaluate(
+                """() => {
+                    const normalize = (text) => (text || '').toLowerCase()
+                        .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+                    const clean = (text) => (text || '')
+                        .replace(/<br\\s*\\/?>(\\s*)/gi, '\\n')
+                        .replace(/<[^>]+>/g, ' ')
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/\\s+/g, ' ')
+                        .trim();
+                    const candidates = [];
+                    for (const el of document.querySelectorAll('textarea, [contenteditable="true"], .editor_atto_content')) {
+                        const key = normalize(`${el.name || ''} ${el.id || ''} ${el.className || ''} ${el.getAttribute('aria-label') || ''}`);
+                        const parent = normalize(el.closest('.fitem, .form-group, .felement, fieldset, div')?.textContent || '');
+                        if (
+                            key.includes('assignfeedbackcomments') ||
+                            key.includes('feedbackcomments') ||
+                            key.includes('comment') ||
+                            key.includes('retroaliment') ||
+                            parent.includes('comentarios de retroalimentacion') ||
+                            parent.includes('retroalimentacion')
+                        ) {
+                            candidates.push(el.value || el.innerText || el.textContent || el.innerHTML || '');
+                        }
+                    }
+                    return clean(candidates.find(Boolean) || '');
+                }"""
+            )
+            return self._texto_limpio(valor or "")
+        except Exception:
+            return ""
+
+    async def _leer_nota_actual_formulario(self, page) -> tuple[float | None, str]:
+        for selector in (
+            "input[name='grade']",
+            "#id_grade",
+            "input[id*='grade'][type='text']",
+            "input[name*='grade'][type='text']",
+        ):
+            try:
+                locator = page.locator(selector).first
+                if not await locator.count():
+                    continue
+                valor = await locator.input_value(timeout=1000)
+                nota = self._extraer_nota_calificacion(valor)
+                return nota, self._texto_limpio(valor)
+            except Exception:
+                continue
+        return None, ""
+
+    async def _leer_suspensos_actividad(self, page, actividad: dict, incluir_feedback: bool = True) -> list[dict]:
+        actividad["url_grading"] = self._url_grading_enviada(actividad["url_grading"])
+        await self._goto_carm(page, actividad["url_grading"], motivo=f"suspensos {actividad.get('codigo', '')}")
+        await self._asegurar_filtros_grading_enviada(page, actividad)
+        columnas = await self._mapear_columnas_grading(page)
+        indice_alumno = columnas.get("alumno", 0)
+        filas = await self._filas_tabla_grading(page)
+        suspendidos: list[dict] = []
+        candidatos: list[dict] = []
+        for fila in filas:
+            clase = await fila.get_attribute("class") or ""
+            if "emptyrow" in clase:
+                continue
+            celdas = await fila.query_selector_all("td")
+            if not celdas or indice_alumno >= len(celdas):
+                continue
+            alumno = await self._nombre_alumno_desde_celda(celdas[indice_alumno])
+            if not alumno:
+                continue
+            if not await self._fila_tiene_marcador_calificado(fila, columnas):
+                continue
+            enlace = await fila.query_selector("a[href*='action=grader'][href*='userid=']")
+            if enlace is None:
+                enlace = await fila.query_selector("a[href*='action=grader']")
+            href = await enlace.get_attribute("href") if enlace is not None else ""
+            if not href:
+                continue
+            nota, texto_nota = await self._nota_actual_fila_grading(fila, columnas)
+            if not self._es_nota_suspendida(nota):
+                continue
+            candidatos.append({"alumno": alumno, "href": href, "nota": nota, "texto_nota": texto_nota})
+
+        for candidato in candidatos:
+            alumno = candidato["alumno"]
+            href = candidato["href"]
+            try:
+                feedback = ""
+                if incluir_feedback:
+                    await self._abrir_formulario_calificacion(page, href, alumno)
+                    nota_formulario, texto_nota_formulario = await self._leer_nota_actual_formulario(page)
+                    if nota_formulario is not None:
+                        candidato["nota"] = nota_formulario
+                        candidato["texto_nota"] = texto_nota_formulario
+                    if not self._es_nota_suspendida(candidato["nota"]):
+                        continue
+                    feedback = await self._leer_feedback_actual_formulario(page)
+                suspendidos.append(
+                    {
+                        "actividad": actividad.get("codigo", ""),
+                        "actividad_nombre": actividad.get("nombre", ""),
+                        "tipo": actividad.get("tipo", ""),
+                        "alumno": alumno,
+                        "nota_actual": candidato["nota"],
+                        "texto_nota": candidato["texto_nota"],
+                        "url_calificador": href or "",
+                        "retroalimentacion_actual": feedback,
+                        "tiene_retroalimentacion": bool(feedback),
+                        "accion_propuesta": "subir_a_5_y_vaciar_retroalimentacion",
+                        "nota_propuesta": 5.0,
+                        "notificar_alumno": False,
+                    }
+                )
+            except Exception as exc:
+                suspendidos.append(
+                    {
+                        "actividad": actividad.get("codigo", ""),
+                        "actividad_nombre": actividad.get("nombre", ""),
+                        "alumno": alumno,
+                        "estado": "error_lectura_formulario",
+                        "mensaje": str(exc).splitlines()[0],
+                    }
+                )
+        return suspendidos
+
+    async def _filas_suspendidas_en_enviada(self, page, actividad: dict) -> list[dict]:
+        actividad["url_grading"] = self._url_grading_enviada(actividad["url_grading"])
+        await self._goto_carm(page, actividad["url_grading"], motivo=f"regularizacion enviada {actividad.get('codigo', '')}")
+        await self._asegurar_filtros_grading_enviada(page, actividad)
+        suspendidos: list[dict] = []
+        filas_dom = await page.evaluate(
+            """() => {
+                const normalize = (text) => (text || '').toLowerCase()
+                    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+                const tables = Array.from(document.querySelectorAll(
+                    'table.generaltable, table.gradingtable, table#attempts, table[data-region="grading-table"], table'
+                ));
+                const table = tables.find(t => t.querySelector('a[href*="action=grader"]')) || tables[0];
+                if (!table) return [];
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => normalize(th.textContent));
+                let alumnoIndex = headers.findIndex(h => h.includes('nombre') && (h.includes('apellido') || h.includes('completo')));
+                if (alumnoIndex < 0) alumnoIndex = 0;
+                return Array.from(table.querySelectorAll('tbody tr, tr')).map(tr => {
+                    const cells = Array.from(tr.querySelectorAll('td'));
+                    const grader = tr.querySelector('a[href*="action=grader"][href*="userid="], a[href*="action=grader"]');
+                    const user = tr.querySelector('a[href*="user/view.php"]');
+                    const alumnoCell = cells[alumnoIndex] || cells[0];
+                    const gradeCell = grader ? grader.closest('td') : null;
+                    return {
+                        className: tr.className || '',
+                        alumno: (user ? user.textContent : (alumnoCell ? alumnoCell.textContent : '') || '').trim().replace(/\\s+/g, ' '),
+                        href: grader ? grader.href : '',
+                        texto_nota: (gradeCell ? gradeCell.textContent : '').trim().replace(/\\s+/g, ' '),
+                    };
+                }).filter(row => row.href && row.alumno);
+            }"""
+        )
+        for item in filas_dom:
+            if not isinstance(item, dict):
+                continue
+            if "emptyrow" in str(item.get("className") or ""):
+                continue
+            nota, texto_nota = self._extraer_nota_calificacion(str(item.get("texto_nota") or "")), str(item.get("texto_nota") or "")
+            if not self._es_nota_suspendida(nota):
+                continue
+            suspendidos.append(
+                {
+                    "alumno": self._texto_limpio(str(item.get("alumno") or "")),
+                    "href": str(item.get("href") or ""),
+                    "userid": userid_carm_desde_url(str(item.get("href") or "")),
+                    "nota_actual": nota,
+                    "texto_nota": self._texto_limpio(texto_nota),
+                }
+            )
+        return suspendidos
+
+    async def _desactivar_notificacion_alumno(self, page) -> list[str]:
+        tocados: list[str] = []
+        try:
+            resultados = await page.evaluate(
+                """() => {
+                    const normalize = (text) => (text || '').toLowerCase()
+                        .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+                    const touched = [];
+                    const candidates = Array.from(document.querySelectorAll('input[type="checkbox"]'));
+                    for (const input of candidates) {
+                        const id = input.id || '';
+                        const name = input.name || '';
+                        const label = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
+                        const wrap = input.closest('label, .fitem, .form-group, .form-item, div');
+                        const text = normalize(`${id} ${name} ${label ? label.textContent : ''} ${wrap ? wrap.textContent : ''}`);
+                        if (
+                            text.includes('notificar') ||
+                            text.includes('notification') ||
+                            text.includes('notify') ||
+                            text.includes('enviar mensaje') ||
+                            text.includes('avisar')
+                        ) {
+                            if (input.checked) {
+                                input.checked = false;
+                                input.dispatchEvent(new Event('input', {bubbles: true}));
+                                input.dispatchEvent(new Event('change', {bubbles: true}));
+                            }
+                            touched.push(name || id || text.slice(0, 40));
+                        }
+                    }
+                    return touched;
+                }"""
+            )
+            if isinstance(resultados, list):
+                tocados.extend(str(item) for item in resultados if item)
+        except Exception:
+            pass
+        return tocados
+
+    async def listar_suspensos_carm(self, incluir_feedback: bool = True) -> list[dict]:
+        if async_playwright is None:
+            raise RuntimeError(
+                "Playwright no esta disponible. Ejecuta: pip install -r requirements.txt y luego playwright install chromium"
+            )
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=CARM_HEADLESS)
+            context = await self._crear_contexto(browser)
+            page = await context.new_page()
+            self._configurar_page(page)
+            try:
+                await self._login(page)
+                destino = CARM_COURSE_URL or CARM_MY_URL
+                await page.goto(destino, wait_until="domcontentloaded")
+                actividades = await self._obtener_todos_casos_practicos(page)
+                if self.cache:
+                    actividades = [self.cache.enriquecer_actividad(act) for act in actividades]
+                resultados: list[dict] = []
+                for actividad in actividades:
+                    try:
+                        suspensos = await self._leer_suspensos_actividad(page, actividad, incluir_feedback=incluir_feedback)
+                    except Exception as exc:
+                        logger.warning(
+                            "No se pudo listar suspensos de %s: %s",
+                            actividad.get("codigo", ""),
+                            str(exc).splitlines()[0],
+                        )
+                        resultados.append(
+                            {
+                                "actividad": actividad.get("codigo", ""),
+                                "actividad_nombre": actividad.get("nombre", ""),
+                                "estado": "error_navegacion_carm",
+                                "mensaje": str(exc).splitlines()[0],
+                            }
+                        )
+                        continue
+                    logger.info(
+                        "%s: %s suspenso(s) detectado(s).",
+                        actividad.get("codigo", ""),
+                        len(suspensos),
+                    )
+                    resultados.extend(suspensos)
                 return resultados
             finally:
                 await self._cerrar_contexto(context, page)
@@ -5757,6 +6385,10 @@ class GeneradorSalidas:
                     "estado": (fila.get("estado") or "").strip(),
                     "retroalimentacion": retroalimentacion,
                     "archivo_correccion": archivo_correccion,
+                    "accion": (fila.get("accion") or "").strip(),
+                    "notificar_alumno": (fila.get("notificar_alumno") or "").strip(),
+                    "nota_actual": (fila.get("nota_actual") or "").strip(),
+                    "url_calificador": (fila.get("url_calificador") or "").strip(),
                 }
                 correcciones_csv.append(self._normalizar_correccion_importada(correccion))
             return correcciones_csv
@@ -6570,6 +7202,55 @@ async def ejecutar_flujo(args) -> None:
         registrar_auditoria("listar_cursos_carm", cursos=len(cursos))
         return
 
+    if getattr(args, "listar_suspensos_carm", False) or getattr(args, "preparar_regularizacion_suspensos_carm", False):
+        if not requiere_curso_carm_configurado("listar/preparar regularizacion de suspensos en CARM"):
+            return
+        credenciales = obtener_credenciales_carm_interactivo("listar/preparar regularizacion de suspensos en CARM")
+        if not credenciales:
+            return
+        usuario, contrasena = credenciales
+        extractor = ExtractorCarm(
+            usuario,
+            contrasena,
+            pendientes_dir,
+            mantener_navegador=False,
+            guardar_evidencias=getattr(args, "guardar_evidencias", False),
+            unidades=unidades_filtro,
+            actividades=actividades_filtro,
+            cache=cache_curso,
+            usar_cache=True,
+        )
+        try:
+            suspensos = await extractor.listar_suspensos_carm(
+                incluir_feedback=not getattr(args, "sin_leer_feedback_suspensos", False)
+            )
+        except Exception as exc:
+            logger.error("No se pudieron listar suspensos en CARM: %s", exc)
+            return
+
+        salida_json = RESPUESTAS_DIR / "suspensos_carm_detectados.json"
+        salida_json.write_text(json.dumps(suspensos, indent=2, ensure_ascii=False), encoding="utf-8")
+        logger.info("Suspensos detectados: %s", sum(1 for item in suspensos if item.get("nota_actual") is not None))
+        logger.info("Listado guardado en: %s", salida_json)
+
+        if getattr(args, "preparar_regularizacion_suspensos_carm", False):
+            salida_csv = escribir_regularizacion_suspensos_csv(suspensos, temporal_dir)
+            logger.warning(
+                "Regularizacion preparada SIN aplicar cambios en CARM. Revisa el CSV antes de cualquier subida asistida: %s",
+                salida_csv,
+            )
+            logger.warning(
+                "La regularizacion debe hacerse con revision humana; la app no pulsara guardar automaticamente."
+            )
+        registrar_auditoria(
+            "preparar_regularizacion_suspensos_carm"
+            if getattr(args, "preparar_regularizacion_suspensos_carm", False)
+            else "listar_suspensos_carm",
+            suspensos=len([item for item in suspensos if item.get("nota_actual") is not None]),
+            salida=salida_json,
+        )
+        return
+
     if getattr(args, "importar_correcciones_codex", ""):
         salida = GeneradorSalidas(pendientes_dir, temporal_dir, actividad_codigo=args.actividad_codigo)
         correcciones_path = Path(args.importar_correcciones_codex)
@@ -7136,6 +7817,21 @@ def parse_args() -> argparse.Namespace:
         "--solo-listar-carm",
         action="store_true",
         help="Entra en CARM y lista entregas que requieren calificación sin descargar archivos ni corregir.",
+    )
+    parser.add_argument(
+        "--listar-suspensos-carm",
+        action="store_true",
+        help="Lista casos practicos ya calificados con nota menor de 5 sin modificar CARM.",
+    )
+    parser.add_argument(
+        "--preparar-regularizacion-suspensos-carm",
+        action="store_true",
+        help="Genera una propuesta CSV para subir suspensos a 5 y vaciar feedback, sin aplicar cambios.",
+    )
+    parser.add_argument(
+        "--sin-leer-feedback-suspensos",
+        action="store_true",
+        help="Con --listar-suspensos-carm, no abre formularios para leer retroalimentacion actual.",
     )
     parser.add_argument(
         "--cachear-curso",
