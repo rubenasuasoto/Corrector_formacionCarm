@@ -601,6 +601,96 @@ def prompts_pendientes_dir(pendientes_dir: Path) -> Path:
     return pendientes_dir / "prompts_codex"
 
 
+def _prompt_stem_sin_marca_temporal(path: Path) -> str:
+    return re.sub(r"_\d{8}_\d{6}$", "", path.stem)
+
+
+def _hash_archivo(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def archivar_prompts_codex_duplicados(prompts_dir: Path) -> dict[str, object]:
+    """Aparta prompts .md identicos para que Codex/API no corrijan dos veces lo mismo."""
+    if not prompts_dir.exists() or not prompts_dir.is_dir():
+        return {"archivados": 0, "grupos": 0, "destino": ""}
+
+    grupos: dict[str, list[Path]] = {}
+    for path in sorted(prompts_dir.glob("prompt_*.md")):
+        if path.is_file() and "archivados" not in {part.lower() for part in path.parts}:
+            grupos.setdefault(_prompt_stem_sin_marca_temporal(path).lower(), []).append(path)
+
+    archivo_dir: Path | None = None
+    archivados = 0
+    grupos_afectados = 0
+    for base, paths in grupos.items():
+        if len(paths) <= 1:
+            continue
+        por_hash: dict[str, list[Path]] = {}
+        for path in paths:
+            try:
+                por_hash.setdefault(_hash_archivo(path), []).append(path)
+            except Exception as exc:
+                logger.warning("No se pudo calcular hash de prompt %s: %s", path, exc)
+
+        if len(por_hash) > 1:
+            logger.warning(
+                "Se detectaron prompts con el mismo codigo pero contenido distinto; no se archivan automaticamente: %s",
+                ", ".join(path.name for path in paths),
+            )
+        for duplicados in por_hash.values():
+            if len(duplicados) <= 1:
+                continue
+            grupos_afectados += 1
+
+            def prioridad(path: Path) -> tuple[int, int, float, str]:
+                correccion = path.with_name(f"{path.stem}_correccion.json")
+                tiene_correccion = correccion_json_tiene_correcciones(correccion)
+                es_canonico = path.stem.lower() == base
+                return (0 if tiene_correccion else 1, 0 if es_canonico else 1, path.stat().st_mtime, path.name)
+
+            mantener = sorted(duplicados, key=prioridad)[0]
+            for path in duplicados:
+                if path == mantener:
+                    continue
+                if archivo_dir is None:
+                    archivo_dir = prompts_dir / "archivados" / datetime.now().strftime("%Y%m%d_%H%M%S_duplicados_codex")
+                moved = _mover_si_existe(path, archivo_dir)
+                if moved:
+                    archivados += 1
+                    correccion = path.with_name(f"{path.stem}_correccion.json")
+                    if correccion.exists() and correccion.is_file():
+                        _mover_si_existe(correccion, archivo_dir)
+                    logger.info(
+                        "Prompt duplicado identico archivado: %s (se conserva %s)",
+                        path.name,
+                        mantener.name,
+                    )
+
+    if archivados:
+        registrar_auditoria(
+            "archivar_prompts_codex_duplicados",
+            prompts_dir=prompts_dir,
+            destino=archivo_dir or "",
+            prompts=archivados,
+            grupos=grupos_afectados,
+        )
+        logger.info(
+            "Prompts Codex duplicados archivados en %s: %s prompt(s) en %s grupo(s).",
+            archivo_dir,
+            archivados,
+            grupos_afectados,
+        )
+    return {
+        "archivados": archivados,
+        "grupos": grupos_afectados,
+        "destino": str(archivo_dir or ""),
+    }
+
+
 def archivar_prompt_y_correccion_usados(
     correcciones_path: Path,
     temporal_dir: Path,
@@ -773,6 +863,15 @@ def prompt_tiene_revision_manual_pendiente(prompt_path: Path) -> bool:
 
 
 def filtrar_prompts_para_correccion(candidatos: list[Path], motor: str) -> tuple[list[Path], list[Path]]:
+    for prompts_dir in sorted({ruta.parent for ruta in candidatos if ruta.parent.exists()}):
+        resumen_duplicados = archivar_prompts_codex_duplicados(prompts_dir)
+        if int(resumen_duplicados.get("archivados", 0) or 0):
+            logger.info(
+                "Se limpiaron duplicados de prompts antes de usar %s: %s",
+                motor,
+                resumen_duplicados,
+            )
+    candidatos = [ruta for ruta in candidatos if ruta.exists()]
     prompts_ya_resueltos = [
         ruta
         for ruta in candidatos
@@ -6797,6 +6896,9 @@ class GeneradorSalidas:
         manifiesto_path = prompts_dir / "manifiesto_entregas.json"
         self._guardar_manifiesto_acumulado(manifiesto_path, manifiesto)
         rutas.append(manifiesto_path)
+        resumen_duplicados = archivar_prompts_codex_duplicados(prompts_dir)
+        if int(resumen_duplicados.get("archivados", 0) or 0):
+            rutas = [ruta for ruta in rutas if ruta.exists()]
         return rutas
 
     def corregir_prompts_con_openai(
