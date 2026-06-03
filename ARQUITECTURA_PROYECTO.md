@@ -152,6 +152,81 @@ Fase 3:
 - Separar UI HTML/CSS/JS de `interfaz_app.py`.
 - Crear checklist de release antes de distribuir.
 
+## Frontera CARM vs nucleo reutilizable
+
+Revision 2026-06-03: el corrector CARM contiene varias piezas que ya no son
+exclusivas de CARM. Para crear otros correctores sin copiar y pegar un bloque
+gigante, la separacion objetivo debe ser:
+
+### Adaptador especifico CARM
+
+Pertenece a CARM porque depende de `formacion.carm.es`, selectores, filtros,
+URLs, tabla de grading o decisiones de operacion propias de CARM:
+
+- `ExtractorCarm`: login, deteccion de cursos CARM, cacheado didactico desde
+  CARM, descarga de entregas, filtros `Requiere calificacion`/`Enviada`, subida
+  asistida, contraste y regularizacion de suspensos.
+- `CacheCursoCarm`: por ahora esta acoplada a curso CARM y a la forma en que
+  se extraen unidades/casos desde CARM. Puede evolucionar a `CacheCursoMoodle`
+  solo cuando el taller tenga una interfaz comun de actividades.
+- Configuracion CARM: `CARM_USUARIO`, `CARM_CONTRASENA`,
+  `CARM_COURSE_URL`, `CARM_DASHBOARD_URL`, sesion recordada y limpieza al
+  cambiar de cuenta.
+- UI CARM: textos de marca, regularizacion de suspensos CARM, diagnosticos y
+  acciones avanzadas que entran en CARM.
+
+### Nucleo comun de correctores Moodle
+
+Estas piezas no deberian vivir conceptualmente como "CARM", aunque hoy esten
+en `corrector_agente.py` o `interfaz_app.py`:
+
+- Lectura de entregas y extraccion de texto: `LecturaEntrega` y la parte de
+  `GeneradorSalidas` que lee HTML, DOCX, ODF, RTF, PDF, OCR, PPTX, XLSX, ZIP,
+  PAGES, EPUB e imagenes.
+- Motor de prompts: `GestorPrompts`, construccion de prompts por lotes,
+  `prompt_index.json`, manifiesto de entregas, filtros de entregas legibles y
+  revision manual.
+- Motor IA/API/Codex: `CorrectorIA`, comprobacion OpenAI, seleccion de modelo,
+  solucion de prompts con API y solucion con Codex App.
+- Importacion y revision: lectura de `*_correccion.json`, normalizacion de
+  notas/criterios/retroalimentacion, generacion de `revision_pendiente.csv`,
+  estados bloqueantes y casos marcados como revision manual.
+- Archivo y limpieza de prompts: deteccion de prompts ya resueltos, duplicados,
+  JSON sin filas, resumenes usados y retencion local.
+- Seguridad local generica: redaccion de logs, pseudonimos, token local del
+  panel, no versionar datos sensibles, purga local y trace solo bajo peticion.
+- UI comun: tema, contraste, tamanos, bandeja, instancia unica, reinicio,
+  boton detener, salud local, configuracion OpenAI y carpetas por
+  corrector/curso.
+
+### Corte recomendado para el taller
+
+No extraer todo de golpe. El primer corte seguro es crear un paquete comun
+para funciones puras y poco acopladas:
+
+```text
+moodle_corrector_core/
+  prompts.py        # prompt_index, filtros, nombres *_correccion.json
+  corrections.py    # importar JSON, revision CSV, estados bloqueantes
+  documents.py      # lectura/extraccion de archivos
+  ai.py             # OpenAI/Codex App
+  security.py       # redaccion, pseudonimos, retencion
+  paths.py          # rutas por corrector/curso
+```
+
+El adaptador CARM llamaria a ese nucleo, y cada nuevo corrector tendria su
+propio adaptador Moodle:
+
+```text
+corrector_carm/adapters/carm.py
+corrector_escuela_musica/adapters/moodle_local.py
+```
+
+Regla de seguridad: mientras CARM sea el corrector operativo, no mover clases
+grandes (`ExtractorCarm`, `GeneradorSalidas`) sin tests de equivalencia. Primero
+extraer funciones puras y escribir pruebas que comparen comportamiento con el
+flujo actual.
+
 ## DevOps local antes de Fase 5
 
 El flujo de despliegue seguro se aplica en escala local:
