@@ -8,6 +8,7 @@ Este checklist se usa antes de compartir una version, reinstalar en otro equipo 
 - [ ] `git status` no contiene cambios inesperados.
 - [ ] `.env`, logs, caches, salidas, entregas y correcciones generadas no aparecen en `git ls-files`.
 - [ ] `.env.example` esta actualizado, no contiene secretos reales y cubre variables nuevas.
+- [ ] `docs/PUBLICACION.md`, `SECURITY.md` y `CONTRIBUTING.md` estan actualizados si se va a publicar el repositorio.
 - [ ] `ESTADO_PROYECTO.md`, `ROADMAP_DESCARGA_SEGURA.md` y `ARQUITECTURA_PROYECTO.md` reflejan el estado real.
 - [ ] `assets/corrector_carm.ico` y `assets/corrector_carm.png` estan incluidos para panel, bandeja, accesos directos y paquete Windows.
 - [ ] Si se distribuye como app guiada, `Corrector CARM.exe` se ha regenerado con `crear_launcher_windows.cmd` y no contiene secretos.

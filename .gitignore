@@ -7,6 +7,8 @@
 __pycache__/
 **/__pycache__/
 *.py[cod]
+.pytest_cache/
+.tmp*/
 .tmp_verificacion_cache/
 .venv/
 venv/
@@ -23,6 +25,10 @@ codex_project/
 *.sqlite3
 *.db
 Corrector CARM.exe
+dist/
+build/
+*.spec
+*.egg-info/
 .tmp_setup_build/
 .tmp_setup_out/
 Corrector_CARM_*_Setup_*.exe

@@ -20,16 +20,20 @@ La extraccion directa desde CARM ya se ha probado con UD01. El flujo recomendado
 
 Lee estos archivos en este orden:
 
-1. `ESTADO_PROYECTO.md`: memoria viva del proyecto, decisiones tomadas y próximos pasos.
-2. `QUICKSTART.md`: comandos rápidos de instalación, prueba y uso.
-3. `SEGURIDAD_ASVS.md`: controles OWASP ASVS aplicables a esta app.
-4. `SEGURIDAD_CVSS.md`: criterio de priorización de riesgos basado en CVSS v4.0.
-5. `ARQUITECTURA_PROYECTO.md`: estructura profesional objetivo y estado de archivos.
-6. `RELEASE_CHECKLIST.md`: comprobaciones antes de distribuir o usar una version en real.
-7. `CIERRE_APP_LOCAL.md`: puerta antes de abrir Fase 5.
-8. `SOLUCION_PROBLEMAS_WINDOWS.md`: ayuda para Playwright, dependencias, bandeja y puerto local.
-9. `prompts_correccion.json`: prompts editables por actividad.
-10. `corrector_agente.py`: flujo principal.
+1. `docs/README.md`: mapa de documentación.
+2. `ESTADO_PROYECTO.md`: memoria viva del proyecto, decisiones tomadas y próximos pasos.
+3. `QUICKSTART.md`: comandos rápidos de instalación, prueba y uso.
+4. `SECURITY.md`: guía pública para reportar y evitar exposición de datos.
+5. `SEGURIDAD_ASVS.md`: controles OWASP ASVS aplicables a esta app.
+6. `SEGURIDAD_CVSS.md`: criterio de priorización de riesgos basado en CVSS v4.0.
+7. `ARQUITECTURA_PROYECTO.md`: estructura profesional objetivo y estado de archivos.
+8. `RELEASE_CHECKLIST.md`: comprobaciones antes de distribuir o usar una version en real.
+9. `docs/PUBLICACION.md`: checklist para publicar el repositorio.
+10. `docs/DEMO_LOCAL.md`: guía para capturas públicas sin datos reales.
+11. `CIERRE_APP_LOCAL.md`: puerta antes de abrir Fase 5.
+12. `SOLUCION_PROBLEMAS_WINDOWS.md`: ayuda para Playwright, dependencias, bandeja y puerto local.
+13. `prompts_correccion.json`: prompts editables por actividad.
+14. `corrector_agente.py`: flujo principal.
 
 El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_PROYECTO.md`, manda `ESTADO_PROYECTO.md`.
 
