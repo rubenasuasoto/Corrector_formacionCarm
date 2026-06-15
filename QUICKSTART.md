@@ -6,12 +6,16 @@ Antes de tocar nada, revisa `ESTADO_PROYECTO.md`: ahí queda la memoria del trab
 
 Para uso real, el camino normal es este:
 
-1. Iniciar la app con `.\iniciar_app_windows.cmd`.
+1. Abrir la app instalada con `.\ABRIR_CORRECTOR_CARM.cmd`.
 2. Detectar o elegir curso desde la interfaz.
 3. Preparar prompts desde la interfaz o con `--preparar-carm-codex`.
 4. Corregir con API o resolver los prompts fuera de la app y luego pulsar `Importar JSON a revision`.
 5. Revisar `revision_pendiente.csv` desde la interfaz.
 6. Usar subida asistida: la app rellena nota y feedback, pero el docente guarda en CARM.
+
+En desarrollo, `.\iniciar_app_windows.cmd` sigue disponible como entrada
+técnica. Para usuarios finales o pruebas de instalación, usa el instalador
+guiado y el acceso `ABRIR_CORRECTOR_CARM.cmd`.
 
 No uses comandos directos de publicacion: esa ruta esta desactivada. La subida asistida es el flujo que mantiene revision humana y limpia el CSV al confirmar cada caso.
 
@@ -64,6 +68,8 @@ Para OCR de PDF escaneados o imagenes, usa el instalador guiado o ejecuta:
 - `SOLUCION_PROBLEMAS_WINDOWS.md`: Playwright, dependencias, bandeja, puerto local y reparacion.
 - `RELEASE_CHECKLIST.md`: comprobaciones antes de una sesion real.
 - `CIERRE_APP_LOCAL.md`: puntos pendientes antes de abrir Fase 5.
+- `docs/VALIDACION_RELEASE_0.3.0-local.md`: cierre del release validado.
+- `docs/PRUEBA_INSTALADOR.md`: prueba segura de ZIP/EXE en laboratorio.
 
 ## 1. Instalar
 
