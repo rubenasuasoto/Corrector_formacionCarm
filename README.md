@@ -161,8 +161,9 @@ Copia `.env.example` a `.env` y rellena credenciales:
 
 ```env
 CARM_USUARIO=tu_usuario_carm
-CARM_CONTRASENA=tu_contrasena_carm
-OPENAI_API_KEY=tu_api_key_aqui
+CARM_CONTRASENA=
+# Rellena CARM_CONTRASENA solo en tu .env local.
+OPENAI_API_KEY=<tu_api_key_openai>
 OPENAI_MODEL=gpt-5-mini
 CARM_DASHBOARD_URL=https://formacion.carm.es/my/index.php
 CARM_COURSE_URL=
