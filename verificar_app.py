@@ -755,8 +755,8 @@ def check_interfaz_flujos_seguro() -> bool:
     original_allowed_units = app.allowed_units
     original_revisar_publicacion_segura = app.revisar_publicacion_segura
     try:
-        app.allowed_units = lambda: {"ud01"}
-        app.revisar_publicacion_segura = lambda: None
+        app.allowed_units = lambda *args, **kwargs: {"ud01"}
+        app.revisar_publicacion_segura = lambda *args, **kwargs: None
         args = app.build_args("prepare", {"modo": "course", "max_entregas": "0"})
         if "--unidad" in args or "--actividad" in args:
             safe_print("ERROR: preparar todo el curso no debe forzar unidad ni actividad.")
