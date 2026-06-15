@@ -35,3 +35,9 @@ No compartas credenciales, cookies, sesiones, HTML privado ni entregas reales.
 .\verificar_app_windows.cmd --instalacion
 python verificar_app.py --sin-endpoints
 ```
+
+Antes de compartir un ZIP o EXE, revisa también
+`docs/PUBLICACION.md` y `docs/VALIDACION_RELEASE_0.3.0-local.md`. El paquete
+publicable debe salir de un árbol limpio y no debe contener `.env`,
+`.corrector_app.json`, `.venv`, caches, logs, entregas, proyectos Codex ni
+correcciones generadas.

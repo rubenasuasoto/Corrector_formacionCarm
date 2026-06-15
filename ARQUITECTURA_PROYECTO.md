@@ -1,8 +1,28 @@
 # Arquitectura y orden del proyecto
 
-Estado: 2026-05-17.
+Estado: 2026-06-15.
 
-Este documento define la organizacion objetivo del Corrector CARM y separa codigo activo, documentacion, configuracion y artefactos locales. La idea es ordenar el proyecto sin romper rutas internas de golpe.
+Este documento define la organización del Corrector CARM y separa código
+activo, documentación, configuración, artefactos locales y líneas de evolución.
+El proyecto se mantiene como app local de Windows: panel en localhost, bandeja
+del sistema, instalador guiado y subida asistida con guardado humano.
+
+## Estado público actual
+
+- Versión local: `0.3.0-local`.
+- Release validado: `v0.3.0-local-20260615-final`.
+- Instalador EXE y ZIP guiado validados en Windows.
+- Rama de trabajo `casa` y rama pública `main` sincronizadas tras la validación.
+- El paquete distribuible se genera por lista blanca y no incluye credenciales,
+  sesiones, caches, entregas, logs ni correcciones generadas.
+- El desinstalador conserva accesos de otras instalaciones y solo retira los
+  accesos que apuntan a la carpeta que se está desinstalando.
+
+Documentos de cierre:
+
+- `docs/VALIDACION_RELEASE_0.3.0-local.md`
+- `docs/RELEASE_NOTES_0.3.0-local_20260615.md`
+- `docs/GITHUB_RELEASE_0.3.0-local_20260615.md`
 
 ## Estructura actual aceptada
 
@@ -48,6 +68,13 @@ Documentacion viva:
 - `INSTRUCCIONES_CODEX_PERSONALIZADAS.md`: flujo sin API para Codex.
 - `ROADMAP_DESCARGA_SEGURA.md`: roadmap historico de descarga segura.
 - `RELEASE_CHECKLIST.md`: checklist antes de distribuir o usar en una sesion real.
+- `docs/README.md`: índice de documentación publicable.
+- `docs/PUBLICACION.md`: checklist para abrir o compartir el repositorio.
+- `docs/DEMO_LOCAL.md`: guía para preparar capturas públicas sin datos reales.
+- `docs/PRUEBA_INSTALADOR.md`: validación del ZIP y EXE en laboratorio.
+- `docs/VALIDACION_RELEASE_0.3.0-local.md`: cierre técnico del release validado.
+- `docs/RELEASE_NOTES_0.3.0-local_20260615.md`: notas del release validado.
+- `docs/GITHUB_RELEASE_0.3.0-local_20260615.md`: borrador de publicación en GitHub.
 
 Legado o referencia:
 
@@ -99,24 +126,32 @@ Motivo: contienen credenciales, estado local, datos de alumnos, notas, logs, cac
    - Las filas se eliminan del CSV solo si se ha abierto/rellenado el formulario y el docente confirma el guardado, o si hubo publicacion controlada en pruebas internas.
    - Prompts, correcciones y resumenes usados se archivan.
 
-## Organizacion profesional objetivo
+## Organización profesional objetivo
 
-Fase 1, sin romper imports:
+Fase 1, completada sin romper imports:
 
 - Mantener los dos ejecutables principales en raiz.
 - Mantener en raiz los lanzadores `.cmd` que usan docentes e instaladores.
 - Sacar del indice de git todos los artefactos locales.
-- Mantener documentacion actualizada y coherente.
+- Mantener documentación actualizada y coherente.
 - Mantener fuera del flujo activo scripts de prueba antiguos.
 - Mejorar el paquete distribuible con un `LEEME_INSTALACION.txt` que distinga entradas de usuario, mantenimiento y diagnostico.
 
-Estado 2026-05-17: fase en cierre. La documentacion ya existe, la app funciona con rutas multi-curso y `.env`, logs, caches, salidas, verificaciones temporales y correcciones generadas no deben aparecer en `git ls-files`.
+Estado 2026-06-15: fase cerrada para publicación local. La documentación ya
+existe, la app funciona con rutas multi-curso y `.env`, logs, caches, salidas,
+verificaciones temporales y correcciones generadas no aparecen en el paquete ni
+deben aparecer en `git ls-files`.
 
 Decision de orden actual: no mover todavia los scripts Windows a `scripts/`, porque el instalador, el paquete ZIP y los accesos directos esperan varios lanzadores en raiz. La limpieza profesional se hara en dos pasos: primero paquete y documentacion claros; despues refactor de carpetas con wrappers de compatibilidad.
 
-El paquete de usuario final no replica el repositorio completo. `crear_paquete_windows.ps1` usa una lista blanca de archivos necesarios y genera dentro del ZIP `LEEME_INSTALACION.txt`, `GUIA_USUARIO.txt` y `MANIFIESTO_PAQUETE.json`. Quedan fuera documentos de desarrollo como `AGENTS.md`, `ESTADO_PROYECTO.md`, `ARQUITECTURA_PROYECTO.md`, roadmap, checklist de release y scripts de preparacion interna.
+El paquete de usuario final no replica el repositorio completo.
+`crear_paquete_windows.ps1` usa una lista blanca de archivos necesarios y genera
+dentro del ZIP `LEEME_INSTALACION.txt`, `GUIA_USUARIO.txt` y
+`MANIFIESTO_PAQUETE.json`. Quedan fuera documentos de desarrollo como
+`AGENTS.md`, `ESTADO_PROYECTO.md`, `ARQUITECTURA_PROYECTO.md`, roadmap,
+checklist de release y scripts de preparacion interna.
 
-Fase 2, refactor gradual:
+Fase 2, refactor gradual opcional:
 
 ```text
 corrector_carm/
@@ -145,12 +180,15 @@ legacy/
   # Solo si alguna referencia historica vuelve a ser necesaria.
 ```
 
-Fase 3:
+Fase 3, calidad interna:
 
-- Tests unitarios para importacion JSON/CSV, limpieza de prompts y borrado parcial de `revision_pendiente.csv`.
+- Tests unitarios para importación JSON/CSV, limpieza de prompts y borrado parcial de `revision_pendiente.csv`.
 - Tests de endpoints locales con token anti-CSRF.
 - Separar UI HTML/CSS/JS de `interfaz_app.py`.
 - Crear checklist de release antes de distribuir.
+
+Estas fases no bloquean la publicación local actual. Son mejoras para reducir
+acoplamiento y facilitar mantenimiento si el corrector crece.
 
 ## Frontera CARM vs nucleo reutilizable
 

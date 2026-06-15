@@ -31,3 +31,8 @@ Si el cambio afecta instalador o paquete:
 .\preparar_release_windows.cmd
 .\crear_paquete_windows.cmd
 ```
+
+Si el cambio toca desinstalación, accesos directos o arranque con Windows,
+comprueba que no elimina accesos ajenos ni datos locales por defecto. La regla
+del proyecto es conservar datos y retirar solo los recursos que apuntan a la
+instalación que se está gestionando.
