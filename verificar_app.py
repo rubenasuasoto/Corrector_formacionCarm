@@ -1060,6 +1060,9 @@ def check_instalador_python() -> bool:
         "instalador_guiado_windows.ps1",
         "Start-UninstallProgress",
         "Complete-UninstallProgress",
+        "Test-ShortcutReferencesInstall",
+        "Remove-OwnedShortcut",
+        "Se conserva acceso ajeno a esta instalacion",
     ]
     missing = [item for item in required_tecnico if item not in tecnico_text]
     missing += [item for item in required_guiado if item not in guiado_text]
@@ -1125,7 +1128,7 @@ def check_arranque_sin_consola() -> bool:
             'shell.Run',
             '--no-browser',
         ],
-        "desinstalar_windows.ps1": ['Corrector CARM.vbs'],
+        "desinstalar_windows.ps1": ['Corrector CARM.vbs', 'Test-ShortcutReferencesInstall'],
         "ABRIR_CORRECTOR_CARM.cmd": ['Corrector CARM.exe'],
     }
     missing = [

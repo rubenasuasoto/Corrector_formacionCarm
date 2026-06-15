@@ -139,6 +139,11 @@ Para una prueba de limpieza total, usa solo carpetas de laboratorio:
 C:\temp\corrector_carm_release_test\app\desinstalar_windows.ps1 -EliminarDatos
 ```
 
+Si existe otra instalación de Corrector CARM en el mismo usuario, comprueba que
+sus accesos de escritorio, menú Inicio o arranque no se borran al desinstalar la
+copia de laboratorio. El desinstalador solo debe retirar accesos que apunten a
+la carpeta que se está desinstalando.
+
 ## Cierre
 
 Antes de publicar o compartir:
