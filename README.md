@@ -6,6 +6,8 @@ Agente local para corregir casos prácticos descargados desde CARM Formación/Mo
 
 El flujo principal ya está implementado en `corrector_agente.py`:
 
+- Versión local validada: `0.3.0-local`.
+- Release local validado el 15 de junio de 2026 con ZIP guiado e instalador EXE.
 - Corrige entregas locales colocadas en la carpeta activa de pendientes. Con carpetas por curso activadas: `C:\temp\vscodec\cursos\<course_id>\pendientes`.
 - Agrupa las entregas por actividad, por ejemplo `ud01cp01` o `ud02cp03`.
 - Prepara prompts por lote para reducir llamadas a la IA.
@@ -14,7 +16,10 @@ El flujo principal ya está implementado en `corrector_agente.py`:
 - Genera `revision_pendiente.csv` para revisar notas y feedback antes de subir nada.
 - Marca como `revision_manual_necesaria` los archivos que no pueda leer con fiabilidad.
 
-La extraccion directa desde CARM ya se ha probado con UD01. El flujo recomendado es autopromptear, resolver prompts bajo confirmacion y subir con modo asistido desde `revision_pendiente.csv`; el guardado final en CARM sigue siendo humano.
+La extracción directa desde CARM, la preparación de prompts, la importación de
+JSON y la subida asistida ya forman el flujo operativo. El uso recomendado es
+autopromptear, resolver prompts bajo confirmación y subir con modo asistido
+desde `revision_pendiente.csv`; el guardado final en CARM sigue siendo humano.
 
 ## Documentos importantes
 
@@ -37,7 +42,8 @@ Lee estos archivos en este orden:
 
 El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_PROYECTO.md`, manda `ESTADO_PROYECTO.md`.
 
-La version local esta en `VERSION`. La interfaz y `verificar_app.py` muestran version, commit y si hay cambios locales.
+La versión local está en `VERSION`. La interfaz y `verificar_app.py` muestran
+versión, commit y si hay cambios locales.
 
 ## Instalación
 
@@ -346,7 +352,11 @@ Todo queda en estado `borrador_pendiente_de_revision` salvo los casos que necesi
 
 ## Próximos pasos
 
-- Seguir validando subida asistida real por lotes y casos ya gestionados en CARM.
-- Mejorar la vista local de revision por alumno antes de subir.
-- Instalar y probar dependencias opcionales de extracción.
-- Probar OCR con Tesseract en una instalación limpia de Windows.
+- Mantener `docs/VALIDACION_RELEASE_0.3.0-local.md` actualizado si se regenera
+  el instalador o cambia el flujo de instalación.
+- Repetir la validación en otro perfil o equipo Windows limpio antes de
+  recomendarlo fuera del entorno de desarrollo.
+- Seguir endureciendo pruebas automáticas para importación, prompts duplicados,
+  subida asistida y desinstalación.
+- Mejorar OCR y conversión de entregas difíciles cuando haya casos reales
+  suficientes para probar sin exponer datos.
