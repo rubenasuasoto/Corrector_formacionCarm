@@ -6,16 +6,19 @@ Este checklist se usa antes de compartir una version, reinstalar en otro equipo 
 
 - [ ] `VERSION` refleja la version local que se va a usar o compartir.
 - [ ] `git status` no contiene cambios inesperados.
+- [ ] El commit que se va a distribuir coincide con las notas de release.
 - [ ] `.env`, logs, caches, salidas, entregas y correcciones generadas no aparecen en `git ls-files`.
 - [ ] `.env.example` esta actualizado, no contiene secretos reales y cubre variables nuevas.
 - [ ] `docs/PUBLICACION.md`, `SECURITY.md` y `CONTRIBUTING.md` estan actualizados si se va a publicar el repositorio.
 - [ ] `ESTADO_PROYECTO.md`, `ROADMAP_DESCARGA_SEGURA.md` y `ARQUITECTURA_PROYECTO.md` reflejan el estado real.
+- [ ] `docs/VALIDACION_RELEASE_0.3.0-local.md` y las release notes reflejan la ultima validacion completa si se comparte el instalador.
 - [ ] `assets/corrector_carm.ico` y `assets/corrector_carm.png` estan incluidos para panel, bandeja, accesos directos y paquete Windows.
 - [ ] Si se distribuye como app guiada, `Corrector CARM.exe` se ha regenerado con `crear_launcher_windows.cmd` y no contiene secretos.
 - [ ] `INSTALAR_CORRECTOR_CARM.cmd` abre el asistente visual y permite elegir carpeta de instalacion, carpeta de datos, accesos e inicio con Windows.
 - [ ] La instalacion registra `Corrector CARM` en Aplicaciones instaladas y `desinstalar_windows.cmd` / `.ps1` estan incluidos en el paquete.
 - [ ] Si se comparte con usuarios finales, `crear_instalador_setup_windows.cmd` genera un `Corrector_CARM_*_Setup_*.exe` probado sin ejecutar la instalacion.
 - [ ] `docs/PRUEBA_INSTALADOR.md` se ha seguido en una carpeta de laboratorio antes de publicar el EXE.
+- [ ] El desinstalador solo borra accesos que apuntan a la carpeta instalada y conserva accesos de otras copias.
 - [ ] Reinstalar sobre carpetas existentes conserva `.env` y reutiliza datos compatibles.
 - [ ] Desinstalar permite conservar datos o borrar selectivamente pendientes, temporal y cursos/cache/proyectos Codex.
 - [ ] La ventana de instalacion muestra comprobacion previa de dependencias, carpetas existentes y estado/login de Codex CLI.
@@ -64,6 +67,14 @@ Para crear etiqueta Git despues de hacer commit y tener el arbol limpio:
 
 ```powershell
 .\preparar_release_windows.cmd --crear-tag
+```
+
+Para el release validado del 15 de junio de 2026, usar como referencia:
+
+```text
+docs/VALIDACION_RELEASE_0.3.0-local.md
+docs/RELEASE_NOTES_0.3.0-local_20260615.md
+docs/GITHUB_RELEASE_0.3.0-local_20260615.md
 ```
 
 Para regenerar el lanzador local con icono propio:

@@ -31,7 +31,9 @@ Checklist para publicar Corrector CARM como repositorio abierto o compartido.
    actual.
 4. Revisar que no hay rutas personales ni datos de alumnos en archivos
    versionados.
-5. Generar paquete o instalador solo desde árbol limpio.
+5. Revisar `docs/VALIDACION_RELEASE_0.3.0-local.md` si se va a publicar el
+   instalador validado.
+6. Generar paquete o instalador solo desde árbol limpio.
 
 ## Comandos
 
@@ -40,4 +42,11 @@ git status
 python verificar_app.py --sin-endpoints
 .\verificar_app_windows.cmd --instalacion
 .\preparar_release_windows.cmd
+```
+
+Para publicar el release local validado:
+
+```text
+docs/RELEASE_NOTES_0.3.0-local_20260615.md
+docs/GITHUB_RELEASE_0.3.0-local_20260615.md
 ```
