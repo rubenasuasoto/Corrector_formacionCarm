@@ -139,6 +139,26 @@ Suele ocurrir si hay varias instancias intentando arrancar o si el acceso de ini
 
 El script de inicio comprueba si el panel ya responde en `127.0.0.1:8765` y no lanza otra instancia.
 
+## Aparecen varios iconos de bandeja
+
+Suele indicar que quedó una instancia antigua tras reinstalar, reiniciar desde una versión previa o abrir la app varias veces durante una actualización.
+
+1. Cierra Corrector CARM desde el menú del icono de bandeja si responde.
+2. Si no responde, abre el Administrador de tareas y cierra los procesos `Corrector CARM.exe`, `pythonw.exe` o `python.exe` asociados a esta carpeta.
+3. Abre una sola vez con:
+
+```powershell
+.\ABRIR_CORRECTOR_CARM.cmd
+```
+
+4. Reinstala el arranque desde `Configuración > Windows` o ejecuta:
+
+```powershell
+.\.venv\Scripts\python.exe interfaz_app.py --install-startup
+```
+
+La versión actual evita lanzar otra instancia si el panel ya responde en `127.0.0.1:8765`, pero Windows puede mantener iconos antiguos visibles hasta pasar el ratón por la bandeja o cerrar el proceso anterior.
+
 ## No aparece en Aplicaciones instaladas
 
 Las versiones antiguas se instalaban como carpeta local con accesos directos y podian no aparecer en la lista de Windows.

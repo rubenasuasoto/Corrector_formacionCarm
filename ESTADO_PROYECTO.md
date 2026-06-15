@@ -1,8 +1,18 @@
 # Estado del proyecto: agente corrector CARM
 
-## Actualizacion 2026-05-14
+## Actualización 2026-06-15
 
-Estado actual: seguimos en la puerta pre-Fase 5. La prioridad ya no es abrir infraestructura cloud, sino cerrar la app local instalable y dejarla suficientemente estable para uso real en Windows.
+Estado vigente: Corrector CARM queda validado como aplicación local Windows `0.3.0-local`, con paquete ZIP, `Setup.exe`, instalador guiado, verificación de instalación, desinstalación segura y documentación pública revisada. Las ramas `casa` y `main` están sincronizadas.
+
+- Release: `v0.3.0-local-20260615-final`.
+- Documentación pública actualizada: `README.md`, `QUICKSTART.md`, `SECURITY.md`, `CONTRIBUTING.md`, `ARQUITECTURA_PROYECTO.md`, `RELEASE_CHECKLIST.md` y `docs/PUBLICACION.md`.
+- Seguridad de instalación: el desinstalador conserva accesos directos ajenos al proyecto y solo retira los que pertenecen al Corrector CARM.
+- Fase 5: sigue pospuesta. No se abre servidor, cloud ni multiusuario salvo necesidad real.
+- Próximos focos recomendados: validación en otro Windows limpio, mantenimiento del release, OCR/formatos difíciles, revisión periódica de seguridad y extracción gradual de piezas reutilizables para el taller.
+
+## Histórico 2026-05-14
+
+Estado de entonces: seguíamos en la puerta pre-Fase 5. La prioridad ya no era abrir infraestructura cloud, sino cerrar la app local instalable y dejarla suficientemente estable para uso real en Windows.
 
 - Feedback personalizado 2026-05-22: se refuerzan prompts API/Codex y el importador para que la retroalimentacion final incluya el nombre del alumno de forma natural y tenga un tono mas cercano. Para notas superiores a 8 se explicita que no deben inventarse mejoras: solo se mencionan si hay un problema real y concreto; si no lo hay, el cierre debe reforzar los logros. Las instrucciones de `$C` quedan alineadas con esta regla.
 - Filtro CARM 2026-05-25: se corrige un fallo critico que podia arrastrar al CSV alumnos ya calificados. La extraccion solo acepta actividades con contador explicito `Sin calificar`, las filas de tabla deben estar realmente en estado pendiente y `Enviado para calificarCalificado` queda fuera salvo reenvio/seguimiento recibido. La subida asistida deja de buscar al alumno en la vista completa si no aparece en `Requiere calificacion`, evitando abrir formularios que CARM no marca como pendientes. Si CARM indica que una actividad no tiene `Sin calificar` o que un alumno ya no esta en la tabla de pendientes, esa fila se retira del CSV con copia previa; antes de procesar una actividad se lee una vez su tabla de pendientes, se captura el enlace directo `action=grader` de cada fila y se usa ese enlace para abrir el formulario, evitando una segunda busqueda que podia fallar aunque el alumno estuviera pendiente. Las navegaciones CARM de grading/formulario ahora reintentan `ERR_ABORTED`/timeouts y, si una actividad no carga, no abortan todo el lote: quedan en CSV como `error_navegacion_carm` para reintento. Si el docente cierra el navegador, se conservan los resultados parciales para limpiar lo ya comprobado. Se limpió el CSV real del curso `1592`: copia previa en `C:\temp\vscodec\cursos\1592\temporal\archivados_limpieza\20260525_094335`, 120 filas retiradas y 125 restantes.
@@ -703,7 +713,9 @@ El prompt `default` es general. El enunciado real viene de CARM y se inyecta apa
 
 Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por error.
 
-## Próximos pasos recomendados
+## Histórico: próximos pasos recomendados
+
+Las secciones siguientes se conservan como memoria del desarrollo de mayo. El estado operativo vigente está al inicio del documento, en la actualización del 2026-06-15.
 
 ### Corto plazo (esta semana)
 
@@ -755,7 +767,7 @@ Las claves de ejemplo deben llevar prefijo `_ejemplo_` para no aplicarse por err
    - Evaluar costo-beneficio
    - Adaptar prompts si cambia el modelo
 
-## Resumen de estado para alguien nuevo
+## Resumen histórico para alguien nuevo
 
 Este proyecto automatiza corrección de casos prácticos en CARM Formación:
 
@@ -794,7 +806,9 @@ Tambien se probo:
 - Previsualizacion de subida a CARM.
 - Servidor local de interfaz en `/api/status`.
 
-## Pendiente / proximos pasos
+## Histórico: pendiente / próximos pasos antiguos
+
+Esta lista queda como referencia de decisiones ya tratadas o reubicadas. Para trabajo actual, priorizar la actualización del 2026-06-15, `RELEASE_CHECKLIST.md`, `QUICKSTART.md` y `docs/PUBLICACION.md`.
 
 Prioridad alta:
 
