@@ -18,6 +18,12 @@ La app local debe poder usarse en Windows por un docente con:
 
 La puerta pre-Fase 5 esta muy avanzada. Ya hay instalacion guiada, paquete ZIP local, carpetas por curso por defecto, cache didactica con resumenes por unidad y verificacion anti-mojibake. La prueba multi-curso real queda confirmada; antes de entrar en Fase 5 toca regenerar release/paquete con los ultimos cambios visuales y de verificacion.
 
+## Estado 2026-06-15
+
+La puerta local queda cerrada para el release actual. `0.3.0-local` está validado como aplicación Windows con instalador guiado, paquete ZIP, `Setup.exe`, verificación de instalación y desinstalación segura documentada.
+
+Fase 5 sigue pospuesta de forma consciente. Solo se reabrirá si aparece una necesidad real de servidor, multiusuario, despliegue institucional o coordinación entre varios docentes. Mientras tanto, el esfuerzo debe mantenerse en estabilidad local, mantenimiento de release, OCR/formatos difíciles y extracción gradual de piezas reutilizables para el taller.
+
 Actualizacion 2026-05-15: el docente confirma que multi-curso funciona. Tambien queda corregido un bloqueo del panel local por JavaScript embebido roto y `verificar_app.py` ya comprueba ese caso. El icono propio de la app se valida como asset de release.
 
 Prueba instalacion limpia 2026-05-15: el ZIP guiado se extrajo en una carpeta temporal, no contenia `.env`, `.venv`, logs, cache ni salidas generadas. El instalador creo entorno virtual, instalo dependencias base, creo `.env` desde plantilla y la verificacion de instalacion paso correctamente.
@@ -117,9 +123,12 @@ Actualizacion arranque 2026-05-25: el uso normal de la app tambien queda desacop
 - [x] Limpiar o archivar notas historicas con codificacion rota si molestan al mantenimiento.
 - [x] Ejecutar `preparar_release_windows.cmd` completo tras los cambios de 2026-05-14.
 - [x] Ejecutar `preparar_release_windows.cmd` y `crear_paquete_windows.cmd` tras los cambios de icono/verificacion de 2026-05-15.
-- [ ] Regenerar paquete ZIP final y `Setup.exe` cuando se quiera distribuir los cambios de instalador sin terminal, OCR robusto, tema y configuracion por secciones.
+- [x] Regenerar paquete ZIP final y `Setup.exe` para el release `0.3.0-local` validado el 2026-06-15.
+- [x] Documentar validación visual, instalación y desinstalación segura en `docs/VALIDACION_RELEASE_0.3.0-local.md`.
 
 ## Criterio para abrir Fase 5
+
+Fase 5 queda pospuesta. Este criterio se conserva como puerta explícita para no introducir infraestructura pesada sin necesidad real.
 
 Solo abrir Fase 5 si se cumple una de estas condiciones:
 

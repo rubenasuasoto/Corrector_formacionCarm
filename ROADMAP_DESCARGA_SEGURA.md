@@ -4,6 +4,8 @@ Este documento aterriza el material de despliegue seguro al estado real del Corr
 
 ## Decision actual
 
+Actualización 2026-06-15: la fase local está cerrada para el release actual. El Corrector CARM ya cuenta con instalador guiado, ZIP limpio, `Setup.exe`, verificación de instalación y desinstalación segura. El `.exe` local ya no es futuro: forma parte del flujo validado. La Fase 5 queda pospuesta; el trabajo siguiente es mantenimiento del release, validación en otros Windows limpios, OCR/formatos difíciles y extracción del núcleo reutilizable para el taller.
+
 Actualizacion 2026-05-14: Fase 4 queda implementada como instalacion local guiada en primera version. El proyecto esta en la puerta pre-Fase 5: toca cerrar la app local, verificar release, mantener subida asistida con revision humana y evitar meter infraestructura cloud/multiusuario antes de que el flujo local sea estable.
 
 Actualizacion 2026-05-12: la app ya ha avanzado hacia un flujo mas directo de autoprompteo y subida asistida. La interfaz de descarga clasica sigue siendo una referencia de seguridad y usabilidad, pero no bloquea el flujo actual si la app ya detecta, descarga y genera prompts de forma comprensible para el docente.
@@ -30,7 +32,7 @@ Codigo
 Git
   control de cambios, .env/datos personales fuera del repositorio
 Build local
-  instalador Windows, paquete ZIP guiado y futuro .exe local
+  instalador Windows, paquete ZIP guiado, Setup.exe y lanzador local
 Test
   verificar_app.py, pruebas offline, endpoints locales, iconos, JS embebido
 Instalacion limpia
@@ -50,7 +52,7 @@ Equivalencias:
 - `Produccion segura` ahora se cubre con `.env` local, endpoints en `127.0.0.1`, token local, logs redactados, datos sensibles fuera de Git y paquete sin artefactos generados.
 - `Simulacion de fallo` se mantiene como pruebas locales de permisos, instalacion limpia, endpoints, cache, credenciales ausentes y subida asistida.
 
-Decision: antes de Fase 5, el siguiente salto de despliegue es `.exe` local con identidad propia de Windows, no Docker. Primera version aplicada: `crear_launcher_windows.cmd` genera `Corrector CARM.exe` como lanzador visual sobre el arranque actual, manteniendo instalacion de dependencias y Chromium fuera del binario.
+Decision vigente: Fase 5 no se abre por defecto. El despliegue soportado es local Windows con `Corrector CARM.exe`, instalador guiado y `Setup.exe`. Docker, servidor y cloud quedan fuera hasta que exista una necesidad real de multiusuario o despliegue institucional.
 
 ## Fase 0: Base antes de la descarga
 
@@ -203,9 +205,9 @@ Objetivo: facilitar uso en Windows sin depender de conocimientos tecnicos.
 - Mensajes claros cuando Windows bloquee permisos. Estado: implementado en primera version con chequeo de lock Playwright, reparador dedicado y `SOLUCION_PROBLEMAS_WINDOWS.md`.
 - Paquete ZIP guiado para otro Windows. Estado: implementado con `crear_paquete_windows.cmd`; excluye `.env`, `.venv`, logs, caches, entregas y correcciones generadas.
 
-PyInstaller o instalador completo pueden esperar hasta que el flujo de descarga/publicacion sea estable.
+El instalador completo ya está validado para el release local actual. PyInstaller sigue sin ser necesario mientras el lanzador local y el `Setup.exe` cubran la experiencia de usuario final.
 
-Estado: fase local implementada en primera version. Antes de abrir Fase 5 hay que cerrar la puerta `CIERRE_APP_LOCAL.md`, centrada en pruebas CARM reales, calidad de correcciones y revision humana.
+Estado: fase local validada para el release actual. `CIERRE_APP_LOCAL.md` queda como puerta de control para futuras revisiones, no como bloqueo abierto del release.
 
 ## Puerta antes de Fase 5: terminar app local
 
@@ -217,10 +219,10 @@ Objetivo: no saltar a infraestructura futura antes de que la herramienta local s
 - Confirmar que la subida asistida mantiene guardado humano.
 - Confirmar que no se duplican prompts, pendientes ni CSV al repetir ejecuciones.
 - Confirmar que la cache didactica usa contenido imprimible/resumenes utiles y no mapas de Moodle.
-- Generar paquete guiado actualizado y manifiesto de release.
-- Revisar `CIERRE_APP_LOCAL.md` y aceptar explicitamente cualquier punto pendiente.
+- Generar paquete guiado actualizado y manifiesto de release. Estado: validado para `0.3.0-local`.
+- Revisar `CIERRE_APP_LOCAL.md` y aceptar explicitamente cualquier punto pendiente. Estado: cerrado para el release actual.
 
-Estado: abierto. Es el punto actual del proyecto.
+Estado: cerrado para el release local actual. Mantener como vigilancia antes de cada nuevo release o cambio de instalador.
 
 ## Fase 5: Pospuesto de forma consciente
 
