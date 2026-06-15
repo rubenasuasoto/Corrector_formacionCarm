@@ -18,3 +18,5 @@ trabajo existentes.
   reales.
 - [PRUEBA_INSTALADOR.md](PRUEBA_INSTALADOR.md): validación del ZIP y del EXE en
   una instalación de laboratorio.
+- [VALIDACION_RELEASE_0.3.0-local.md](VALIDACION_RELEASE_0.3.0-local.md):
+  resultado de la última validación completa de paquete e instalador.
