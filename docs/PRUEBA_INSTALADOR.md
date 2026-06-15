@@ -77,6 +77,30 @@ Get-ChildItem -LiteralPath $pkg -Recurse -Force |
 
 Si el comando devuelve archivos, el paquete no debe compartirse.
 
+## Smoke Test Antes de Instalar
+
+Un paquete recién extraído todavía no contiene `.venv`. Por eso
+`verificar_app_windows.ps1` debe avisar de forma clara antes de instalar:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File C:\temp\corrector_carm_release_test\salida\<carpeta_del_paquete>\verificar_app_windows.ps1 `
+  --instalacion
+```
+
+Salida esperada:
+
+```text
+No existe .venv. Ejecuta primero instalar_windows.cmd
+```
+
+Esto no es un fallo del paquete. Confirma que la verificación no intenta usar
+dependencias inexistentes y que el usuario recibe la acción correcta.
+
+Para una comprobación estática adicional, se pueden compilar los `.py` con una
+venv de desarrollo externa. Si se hace dentro de la carpeta extraída, borra
+después cualquier `__pycache__` creado antes de conservar o comparar el paquete.
+
 ## Prueba de Instalación
 
 1. Ejecuta el EXE o `INSTALAR_CORRECTOR_CARM.cmd` desde la carpeta extraída.
