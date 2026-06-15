@@ -111,6 +111,61 @@ function Remove-IfExists([string]$Path) {
     }
 }
 
+function Test-TextFileReferencesInstall([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $false
+    }
+    try {
+        $content = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+        return $content -like "*$RootFull*"
+    } catch {
+        return $false
+    }
+}
+
+function Test-ShortcutReferencesInstall([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $false
+    }
+    if ([IO.Path]::GetExtension($Path) -ine ".lnk") {
+        return Test-TextFileReferencesInstall $Path
+    }
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($Path)
+        $values = @(
+            [string]$shortcut.TargetPath,
+            [string]$shortcut.WorkingDirectory,
+            [string]$shortcut.IconLocation,
+            [string]$shortcut.Arguments
+        )
+        return [bool]($values | Where-Object { $_ -and $_ -like "*$RootFull*" } | Select-Object -First 1)
+    } catch {
+        return $false
+    }
+}
+
+function Remove-OwnedShortcut([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+    if (Test-ShortcutReferencesInstall $Path) {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    } elseif (-not $Silencioso) {
+        Write-Host "Se conserva acceso ajeno a esta instalacion: $Path" -ForegroundColor Yellow
+    }
+}
+
+function Remove-EmptyDirectory([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        return
+    }
+    $children = @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue)
+    if ($children.Count -eq 0) {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Read-AppConfig {
     $configPath = Join-Path $RootFull ".corrector_app.json"
     if (-not (Test-Path -LiteralPath $configPath)) {
@@ -238,10 +293,12 @@ function Remove-Shortcuts {
     $desktop = [Environment]::GetFolderPath("Desktop")
     $programs = [Environment]::GetFolderPath("Programs")
     $startup = [Environment]::GetFolderPath("Startup")
-    Remove-IfExists (Join-Path $desktop "Corrector CARM.lnk")
-    Remove-IfExists (Join-Path $programs "Corrector CARM")
-    Remove-IfExists (Join-Path $startup "Corrector CARM.cmd")
-    Remove-IfExists (Join-Path $startup "Corrector CARM.vbs")
+    $startFolder = Join-Path $programs "Corrector CARM"
+    Remove-OwnedShortcut (Join-Path $desktop "Corrector CARM.lnk")
+    Remove-OwnedShortcut (Join-Path $startFolder "Corrector CARM.lnk")
+    Remove-EmptyDirectory $startFolder
+    Remove-OwnedShortcut (Join-Path $startup "Corrector CARM.cmd")
+    Remove-OwnedShortcut (Join-Path $startup "Corrector CARM.vbs")
 }
 
 function Remove-UninstallEntry {
