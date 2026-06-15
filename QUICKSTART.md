@@ -244,7 +244,7 @@ No metas claves ni credenciales en archivos sueltos. Las credenciales locales va
 Para el flujo recomendado por API de OpenAI necesitas una clave real en `.env`:
 
 ```env
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=<sk-proj-...>
 OPENAI_MODEL=gpt-5-mini
 CORRECTION_MODE=api
 ```
