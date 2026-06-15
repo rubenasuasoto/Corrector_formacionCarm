@@ -20,3 +20,5 @@ trabajo existentes.
   una instalación de laboratorio.
 - [VALIDACION_RELEASE_0.3.0-local.md](VALIDACION_RELEASE_0.3.0-local.md):
   resultado de la última validación completa de paquete e instalador.
+- [RELEASE_NOTES_0.3.0-local_20260615.md](RELEASE_NOTES_0.3.0-local_20260615.md):
+  notas para publicar el instalador validado del 15 de junio de 2026.
