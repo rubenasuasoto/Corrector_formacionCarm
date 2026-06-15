@@ -47,6 +47,7 @@ SHA256 del EXE:
 - Instalación técnica en laboratorio.
 - Verificación de instalación con credenciales pendientes.
 - Desinstalación de laboratorio conservando accesos ajenos.
+- Instalación visual desde el EXE y verificación posterior.
 
 Más detalle en [VALIDACION_RELEASE_0.3.0-local.md](VALIDACION_RELEASE_0.3.0-local.md).
 
