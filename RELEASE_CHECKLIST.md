@@ -15,6 +15,7 @@ Este checklist se usa antes de compartir una version, reinstalar en otro equipo 
 - [ ] `INSTALAR_CORRECTOR_CARM.cmd` abre el asistente visual y permite elegir carpeta de instalacion, carpeta de datos, accesos e inicio con Windows.
 - [ ] La instalacion registra `Corrector CARM` en Aplicaciones instaladas y `desinstalar_windows.cmd` / `.ps1` estan incluidos en el paquete.
 - [ ] Si se comparte con usuarios finales, `crear_instalador_setup_windows.cmd` genera un `Corrector_CARM_*_Setup_*.exe` probado sin ejecutar la instalacion.
+- [ ] `docs/PRUEBA_INSTALADOR.md` se ha seguido en una carpeta de laboratorio antes de publicar el EXE.
 - [ ] Reinstalar sobre carpetas existentes conserva `.env` y reutiliza datos compatibles.
 - [ ] Desinstalar permite conservar datos o borrar selectivamente pendientes, temporal y cursos/cache/proyectos Codex.
 - [ ] La ventana de instalacion muestra comprobacion previa de dependencias, carpetas existentes y estado/login de Codex CLI.

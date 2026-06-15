@@ -16,3 +16,5 @@ trabajo existentes.
 - [PUBLICACION.md](PUBLICACION.md): checklist para abrir el repositorio.
 - [DEMO_LOCAL.md](DEMO_LOCAL.md): cómo preparar capturas públicas sin datos
   reales.
+- [PRUEBA_INSTALADOR.md](PRUEBA_INSTALADOR.md): validación del ZIP y del EXE en
+  una instalación de laboratorio.
