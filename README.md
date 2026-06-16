@@ -25,7 +25,6 @@ Para comprobar la descarga:
 3. Compara el SHA256 con el valor indicado abajo.
 4. Si no confías en el origen o el hash no coincide, no ejecutes el instalador.
 
-La forma correcta de reducir este aviso en futuras versiones es firmar el EXE con un certificado de firma de código y mantener la distribución desde GitHub Releases.
 
 <details>
 <summary>Verificación de la descarga</summary>
