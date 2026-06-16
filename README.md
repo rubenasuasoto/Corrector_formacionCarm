@@ -14,6 +14,19 @@ Ejecuta el instalador y sigue el asistente. Si Windows SmartScreen avisa de edit
 
 El instalador público no incluye `.env`, `.venv`, caché, logs, entregas, correcciones, proyectos Codex ni datos personales.
 
+### Aviso de Windows SmartScreen
+
+Windows puede mostrar un aviso indicando que el archivo no se descarga habitualmente o que el editor es desconocido. Ese aviso aparece porque el instalador aún no está firmado digitalmente y todavía no tiene reputación suficiente en Microsoft Defender SmartScreen.
+
+Para comprobar la descarga:
+
+1. Descarga el archivo desde el release oficial del proyecto.
+2. Verifica que el nombre coincide con el publicado.
+3. Compara el SHA256 con el valor indicado abajo.
+4. Si no confías en el origen o el hash no coincide, no ejecutes el instalador.
+
+La forma correcta de reducir este aviso en futuras versiones es firmar el EXE con un certificado de firma de código y mantener la distribución desde GitHub Releases.
+
 <details>
 <summary>Verificación de la descarga</summary>
 
