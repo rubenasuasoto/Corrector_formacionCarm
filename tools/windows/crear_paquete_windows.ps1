@@ -61,6 +61,7 @@ function Assert-NoSensitiveArtifacts {
         "ARQUITECTURA_PROYECTO.md",
         "CIERRE_APP_LOCAL.md",
         "ESTADO_PROYECTO.md",
+        "INSTRUCCIONES_CODEX_PERSONALIZADAS.md",
         "RELEASE_CHECKLIST.md",
         "ROADMAP_DESCARGA_SEGURA.md",
         "preparar_release.py",
@@ -124,7 +125,6 @@ New-Item -ItemType Directory -Path $PackageDir | Out-Null
 $ReleaseFiles = @(
     ".env.example",
     "VERSION",
-    "INSTRUCCIONES_CODEX_PERSONALIZADAS.md",
     "requirements.txt",
     "requirements-extraccion.txt",
     "prompts_correccion.json",

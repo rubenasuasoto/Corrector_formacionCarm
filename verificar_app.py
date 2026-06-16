@@ -699,8 +699,8 @@ def check_contexto_cursos_cuenta() -> bool:
         if "1600" not in str(pendientes) or "1600" not in str(temporal):
             safe_print("ERROR: las carpetas activas no cambian al curso seleccionado.")
             return False
-        curso_pendientes = app.Path(r"C:\temp\vscodec\cursos\1592\pendientes")
-        curso_temporal = app.Path(r"C:\temp\vscodec\cursos\1592\temporal")
+        curso_pendientes = app.Path(r"C:\temp\vscodec\cursos\1234\pendientes")
+        curso_temporal = app.Path(r"C:\temp\vscodec\cursos\1234\temporal")
         if not app._looks_like_course_work_dir(curso_pendientes, "pendientes"):
             safe_print("ERROR: no se detectan como base invalida las rutas pendientes de un curso concreto.")
             return False
