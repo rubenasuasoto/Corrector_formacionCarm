@@ -8,7 +8,7 @@ La idea principal es sencilla: el docente conserva el control. La app puede prep
 
 ### Descargar
 
-[Descargar instalador para Windows](https://github.com/rubenasuasoto/agente/releases/latest/download/Corrector_CARM_0.3.0-local_Setup_20260616_083941.exe)
+[Descargar instalador para Windows](https://github.com/rubenasuasoto/agente/releases/latest/download/Corrector_CARM_0.3.0-local_Setup_20260616_084646.exe)
 
 Ejecuta el instalador y sigue el asistente. Si Windows SmartScreen avisa de editor desconocido, es normal mientras la app no esté firmada digitalmente.
 
@@ -18,10 +18,10 @@ El instalador público no incluye `.env`, `.venv`, caché, logs, entregas, corre
 <summary>Verificación de la descarga</summary>
 
 - Versión validada: `0.3.0-local`.
-- Instalador: `Corrector_CARM_0.3.0-local_Setup_20260616_083941.exe`.
-- SHA256: `B0C195E501A0730C67EA261C0DFCB111A9C1137A09C1A002C556B6A5A047BB8E`.
-- ZIP guiado alternativo: `Corrector_CARM_0.3.0-local_guiado_20260616_083919.zip`.
-- SHA256 ZIP: `EAA1263A0764620F1B800BAF3A25E842763A5FEFD1CDDD4216F7EF3A0F60351E`.
+- Instalador: `Corrector_CARM_0.3.0-local_Setup_20260616_084646.exe`.
+- SHA256: `4C642F3AE81F0333333EA1DAC326A11A6696C53A0BD9792838C31D766200B31A`.
+- ZIP guiado alternativo: `Corrector_CARM_0.3.0-local_guiado_20260616_084716.zip`.
+- SHA256 ZIP: `832E5E29042DD522E294BE6126A93AC5A2889E36D72E75E7BE358F7D8D859849`.
 
 </details>
 
