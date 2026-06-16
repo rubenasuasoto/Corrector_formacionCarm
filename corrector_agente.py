@@ -77,6 +77,11 @@ except ValueError:
 DEFAULT_PENDIENTES_DIR = Path(r"C:\temp\vscodec\pendientes")
 DEFAULT_TEMPORAL_DIR = Path(r"C:\temp\vscodec\temporal")
 DEFAULT_ACTIVIDAD_CODIGO = "ud01cp01"
+# Moodle/CARM usa actualmente "requiregrading"; se acepta el valor antiguo
+# "require_grading" solo para caches/enlaces heredados.
+CARM_FILTER_REQUIRE_GRADING = "requiregrading"
+CARM_FILTER_REQUIRE_GRADING_LEGACY = "require_grading"
+CARM_FILTER_REQUIRE_GRADING_VALUES = {CARM_FILTER_REQUIRE_GRADING, CARM_FILTER_REQUIRE_GRADING_LEGACY}
 
 
 def course_id_from_url(url: str | None = None) -> str:
@@ -2380,7 +2385,7 @@ class ExtractorCarm:
         p = urlparse(url)
         q = dict(parse_qsl(p.query))
         q["action"] = "grading"
-        q["filter"] = "requiregrading"
+        q["filter"] = CARM_FILTER_REQUIRE_GRADING
         q["perpage"] = "1000"
         for clave in (
             "page",
@@ -2804,6 +2809,7 @@ class ExtractorCarm:
                 continue
             vistos.add(vista_url)
             enlace_require_grading = await modulo.query_selector(
+                "a[href*='action=grading'][href*='filter=requiregrading'], "
                 "a[href*='action=grading'][href*='filter=require_grading']"
             )
             href_require_grading = (
@@ -2849,7 +2855,7 @@ class ExtractorCarm:
                     "url_grading": self._url_grading_requiere_calificacion(
                         href_require_grading or self._agregar_action_grading(vista_url)
                     ),
-                    "filtro": "require_grading",
+                    "filtro": CARM_FILTER_REQUIRE_GRADING,
                     "resumen_carm": resumen_accion,
                     "sin_calificar_carm": resumen_accion.get("sin_calificar"),
                 }
@@ -3114,7 +3120,7 @@ class ExtractorCarm:
                         for option in await filtro.query_selector_all("option"):
                             text = self._normalizar(await option.text_content() or "")
                             value = (await option.get_attribute("value") or "").strip()
-                            if value in {"requiregrading", "require_grading"} or "requiere calificacion" in text:
+                            if value in CARM_FILTER_REQUIRE_GRADING_VALUES or "requiere calificacion" in text:
                                 valor_filtro = value
                                 break
                     else:
@@ -3204,11 +3210,11 @@ class ExtractorCarm:
                     text = self._normalizar(await option.text_content() or "")
                     value = (await option.get_attribute("value") or "").strip()
                     option_texts.append(text)
-                    if value in {"requiregrading", "require_grading"} or "requiere calificacion" in text:
+                    if value in CARM_FILTER_REQUIRE_GRADING_VALUES or "requiere calificacion" in text:
                         option_value = value
                 if "filter" in name or any("requiere calificacion" in text for text in option_texts):
                     try:
-                        await select.select_option(option_value or "requiregrading")
+                        await select.select_option(option_value or CARM_FILTER_REQUIRE_GRADING)
                         await self._esperar_grading_estable(page)
                     except Exception:
                         pass
@@ -3257,7 +3263,7 @@ class ExtractorCarm:
                 "initial",
             }
         }
-        if filtro not in {"requiregrading", "require_grading"} or filtros_letra:
+        if filtro not in CARM_FILTER_REQUIRE_GRADING_VALUES or filtros_letra:
             raise RuntimeError(
                 f"Filtros de grading no seguros en {actividad.get('codigo')}: "
                 f"filter={filtro or 'vacio'}, iniciales={filtros_letra or 'todos'}"
