@@ -35,4 +35,13 @@ docs/img/configuracion.png
 docs/img/subida-asistida.png
 ```
 
+Capturas públicas actuales:
+
+- `docs/img/panel-principal.png`
+- `docs/img/configuracion.png`
+
+Se generaron con la interfaz real y textos de demostración inyectados en el
+navegador antes de capturar. Si se regeneran, revisa que no aparezcan cursos,
+rutas, logs o credenciales reales.
+
 Si hay duda sobre una captura, recréala con datos ficticios.

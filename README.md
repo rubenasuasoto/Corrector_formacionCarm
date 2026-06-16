@@ -21,6 +21,15 @@ JSON y la subida asistida ya forman el flujo operativo. El uso recomendado es
 autopromptear, resolver prompts bajo confirmación y subir con modo asistido
 desde `revision_pendiente.csv`; el guardado final en CARM sigue siendo humano.
 
+## Vista de la interfaz
+
+Capturas públicas generadas con datos de demostración, sin credenciales ni
+entregas reales:
+
+![Panel principal del Corrector CARM](docs/img/panel-principal.png)
+
+![Configuración del Corrector CARM](docs/img/configuracion.png)
+
 ## Documentos importantes
 
 Lee estos archivos en este orden:

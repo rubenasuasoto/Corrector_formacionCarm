@@ -24,3 +24,10 @@ trabajo existentes.
   notas para publicar el instalador validado del 15 de junio de 2026.
 - [GITHUB_RELEASE_0.3.0-local_20260615.md](GITHUB_RELEASE_0.3.0-local_20260615.md):
   borrador listo para crear el release manual en GitHub.
+
+## Capturas públicas
+
+- [img/panel-principal.png](img/panel-principal.png): panel principal con datos
+  de demostración.
+- [img/configuracion.png](img/configuracion.png): modal de configuración con
+  datos de demostración.

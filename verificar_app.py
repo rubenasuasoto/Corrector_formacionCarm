@@ -222,8 +222,8 @@ def check_cache_sqlite_basica() -> bool:
                 "nombre": "UD01 - Caso practico 1",
                 "tipo": "obligatorio",
                 "url": "https://formacion.carm.es/mod/assign/view.php?id=1",
-                "url_grading": "https://formacion.carm.es/mod/assign/view.php?action=grading&id=1&filter=require_grading",
-                "filtro": "require_grading",
+                "url_grading": "https://formacion.carm.es/mod/assign/view.php?action=grading&id=1&filter=requiregrading",
+                "filtro": "requiregrading",
                 "enunciado": "Enunciado de prueba",
             }
         )
