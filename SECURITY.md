@@ -16,6 +16,9 @@ todo dato operativo como sensible.
   guardado final corresponde al docente.
 - Los diagnósticos exportables deben estar redactados y contener solo estado,
   contadores y rutas no sensibles.
+- `--guardar-evidencias` guarda HTML redactado. Las capturas PNG solo deben
+  generarse con `--guardar-capturas-diagnostico` y tratarse como datos
+  sensibles.
 
 ## Reportar Problemas
 
