@@ -28,7 +28,7 @@ publique en CARM sin una acción humana explícita.
 El flujo principal ya está implementado en `corrector_agente.py`:
 
 - Versión local validada: `0.3.0-local`.
-- Release local validado el 15 de junio de 2026 con ZIP guiado e instalador EXE.
+- Release local validado el 16 de junio de 2026 con ZIP guiado e instalador EXE.
 - Corrige entregas locales colocadas en la carpeta activa de pendientes. Con carpetas por curso activadas: `C:\temp\vscodec\cursos\<course_id>\pendientes`.
 - Agrupa las entregas por actividad, por ejemplo `ud01cp01` o `ud02cp03`.
 - Prepara prompts por lote para reducir llamadas a la IA.
@@ -74,6 +74,31 @@ El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_P
 
 La versión local está en `VERSION`. La interfaz y `verificar_app.py` muestran
 versión, commit y si hay cambios locales.
+
+## Descarga Recomendada
+
+Último paquete local preparado para distribución: `0.3.0-local`, generado el
+16 de junio de 2026 desde el commit `cc09b10`.
+
+Para usuarios finales, usa el instalador EXE:
+
+```text
+Corrector_CARM_0.3.0-local_Setup_20260616_081927.exe
+SHA256: D4E9048257F69030EFD4E98D3B6F11E6F75E206A9455786CE54BA30520805577
+```
+
+Si Windows SmartScreen avisa por no estar firmado digitalmente, puedes usar el
+ZIP guiado como alternativa transparente:
+
+```text
+Corrector_CARM_0.3.0-local_guiado_20260616_081847.zip
+SHA256: FB2D17D1D60F5F4594A41A02CF10B8EE824D328D88D32293F33295D8FD657E9E
+```
+
+El paquete no incluye `.env`, `.venv`, caché, logs, entregas, correcciones,
+proyectos Codex ni datos personales. Antes de publicar una descarga nueva,
+ejecuta `.\verificar_app_windows.cmd --instalacion`, crea el ZIP/EXE y adjunta
+los hashes SHA256 junto al release.
 
 ## Instalación
 
