@@ -1,3 +1,12 @@
+"""Panel local del Corrector CARM.
+
+Este módulo mantiene deliberadamente juntas la UI web local, la bandeja de
+Windows y la orquestación de comandos porque los instaladores y accesos directos
+lo usan como punto de entrada estable. La extracción/corrección real vive en
+`corrector_agente.py`; aquí solo se exponen acciones permitidas, estado local y
+configuración.
+"""
+
 from __future__ import annotations
 
 import argparse

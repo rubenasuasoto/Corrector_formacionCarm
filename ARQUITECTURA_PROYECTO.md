@@ -32,6 +32,45 @@ Archivos activos:
 - `interfaz_app.py`: interfaz web local, bandeja de Windows, configuracion y orquestacion de comandos permitidos.
 - `prompts_correccion.json`: rubricas y prompts editables por actividad.
 
+## Mapa del código actual
+
+El repositorio mantiene dos módulos grandes por compatibilidad con instaladores,
+atajos de Windows y uso real ya validado. Antes de extraer paquetes internos,
+conviene conocer estas fronteras:
+
+### `corrector_agente.py`
+
+- Configuración, rutas y seguridad local: constantes iniciales, lectura de
+  `.env`, redacción de logs, auditoría y purga local.
+- Archivo de prompts y correcciones: funciones `archivar_*`,
+  `filtrar_prompts_para_correccion` e importación de JSON/CSV.
+- Cache didáctica: `CacheCursoCarm`.
+- Prompts e IA: `GestorPrompts` y `CorrectorIA`.
+- Adaptador CARM/Moodle: `ExtractorCarm`, incluyendo login, filtros de grading,
+  descarga, contraste, regularización y subida asistida.
+- Salidas revisables: `GeneradorSalidas`, manifiestos, `revision_pendiente.csv`
+  y ficheros por alumno.
+- CLI: `ejecutar_flujo` y `parse_args`.
+
+### `interfaz_app.py`
+
+- Configuración de escritorio: rutas por curso, preferencias visuales, OpenAI,
+  credenciales CARM y arranque con Windows.
+- Panel local: servidor HTTP en `127.0.0.1`, token local, HTML/CSS/JS embebido
+  y endpoints `/api/*`.
+- Orquestación: `TaskRunner`, `build_args`, estado del proceso, botón detener,
+  reinicio y acciones avanzadas.
+- Bandeja y notificaciones: icono, menú de bandeja, recordatorios de prompts y
+  avisos de correcciones pendientes.
+
+### `verificar_app.py`
+
+- Verificación de release local: compilación, textos sin mojibake, iconos,
+  JavaScript embebido, cache, filtros CARM, importación offline, proyecto Codex,
+  preferencias, instalador y arranque sin consola.
+- Debe seguir siendo rápido y seguro: por defecto evita depender de CARM real
+  cuando se usa `--instalacion --sin-endpoints`.
+
 Instalacion y soporte Windows:
 
 - `instalar_windows.cmd`
