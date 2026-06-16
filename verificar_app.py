@@ -1,3 +1,11 @@
+"""Verificador local del Corrector CARM.
+
+Agrupa comprobaciones ligeras de instalación, seguridad, JavaScript embebido,
+flujos offline y packaging. Está pensado para ejecutarse antes de usar datos
+reales o antes de compartir un release; las pruebas evitan tocar CARM salvo que
+se pidan endpoints/credenciales reales desde el entorno local.
+"""
+
 from __future__ import annotations
 
 import argparse
