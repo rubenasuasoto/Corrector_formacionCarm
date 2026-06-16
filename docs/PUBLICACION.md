@@ -41,7 +41,7 @@ Checklist para publicar Corrector CARM como repositorio abierto o compartido.
 git status
 python verificar_app.py --sin-endpoints
 .\verificar_app_windows.cmd --instalacion
-.\preparar_release_windows.cmd
+.\tools\windows\preparar_release_windows.cmd
 ```
 
 Para publicar el release local validado:

@@ -13,10 +13,10 @@ Este checklist se usa antes de compartir una version, reinstalar en otro equipo 
 - [ ] `ESTADO_PROYECTO.md`, `ROADMAP_DESCARGA_SEGURA.md` y `ARQUITECTURA_PROYECTO.md` reflejan el estado real.
 - [ ] `docs/VALIDACION_RELEASE_0.3.0-local.md` y las release notes reflejan la ultima validacion completa si se comparte el instalador.
 - [ ] `assets/corrector_carm.ico` y `assets/corrector_carm.png` estan incluidos para panel, bandeja, accesos directos y paquete Windows.
-- [ ] Si se distribuye como app guiada, `Corrector CARM.exe` se ha regenerado con `crear_launcher_windows.cmd` y no contiene secretos.
+- [ ] Si se distribuye como app guiada, `Corrector CARM.exe` se ha regenerado con `tools\windows\crear_launcher_windows.cmd` y no contiene secretos.
 - [ ] `INSTALAR_CORRECTOR_CARM.cmd` abre el asistente visual y permite elegir carpeta de instalacion, carpeta de datos, accesos e inicio con Windows.
 - [ ] La instalacion registra `Corrector CARM` en Aplicaciones instaladas y `desinstalar_windows.cmd` / `.ps1` estan incluidos en el paquete.
-- [ ] Si se comparte con usuarios finales, `crear_instalador_setup_windows.cmd` genera un `Corrector_CARM_*_Setup_*.exe` probado sin ejecutar la instalacion.
+- [ ] Si se comparte con usuarios finales, `tools\windows\crear_instalador_setup_windows.cmd` genera un `Corrector_CARM_*_Setup_*.exe` probado sin ejecutar la instalacion.
 - [ ] `docs/PRUEBA_INSTALADOR.md` se ha seguido en una carpeta de laboratorio antes de publicar el EXE.
 - [ ] El desinstalador solo borra accesos que apuntan a la carpeta instalada y conserva accesos de otras copias.
 - [ ] Reinstalar sobre carpetas existentes conserva `.env` y reutiliza datos compatibles.
@@ -60,13 +60,13 @@ Para una instalacion nueva sin credenciales:
 Para preparar un release local y guardar manifiesto:
 
 ```powershell
-.\preparar_release_windows.cmd
+.\tools\windows\preparar_release_windows.cmd
 ```
 
 Para crear etiqueta Git despues de hacer commit y tener el arbol limpio:
 
 ```powershell
-.\preparar_release_windows.cmd --crear-tag
+.\tools\windows\preparar_release_windows.cmd --crear-tag
 ```
 
 Para el release validado del 15 de junio de 2026, usar como referencia:
@@ -80,7 +80,7 @@ docs/GITHUB_RELEASE_0.3.0-local_20260615.md
 Para regenerar el lanzador local con icono propio:
 
 ```powershell
-.\crear_launcher_windows.cmd
+.\tools\windows\crear_launcher_windows.cmd
 ```
 
 ## 3. Seguridad operativa

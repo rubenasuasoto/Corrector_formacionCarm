@@ -3,7 +3,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ToolsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = [IO.Path]::GetFullPath((Join-Path $ToolsDir "..\.."))
 Set-Location -LiteralPath $Root
 
 function Write-Step($Message) {

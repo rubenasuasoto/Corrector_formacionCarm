@@ -4,7 +4,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ToolsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = [IO.Path]::GetFullPath((Join-Path $ToolsDir "..\.."))
 Set-Location -LiteralPath $Root
 
 function Write-Step($Message) {
@@ -107,10 +108,11 @@ $PackageName = "Corrector_CARM_${Version}_guiado_$Stamp"
 $PackageDir = Join-Path $OutputRoot $PackageName
 $PackageZip = "$PackageDir.zip"
 
-if (Test-Path -LiteralPath (Join-Path $Root "crear_launcher_windows.ps1")) {
+$LauncherScript = Join-Path $ToolsDir "crear_launcher_windows.ps1"
+if (Test-Path -LiteralPath $LauncherScript) {
     Write-Step "Actualizando lanzador de Windows"
     try {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root "crear_launcher_windows.ps1")
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $LauncherScript
     } catch {
         Write-Host "Aviso: no se pudo crear Corrector CARM.exe. El paquete mantendra los lanzadores .cmd. Detalle: $_" -ForegroundColor Yellow
     }
@@ -145,8 +147,6 @@ $ReleaseFiles = @(
     "instalar_ocr_windows.ps1",
     "desinstalar_windows.cmd",
     "desinstalar_windows.ps1",
-    "crear_launcher_windows.cmd",
-    "crear_launcher_windows.ps1",
     "Corrector CARM.exe",
     "assets/corrector_carm.ico",
     "assets/corrector_carm.png"

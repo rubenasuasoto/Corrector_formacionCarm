@@ -26,7 +26,7 @@ Antes de generar artefactos:
 ```powershell
 git status
 .\verificar_app_windows.cmd --instalacion
-.\preparar_release_windows.cmd
+.\tools\windows\preparar_release_windows.cmd
 ```
 
 El estado de Git debe estar limpio o contener solo cambios que se quieran
@@ -37,13 +37,13 @@ probar explícitamente.
 Para crear el ZIP guiado:
 
 ```powershell
-.\crear_paquete_windows.cmd -Salida C:\temp\corrector_carm_release_test\salida
+.\tools\windows\crear_paquete_windows.cmd -Salida C:\temp\corrector_carm_release_test\salida
 ```
 
 Para crear el instalador EXE:
 
 ```powershell
-.\crear_instalador_setup_windows.cmd -Salida C:\temp\corrector_carm_release_test\salida
+.\tools\windows\crear_instalador_setup_windows.cmd -Salida C:\temp\corrector_carm_release_test\salida
 ```
 
 El EXE no está firmado digitalmente, así que Windows SmartScreen puede avisar de
