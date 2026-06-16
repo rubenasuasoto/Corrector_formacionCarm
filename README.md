@@ -75,30 +75,26 @@ El README es solo la entrada general. Si hay duda entre este archivo y `ESTADO_P
 La versión local está en `VERSION`. La interfaz y `verificar_app.py` muestran
 versión, commit y si hay cambios locales.
 
-## Descarga Recomendada
+## Descargar Corrector CARM
 
-Último paquete local preparado para distribución: `0.3.0-local`, generado el
-16 de junio de 2026 desde el commit `cc09b10`.
+[Descargar instalador para Windows](https://github.com/rubenasuasoto/agente/releases/latest/download/Corrector_CARM_0.3.0-local_Setup_20260616_083941.exe)
 
-Para usuarios finales, usa el instalador EXE:
+Ejecuta el instalador y sigue el asistente. Si Windows SmartScreen avisa de
+editor desconocido, es normal mientras la app no esté firmada digitalmente.
 
-```text
-Corrector_CARM_0.3.0-local_Setup_20260616_081927.exe
-SHA256: D4E9048257F69030EFD4E98D3B6F11E6F75E206A9455786CE54BA30520805577
-```
+El instalador público no incluye `.env`, `.venv`, caché, logs, entregas,
+correcciones, proyectos Codex ni datos personales.
 
-Si Windows SmartScreen avisa por no estar firmado digitalmente, puedes usar el
-ZIP guiado como alternativa transparente:
+<details>
+<summary>Verificación de la descarga</summary>
 
-```text
-Corrector_CARM_0.3.0-local_guiado_20260616_081847.zip
-SHA256: FB2D17D1D60F5F4594A41A02CF10B8EE824D328D88D32293F33295D8FD657E9E
-```
+- Versión validada: `0.3.0-local`.
+- Instalador: `Corrector_CARM_0.3.0-local_Setup_20260616_083941.exe`.
+- SHA256: `B0C195E501A0730C67EA261C0DFCB111A9C1137A09C1A002C556B6A5A047BB8E`.
+- ZIP guiado alternativo: `Corrector_CARM_0.3.0-local_guiado_20260616_083919.zip`.
+- SHA256 ZIP: `EAA1263A0764620F1B800BAF3A25E842763A5FEFD1CDDD4216F7EF3A0F60351E`.
 
-El paquete no incluye `.env`, `.venv`, caché, logs, entregas, correcciones,
-proyectos Codex ni datos personales. Antes de publicar una descarga nueva,
-ejecuta `.\verificar_app_windows.cmd --instalacion`, crea el ZIP/EXE y adjunta
-los hashes SHA256 junto al release.
+</details>
 
 ## Instalación
 
@@ -181,13 +177,13 @@ En una instalacion nueva sin credenciales ni curso activo:
 Para preparar un release local con manifiesto:
 
 ```powershell
-.\preparar_release_windows.cmd
+.\tools\windows\preparar_release_windows.cmd
 ```
 
 Para crear un ZIP guiado para instalar en otro Windows:
 
 ```powershell
-.\crear_paquete_windows.cmd
+.\tools\windows\crear_paquete_windows.cmd
 ```
 
 El paquete no incluye `.env`, `.venv`, cache, logs, entregas ni correcciones generadas.
@@ -195,7 +191,7 @@ El paquete no incluye `.env`, `.venv`, cache, logs, entregas ni correcciones gen
 Para crear un instalador EXE autoextraible de un solo archivo:
 
 ```powershell
-.\crear_instalador_setup_windows.cmd
+.\tools\windows\crear_instalador_setup_windows.cmd
 ```
 
 El EXE contiene el paquete limpio y lanza `INSTALAR_CORRECTOR_CARM.cmd` automaticamente tras extraerlo en una carpeta temporal. Es la ruta pensada para usuarios finales que no deben descomprimir carpetas. Si no se firma digitalmente, Windows puede avisar de editor desconocido.

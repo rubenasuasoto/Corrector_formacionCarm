@@ -4,7 +4,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ToolsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = [IO.Path]::GetFullPath((Join-Path $ToolsDir "..\.."))
 Set-Location -LiteralPath $Root
 
 $VenvPython = Join-Path $Root ".venv\Scripts\python.exe"
@@ -13,7 +14,7 @@ if (-not (Test-Path $VenvPython)) {
     exit 1
 }
 
-$ArgsList = @("preparar_release.py")
+$ArgsList = @((Join-Path $ToolsDir "preparar_release.py"))
 if ($SinPruebaOffline) {
     $ArgsList += "--sin-prueba-offline"
 }

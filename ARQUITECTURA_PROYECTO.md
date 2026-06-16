@@ -80,16 +80,24 @@ Instalacion y soporte Windows:
 - `iniciar_app_windows.cmd`
 - `desinstalar_windows.cmd`
 - `desinstalar_windows.ps1`
-- `crear_launcher_windows.cmd`
-- `crear_launcher_windows.ps1`
 - `reparar_dependencias_windows.cmd`
 - `reparar_dependencias_windows.ps1`
 - `instalar_ocr_windows.cmd`
 - `instalar_ocr_windows.ps1`
-- `crear_paquete_windows.cmd`
-- `crear_paquete_windows.ps1`
 - `requirements.txt`
 - `requirements-extraccion.txt`
+
+Herramientas internas de empaquetado y publicacion:
+
+- `tools/windows/crear_launcher_windows.cmd`
+- `tools/windows/crear_launcher_windows.ps1`
+- `tools/windows/crear_paquete_windows.cmd`
+- `tools/windows/crear_paquete_windows.ps1`
+- `tools/windows/crear_instalador_setup_windows.cmd`
+- `tools/windows/crear_instalador_setup_windows.ps1`
+- `tools/windows/preparar_release_windows.cmd`
+- `tools/windows/preparar_release_windows.ps1`
+- `tools/windows/preparar_release.py`
 
 Identidad visual local:
 
@@ -181,12 +189,16 @@ existe, la app funciona con rutas multi-curso y `.env`, logs, caches, salidas,
 verificaciones temporales y correcciones generadas no aparecen en el paquete ni
 deben aparecer en `git ls-files`.
 
-Decision de orden actual: no mover todavia los scripts Windows a `scripts/`, porque el instalador, el paquete ZIP y los accesos directos esperan varios lanzadores en raiz. La limpieza profesional se hara en dos pasos: primero paquete y documentacion claros; despues refactor de carpetas con wrappers de compatibilidad.
+Decision de orden actual: la raiz conserva las entradas de usuario y soporte
+directo (`INSTALAR_CORRECTOR_CARM.cmd`, `ABRIR_CORRECTOR_CARM.cmd`,
+instalador guiado, reparador, desinstalador y verificacion). Las herramientas
+de construccion, release e instalador EXE viven en `tools/windows` para que el
+repositorio publico sea mas claro sin romper el paquete ni los accesos directos.
 
 El paquete de usuario final no replica el repositorio completo.
-`crear_paquete_windows.ps1` usa una lista blanca de archivos necesarios y genera
-dentro del ZIP `LEEME_INSTALACION.txt`, `GUIA_USUARIO.txt` y
-`MANIFIESTO_PAQUETE.json`. Quedan fuera documentos de desarrollo como
+`tools/windows/crear_paquete_windows.ps1` usa una lista blanca de archivos
+necesarios y genera dentro del ZIP `LEEME_INSTALACION.txt`,
+`GUIA_USUARIO.txt` y `MANIFIESTO_PAQUETE.json`. Quedan fuera documentos de desarrollo como
 `AGENTS.md`, `ESTADO_PROYECTO.md`, `ARQUITECTURA_PROYECTO.md`, roadmap,
 checklist de release y scripts de preparacion interna.
 
@@ -310,8 +322,8 @@ El flujo de despliegue seguro se aplica en escala local:
 
 - Codigo: raiz del proyecto, con `corrector_agente.py` e `interfaz_app.py` como ejecutables activos.
 - Git: no versionar `.env`, caches, logs, entregas, salidas ni correcciones generadas.
-- Build local: `crear_paquete_windows.cmd` y futuro `.exe` local.
-- Lanzador Windows: `crear_launcher_windows.cmd` genera `Corrector CARM.exe` con icono propio; arranca directamente `pythonw.exe interfaz_app.py` sin consola visible y no contiene credenciales ni datos.
+- Build local: `tools\windows\crear_paquete_windows.cmd` e instalador EXE con `tools\windows\crear_instalador_setup_windows.cmd`.
+- Lanzador Windows: `tools\windows\crear_launcher_windows.cmd` genera `Corrector CARM.exe` con icono propio; arranca directamente `pythonw.exe interfaz_app.py` sin consola visible y no contiene credenciales ni datos.
 - Instalador guiado: `INSTALAR_CORRECTOR_CARM.cmd` llama a `instalador_guiado_windows.ps1`, copia la app a la carpeta elegida, prepara `.corrector_app.json` con carpeta de datos configurable y despues ejecuta el instalador tecnico.
 - Test: `verificar_app.py`, endpoints locales, importacion JSON/CSV, aislamiento cuenta/curso, JS embebido e iconos.
 - Instalacion limpia: probar ZIP/paquete en una carpeta temporal sin secretos.

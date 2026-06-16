@@ -143,7 +143,7 @@ Para crear tambien un acceso directo en el escritorio:
 Para generar un paquete ZIP guiado para otro Windows:
 
 ```powershell
-.\crear_paquete_windows.cmd
+.\tools\windows\crear_paquete_windows.cmd
 ```
 
 El paquete se crea en el Escritorio y no incluye `.env`, `.venv`, logs, cache ni entregas/correcciones generadas.
@@ -151,7 +151,7 @@ El paquete se crea en el Escritorio y no incluye `.env`, `.venv`, logs, cache ni
 Para generar un instalador descargable de un solo archivo, sin pedir al usuario que descomprima nada:
 
 ```powershell
-.\crear_instalador_setup_windows.cmd
+.\tools\windows\crear_instalador_setup_windows.cmd
 ```
 
 Esto crea `Corrector_CARM_<version>_Setup_<fecha>.exe` en el Escritorio. Al abrirlo, extrae temporalmente el paquete limpio y lanza el instalador guiado actual. Como no esta firmado digitalmente, Windows puede mostrar aviso de editor desconocido.
@@ -207,7 +207,7 @@ Justo despues de instalar, antes de configurar credenciales o curso, puedes usar
 Para preparar un release local y guardar un manifiesto en `respuestas_extraidas`:
 
 ```powershell
-.\preparar_release_windows.cmd
+.\tools\windows\preparar_release_windows.cmd
 ```
 
 Instalacion manual equivalente:

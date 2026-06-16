@@ -5,7 +5,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ToolsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = [IO.Path]::GetFullPath((Join-Path $ToolsDir "..\.."))
 Set-Location -LiteralPath $Root
 
 function Write-Step($Message) {
@@ -163,7 +164,7 @@ New-Item -ItemType Directory -Path $SfxSource -Force | Out-Null
 
 try {
     Write-Step "Creando ZIP limpio del paquete guiado"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root "crear_paquete_windows.ps1") -Salida $PackageOut
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ToolsDir "crear_paquete_windows.ps1") -Salida $PackageOut
     if ($LASTEXITCODE -ne 0) {
         throw "crear_paquete_windows.ps1 fallo con codigo $LASTEXITCODE"
     }

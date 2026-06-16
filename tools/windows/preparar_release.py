@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent
+TOOLS_DIR = Path(__file__).resolve().parent
+ROOT = TOOLS_DIR.parent.parent
 MANIFEST_DIR = ROOT / "respuestas_extraidas"
 
 

@@ -1108,7 +1108,7 @@ def check_instalador_python() -> bool:
     safe_print("\n==> Instalador Python")
     tecnico = ROOT / "instalar_windows.ps1"
     guiado = ROOT / "instalador_guiado_windows.ps1"
-    setup = ROOT / "crear_instalador_setup_windows.ps1"
+    setup = ROOT / "tools" / "windows" / "crear_instalador_setup_windows.ps1"
     desinstalador = ROOT / "desinstalar_windows.ps1"
     try:
         tecnico_text = tecnico.read_text(encoding="utf-8")
@@ -1196,7 +1196,7 @@ def check_instalador_ocr() -> bool:
 def check_arranque_sin_consola() -> bool:
     safe_print("\n==> Arranque sin consola")
     files = {
-        "crear_launcher_windows.ps1": ROOT / "crear_launcher_windows.ps1",
+        "crear_launcher_windows.ps1": ROOT / "tools" / "windows" / "crear_launcher_windows.ps1",
         "interfaz_app.py": ROOT / "interfaz_app.py",
         "desinstalar_windows.ps1": ROOT / "desinstalar_windows.ps1",
         "ABRIR_CORRECTOR_CARM.cmd": ROOT / "ABRIR_CORRECTOR_CARM.cmd",

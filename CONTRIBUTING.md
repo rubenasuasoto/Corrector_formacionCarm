@@ -28,8 +28,8 @@ python verificar_app.py --sin-endpoints
 Si el cambio afecta instalador o paquete:
 
 ```powershell
-.\preparar_release_windows.cmd
-.\crear_paquete_windows.cmd
+.\tools\windows\preparar_release_windows.cmd
+.\tools\windows\crear_paquete_windows.cmd
 ```
 
 Si el cambio toca desinstalación, accesos directos o arranque con Windows,
