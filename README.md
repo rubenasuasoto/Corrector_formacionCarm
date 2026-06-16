@@ -23,7 +23,7 @@ desde `revision_pendiente.csv`; el guardado final en CARM sigue siendo humano.
 
 ## Vista de la interfaz
 
-Capturas públicas generadas con datos de demostración, sin credenciales ni
+Capturas generadas con datos de demostración, sin credenciales ni
 entregas reales:
 
 ![Panel principal del Corrector CARM](docs/img/panel-principal.png)
