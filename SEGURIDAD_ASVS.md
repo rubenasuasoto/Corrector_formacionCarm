@@ -53,7 +53,7 @@ Superficie principal:
 - [x] Separar rutas de cache didactica, pendientes, temporales y artefactos por curso cuando la opcion multi-curso esta activada.
 - [ ] Verificar en una prueba real de fin de curso que la purga elimina datos de alumnos sin borrar recursos didacticos necesarios antes de tiempo.
 - [x] Redactar secretos, tokens, cookies y emails en logs/diagnosticos por defecto.
-- [ ] Revisar capturas o evidencias HTML antes de compartir diagnosticos fuera del equipo local.
+- [x] Guardar HTML de diagnostico redactado por defecto y dejar capturas PNG solo bajo opcion explicita, tratandolas como sensibles.
 - [x] Trace de subida asistida desactivado por defecto y avisado como artefacto sensible.
 
 ### Prioridad Media

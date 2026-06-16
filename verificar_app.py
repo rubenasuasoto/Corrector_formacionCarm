@@ -498,6 +498,68 @@ def check_local_endpoints() -> bool:
         thread.join(timeout=5)
 
 
+def check_controles_seguridad_local() -> bool:
+    safe_print("\n==> Controles de seguridad local")
+    import interfaz_app as app
+
+    try:
+        app.create_local_server("0.0.0.0", 0)
+    except OSError:
+        pass
+    else:
+        safe_print("ERROR: el servidor local permite escuchar en 0.0.0.0.")
+        return False
+
+    class FakeBodyHandler:
+        headers = {"Content-Length": str(app.MAX_JSON_BODY_BYTES + 1)}
+
+    try:
+        app.read_json_body(FakeBodyHandler())  # type: ignore[arg-type]
+    except ValueError:
+        pass
+    else:
+        safe_print("ERROR: read_json_body acepta cuerpos JSON demasiado grandes.")
+        return False
+
+    tmp_root = ROOT / ".tmp_verificacion_seguridad"
+    shutil.rmtree(tmp_root, ignore_errors=True)
+    pendientes = tmp_root / "pendientes"
+    temporal = tmp_root / "temporal"
+    prompts = pendientes / "prompts_codex"
+    for path in (pendientes, temporal, prompts):
+        path.mkdir(parents=True, exist_ok=True)
+
+    old_values = {
+        "PENDIENTES_DIR": app.PENDIENTES_DIR,
+        "TEMPORAL_DIR": app.TEMPORAL_DIR,
+        "PROMPTS_DIR": app.PROMPTS_DIR,
+    }
+    try:
+        app.PENDIENTES_DIR = pendientes
+        app.TEMPORAL_DIR = temporal
+        app.PROMPTS_DIR = prompts
+
+        allowed = temporal / "Ana" / "ud01cp01.txt"
+        allowed.parent.mkdir(parents=True, exist_ok=True)
+        allowed.write_text("Corrección permitida.", encoding="utf-8")
+        outside = tmp_root / "fuera.txt"
+        outside.write_text("No debe leerse.", encoding="utf-8")
+
+        if app.correction_file_preview(allowed) != "Corrección permitida.":
+            safe_print("ERROR: la previsualización segura no lee archivos de trabajo permitidos.")
+            return False
+        if app.correction_file_preview(outside):
+            safe_print("ERROR: la previsualización de revisión lee rutas fuera de las carpetas de trabajo.")
+            return False
+    finally:
+        for key, value in old_values.items():
+            setattr(app, key, value)
+        shutil.rmtree(tmp_root, ignore_errors=True)
+
+    safe_print("OK: host local, tamaño de JSON y rutas de revisión quedan protegidos.")
+    return True
+
+
 def check_importacion_json_csv() -> bool:
     safe_print("\n==> Importacion JSON a revision_pendiente.csv")
     from corrector_agente import GeneradorSalidas
@@ -1357,6 +1419,7 @@ def main() -> int:
     ok &= check_javascript_panel_embebido()
     ok &= check_javascript_playwright_embebido()
     ok &= check_iconos_app()
+    ok &= check_controles_seguridad_local()
     ok &= check_cache_sqlite_basica()
     ok &= check_extraccion_insuficiente()
     ok &= check_filtro_requiere_calificacion()

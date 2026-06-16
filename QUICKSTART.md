@@ -373,13 +373,21 @@ Esto abre Chromium, inicia sesión en CARM, entra al curso configurado en `.env`
 
 - `logs_correcciones\diagnostico_carm\diagnostico.json`
 
-Por defecto no guarda HTML, capturas ni URLs. Si hace falta depurar selectores visualmente:
+Por defecto no guarda HTML, capturas ni URLs. Si hace falta depurar selectores,
+puede guardar HTML redactado:
 
 ```powershell
 python corrector_agente.py --diagnosticar-carm --guardar-evidencias
 ```
 
-Las evidencias se redactan de forma básica, pero pueden contener datos de alumnos. Úsalas solo para depurar y no las compartas.
+Las capturas PNG no se redactan de forma fiable y pueden contener datos de
+alumnos. Solo se guardan con una opción explícita:
+
+```powershell
+python corrector_agente.py --diagnosticar-carm --guardar-evidencias --guardar-capturas-diagnostico
+```
+
+Úsalas solo para depurar y no las compartas.
 
 Si quieres que el navegador se quede abierto al final para mirar la pantalla:
 

@@ -267,10 +267,17 @@ python corrector_agente.py --diagnosticar-carm
 
 El diagnóstico guarda un `diagnostico.json` limpio en `logs_correcciones\diagnostico_carm`, sin descargar ni corregir entregas. Por defecto no guarda HTML ni capturas.
 
-Para depurar selectores con evidencias redactadas:
+Para depurar selectores con HTML redactado:
 
 ```powershell
 python corrector_agente.py --diagnosticar-carm --guardar-evidencias
+```
+
+Las capturas PNG se consideran sensibles porque no pueden redactarse de forma
+fiable. Solo se guardan si lo pides expresamente:
+
+```powershell
+python corrector_agente.py --diagnosticar-carm --guardar-evidencias --guardar-capturas-diagnostico
 ```
 
 Para listar entregas que requieren calificación sin descargar archivos:

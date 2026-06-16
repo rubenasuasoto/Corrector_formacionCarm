@@ -87,8 +87,10 @@ DEFAULT_SCAN_INTERVAL_MINUTES = 60
 DEFAULT_AUTO_PREPARE_INTERVAL_MINUTES = 0
 API_TOKEN = secrets.token_urlsafe(32)
 DEFAULT_HOST = "127.0.0.1"
+ALLOWED_LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 DEFAULT_PORT = 8765
 PORT_FALLBACK_ATTEMPTS = 30
+MAX_JSON_BODY_BYTES = 2 * 1024 * 1024
 RELEASE_CACHE_TTL_SECONDS = 30
 _RELEASE_CACHE: dict | None = None
 _RELEASE_CACHE_AT = 0.0
@@ -1656,6 +1658,8 @@ def read_json_body(handler: BaseHTTPRequestHandler) -> dict:
     length = int(handler.headers.get("Content-Length", "0") or "0")
     if not length:
         return {}
+    if length > MAX_JSON_BODY_BYTES:
+        raise ValueError("Petición local demasiado grande.")
     raw = handler.rfile.read(length).decode("utf-8")
     return json.loads(raw or "{}")
 
@@ -1730,6 +1734,9 @@ def restart_app(delay: float = 0.7) -> None:
 
 
 def create_local_server(host: str, port: int) -> tuple[ThreadingHTTPServer, int, list[int]]:
+    if host not in ALLOWED_LOCAL_HOSTS:
+        allowed = ", ".join(sorted(ALLOWED_LOCAL_HOSTS))
+        raise OSError(f"Host no permitido: {host}. Usa solo interfaz local: {allowed}.")
     attempted: list[int] = []
     if port == 0:
         server = ThreadingHTTPServer((host, 0), Handler)
@@ -1843,6 +1850,32 @@ def write_revision_csv_rows(fieldnames: list[str], rows: list[dict]) -> None:
             writer.writerow({field: row.get(field, "") for field in fieldnames})
 
 
+def _is_allowed_work_path(path: Path) -> bool:
+    try:
+        resolved = path.expanduser().resolve()
+        allowed_roots = [
+            PENDIENTES_DIR.resolve(),
+            TEMPORAL_DIR.resolve(),
+            PROMPTS_DIR.resolve(),
+        ]
+    except Exception:
+        return False
+    return any(resolved == root or root in resolved.parents for root in allowed_roots)
+
+
+def _safe_existing_work_file(path_value: object) -> Path | None:
+    raw = str(path_value or "").strip()
+    if not raw:
+        return None
+    path = Path(raw)
+    try:
+        if not path.exists() or not path.is_file() or not _is_allowed_work_path(path):
+            return None
+        return path.resolve()
+    except Exception:
+        return None
+
+
 def find_revision_row(rows: list[dict], alumno: object, actividad: object) -> dict | None:
     target = _manual_review_key(alumno, actividad)
     for row in rows:
@@ -1853,8 +1886,8 @@ def find_revision_row(rows: list[dict], alumno: object, actividad: object) -> di
 
 def correction_file_preview(path_value: object, limit: int = 1200) -> str:
     try:
-        path = Path(str(path_value or ""))
-        if not path.exists() or not path.is_file():
+        path = _safe_existing_work_file(path_value)
+        if path is None:
             return ""
         return path.read_text(encoding="utf-8", errors="replace")[:limit]
     except Exception:
@@ -1862,19 +1895,21 @@ def correction_file_preview(path_value: object, limit: int = 1200) -> str:
 
 
 def original_delivery_candidates(row: dict) -> list[str]:
-    correction_path = Path(str(row.get("archivo_correccion") or ""))
+    correction_path = _safe_existing_work_file(row.get("archivo_correccion"))
     actividad = str(row.get("actividad") or "").strip().lower()
     alumno = str(row.get("alumno") or "").strip()
-    if not correction_path.exists() or not correction_path.parent.exists() or not actividad:
+    if correction_path is None or not correction_path.parent.exists() or not actividad:
         return []
     candidates: list[str] = []
     for path in sorted(correction_path.parent.glob(f"{actividad}*")):
         if path == correction_path or path.name.lower().endswith(".txt"):
             continue
-        if path.is_file():
+        if path.is_file() and _is_allowed_work_path(path):
             candidates.append(str(path))
     for path in sorted(correction_path.parent.glob("*")):
         if path == correction_path or not path.is_file() or str(path) in candidates:
+            continue
+        if not _is_allowed_work_path(path):
             continue
         if path.suffix.lower() in {".pdf", ".odt", ".docx", ".doc", ".pages", ".numbers", ".key", ".rtf", ".html", ".htm", ".pptx", ".xlsx", ".ods", ".csv", ".png", ".jpg", ".jpeg"}:
             candidates.append(str(path))
@@ -1885,7 +1920,7 @@ def original_delivery_candidates(row: dict) -> list[str]:
         ]
         for patron in patrones:
             for path in sorted(PENDIENTES_DIR.glob(str(patron.relative_to(PENDIENTES_DIR)).replace("\\", "/"))):
-                if path.is_file() and str(path) not in candidates:
+                if path.is_file() and _is_allowed_work_path(path) and str(path) not in candidates:
                     candidates.append(str(path))
     return candidates[:8]
 
@@ -3853,7 +3888,7 @@ HTML = r"""<!doctype html>
     const advancedHints = {
       diagnose: 'Entra en CARM, genera diagnóstico limpio y no descarga entregas.',
       check_playwright: 'Comprueba que Windows permite abrir Playwright/Chromium e iniciar sesión en CARM.',
-      diagnose_evidence: 'Guarda HTML/capturas redactadas para depurar selectores. Úsalo solo si necesitas evidencias.',
+      diagnose_evidence: 'Guarda HTML redactado para depurar selectores. Úsalo solo si necesitas evidencias.',
       detect_course: 'Entra en CARM y actualiza la cache didáctica con unidades, casos prácticos, enunciados y contenido estable.',
       detect_courses: 'Entra en CARM y lista los cursos visibles para este usuario. No descarga entregas ni corrige.',
       list_carm: 'Lista entregas que requieren calificacion sin descargar archivos.',

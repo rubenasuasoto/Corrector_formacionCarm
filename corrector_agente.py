@@ -2160,6 +2160,7 @@ class ExtractorCarm:
         pendientes_dir: Path,
         mantener_navegador: bool = False,
         guardar_evidencias: bool = False,
+        guardar_capturas_diagnostico: bool = False,
         guardar_trace_subida: bool = False,
         unidades: set[str] | None = None,
         actividades: set[str] | None = None,
@@ -2172,6 +2173,7 @@ class ExtractorCarm:
         self.pendientes_dir = pendientes_dir
         self.mantener_navegador = mantener_navegador
         self.guardar_evidencias = guardar_evidencias
+        self.guardar_capturas_diagnostico = guardar_capturas_diagnostico
         self.guardar_trace_subida = guardar_trace_subida
         self.unidades = unidades or set()
         self.actividades = actividades or set()
@@ -2586,10 +2588,17 @@ class ExtractorCarm:
             pass
 
     @staticmethod
-    async def _guardar_diagnostico_pagina(page, destino_dir: Path, nombre: str) -> None:
+    async def _guardar_diagnostico_pagina(
+        page,
+        destino_dir: Path,
+        nombre: str,
+        guardar_captura: bool = False,
+    ) -> None:
         destino_dir.mkdir(parents=True, exist_ok=True)
         html = ExtractorCarm._redactar_texto_sensible(await page.content())
         (destino_dir / f"{nombre}.html").write_text(html, encoding="utf-8")
+        if not guardar_captura:
+            return
         try:
             await page.screenshot(path=str(destino_dir / f"{nombre}.png"), full_page=True)
         except Exception as e:
@@ -5337,17 +5346,32 @@ class ExtractorCarm:
             try:
                 await self._login(page)
                 if self.guardar_evidencias:
-                    await self._guardar_diagnostico_pagina(page, diagnostico_dir, "01_post_login")
+                    await self._guardar_diagnostico_pagina(
+                        page,
+                        diagnostico_dir,
+                        "01_post_login",
+                        guardar_captura=self.guardar_capturas_diagnostico,
+                    )
 
                 await page.goto(CARM_MY_URL, wait_until="domcontentloaded")
                 if self.guardar_evidencias:
-                    await self._guardar_diagnostico_pagina(page, diagnostico_dir, "02_my")
+                    await self._guardar_diagnostico_pagina(
+                        page,
+                        diagnostico_dir,
+                        "02_my",
+                        guardar_captura=self.guardar_capturas_diagnostico,
+                    )
 
                 await page.goto(CARM_COURSE_URL, wait_until="domcontentloaded")
                 if self.cache:
                     self.cache.guardar_curso(await page.title())
                 if self.guardar_evidencias:
-                    await self._guardar_diagnostico_pagina(page, diagnostico_dir, "03_course")
+                    await self._guardar_diagnostico_pagina(
+                        page,
+                        diagnostico_dir,
+                        "03_course",
+                        guardar_captura=self.guardar_capturas_diagnostico,
+                    )
 
                 enlaces_assign = await self._listar_enlaces_assign(page)
                 actividades = await self._obtener_actividades_obligatorias(page)
@@ -5376,6 +5400,7 @@ class ExtractorCarm:
                                 page,
                                 diagnostico_dir,
                                 f"04_grading_{actividad['codigo']}",
+                                guardar_captura=self.guardar_capturas_diagnostico,
                             )
                         filas = await self._filas_tabla_grading(page)
                         actividad["filas_grading_detectadas"] = len(filas)
@@ -7323,6 +7348,7 @@ async def ejecutar_flujo(args) -> None:
             pendientes_dir,
             mantener_navegador=False,
             guardar_evidencias=getattr(args, "guardar_evidencias", False),
+            guardar_capturas_diagnostico=getattr(args, "guardar_capturas_diagnostico", False),
             unidades=unidades_filtro,
             actividades=actividades_filtro,
             cache=cache_curso,
@@ -7486,6 +7512,7 @@ async def ejecutar_flujo(args) -> None:
             pendientes_dir,
             mantener_navegador=getattr(args, "mantener_navegador", False),
             guardar_evidencias=getattr(args, "guardar_evidencias", False),
+            guardar_capturas_diagnostico=getattr(args, "guardar_capturas_diagnostico", False),
             guardar_trace_subida=getattr(args, "guardar_trace_subida", False),
             unidades=unidades_filtro,
             actividades=actividades_filtro,
@@ -7577,6 +7604,7 @@ async def ejecutar_flujo(args) -> None:
             pendientes_dir,
             mantener_navegador=False,
             guardar_evidencias=getattr(args, "guardar_evidencias", False),
+            guardar_capturas_diagnostico=getattr(args, "guardar_capturas_diagnostico", False),
             unidades=unidades_filtro,
             actividades=actividades_filtro,
             cache=cache_curso,
@@ -7671,6 +7699,7 @@ async def ejecutar_flujo(args) -> None:
             pendientes_dir,
             mantener_navegador=getattr(args, "mantener_navegador", False),
             guardar_evidencias=getattr(args, "guardar_evidencias", False),
+            guardar_capturas_diagnostico=getattr(args, "guardar_capturas_diagnostico", False),
             unidades=unidades_filtro,
             actividades=actividades_filtro,
             cache=cache_curso,
@@ -7914,7 +7943,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--guardar-evidencias",
         action="store_true",
-        help="Con --diagnosticar-carm, guarda HTML y capturas redactadas. Por defecto no se guardan.",
+        help="Con --diagnosticar-carm, guarda HTML redactado. Por defecto no guarda evidencias.",
+    )
+    parser.add_argument(
+        "--guardar-capturas-diagnostico",
+        action="store_true",
+        help="Con --diagnosticar-carm --guardar-evidencias, guarda tambien capturas PNG sin redactar. Pueden contener datos personales.",
     )
     parser.add_argument(
         "--incluir-enlaces-diagnostico",
