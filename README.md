@@ -2,6 +2,27 @@
 
 Agente local para corregir casos prácticos descargados desde CARM Formación/Moodle, usando prompts resueltos fuera de la app o la API de OpenAI, y dejando siempre una revisión manual antes de publicar notas o retroalimentación.
 
+## Qué incluye
+
+- Panel local con bandeja de Windows, configuración guiada y registro de actividad.
+- Extracción de entregas desde CARM con Playwright.
+- Preparación de prompts por curso, unidad o caso práctico.
+- Corrección mediante OpenAI API o mediante Codex App sin API key.
+- Importación de JSON a `revision_pendiente.csv`.
+- Subida asistida a CARM sin guardado automático: el docente confirma cada caso.
+- Instalador guiado, desinstalador, verificación local y empaquetado para Windows.
+
+## Flujo recomendado
+
+```text
+1. Preparar   -> detectar curso, descargar entregas y generar prompts.
+2. Revisar    -> resolver con API/Codex, importar JSON y revisar el CSV.
+3. Subir      -> rellenar CARM con subida asistida y guardar manualmente.
+```
+
+La aplicación está diseñada para que ninguna nota ni retroalimentación se
+publique en CARM sin una acción humana explícita.
+
 ## Estado corto
 
 El flujo principal ya está implementado en `corrector_agente.py`:
