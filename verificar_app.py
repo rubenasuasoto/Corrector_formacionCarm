@@ -761,13 +761,29 @@ def check_interfaz_flujos_seguro() -> bool:
     import interfaz_app as app
 
     original_allowed_units = app.allowed_units
+    original_allowed_activities = app.allowed_activities
+    original_allowed_json_paths = app.allowed_json_paths
     original_revisar_publicacion_segura = app.revisar_publicacion_segura
     try:
         app.allowed_units = lambda *args, **kwargs: {"ud01"}
+        app.allowed_activities = lambda *args, **kwargs: {"ud01cp01"}
+        app.allowed_json_paths = lambda *args, **kwargs: {str(app.REVISION_CSV), str(app.PROMPTS_DIR)}
         app.revisar_publicacion_segura = lambda *args, **kwargs: None
         args = app.build_args("prepare", {"modo": "course", "max_entregas": "0"})
         if "--unidad" in args or "--actividad" in args:
             safe_print("ERROR: preparar todo el curso no debe forzar unidad ni actividad.")
+            return False
+        unit_args = app.build_args("prepare_carm_codex", {"unidad": "ud01", "max_entregas": "6"})
+        if unit_args.count("--pendientes") != 1 or "--unidad" not in unit_args or "ud01" not in unit_args:
+            safe_print("ERROR: preparar unidad no conserva rutas de trabajo o unidad.")
+            return False
+        activity_args = app.build_args("prepare_carm_codex_activity", {"actividad": "ud01cp01", "max_entregas": "3"})
+        if "--actividad" not in activity_args or "ud01cp01" not in activity_args:
+            safe_print("ERROR: preparar actividad no valida o no propaga la actividad.")
+            return False
+        solve_args = app.build_args("solve_prompts_api", {})
+        if "--corregir-prompts-openai" not in solve_args or solve_args.count("--temporal") != 1:
+            safe_print("ERROR: corregir prompts con API no conserva rutas de trabajo.")
             return False
         try:
             app.build_args("publish", {"json_path": str(app.REVISION_CSV)})
@@ -785,6 +801,10 @@ def check_interfaz_flujos_seguro() -> bool:
         if "--subida-asistida-carm" not in assisted_args or "--guardar-trace-subida" not in assisted_args:
             safe_print("ERROR: la subida asistida no propaga correctamente el trace de diagnostico.")
             return False
+        import_args = app.build_args("import_codex", {"json_path": str(app.PROMPTS_DIR)})
+        if "--importar-correcciones-codex" not in import_args or str(app.PROMPTS_DIR) not in import_args:
+            safe_print("ERROR: importar Codex no conserva carpeta de prompts seleccionada.")
+            return False
         safe_print("OK: preparar todo el curso no filtra unidad y publicacion directa esta bloqueada.")
         return True
     except Exception as exc:
@@ -792,6 +812,8 @@ def check_interfaz_flujos_seguro() -> bool:
         return False
     finally:
         app.allowed_units = original_allowed_units
+        app.allowed_activities = original_allowed_activities
+        app.allowed_json_paths = original_allowed_json_paths
         app.revisar_publicacion_segura = original_revisar_publicacion_segura
 
 
