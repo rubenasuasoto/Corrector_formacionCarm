@@ -5212,31 +5212,114 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 
-def build_args(action: str, body: dict) -> list[str]:
-    if action == "prepare":
-        modo = str(body.get("modo") or "unit").strip()
-        unidad = str(body.get("unidad") or "ud01").strip()
-        actividad = str(body.get("actividad") or "").strip()
-        max_entregas = str(body.get("max_entregas") or "0").strip()
-        require_allowed(max_entregas, ALLOWED_MAX_ENTREGAS, "Entregas por prompt")
-        args = [
-            "--preparar-carm-codex",
-            "--pendientes",
-            str(PENDIENTES_DIR),
-            "--temporal",
-            str(TEMPORAL_DIR),
+def _workdir_args() -> list[str]:
+    return ["--pendientes", str(PENDIENTES_DIR), "--temporal", str(TEMPORAL_DIR)]
+
+
+def _validated_max_entregas(body: dict) -> str:
+    max_entregas = str(body.get("max_entregas") or "0").strip()
+    require_allowed(max_entregas, ALLOWED_MAX_ENTREGAS, "Entregas por prompt")
+    return max_entregas
+
+
+def _build_prepare_args(body: dict) -> list[str]:
+    modo = str(body.get("modo") or "unit").strip()
+    unidad = str(body.get("unidad") or "ud01").strip()
+    actividad = str(body.get("actividad") or "").strip()
+    max_entregas = _validated_max_entregas(body)
+    args = [
+        "--preparar-carm-codex",
+        *_workdir_args(),
+        "--max-entregas-por-prompt",
+        max_entregas,
+    ]
+    if modo == "course":
+        return args
+    if modo == "activity":
+        require_allowed(actividad, allowed_activities(), "Actividad")
+        args.extend(["--actividad", actividad])
+        return args
+    require_allowed(unidad, allowed_units(), "Unidad")
+    args.extend(["--unidad", unidad])
+    return args
+
+
+def _build_publication_args(action: str, body: dict) -> list[str]:
+    json_path = require_allowed(
+        str(body.get("json_path") or default_correction_source_path()),
+        allowed_json_paths(),
+        "Archivo de correcciones",
+    )
+    if Path(json_path).is_dir():
+        raise ValueError("Para subir a CARM selecciona revision_pendiente.csv o un JSON concreto, no 'Todos los JSON pendientes'.")
+    args = ["--subir-correcciones-carm", str(json_path)]
+    if action == "preview":
+        args.extend(["--solo-primera-previsualizacion-carm", "--mantener-navegador"])
+    if action == "publish":
+        raise ValueError("La publicacion automatica directa esta desactivada. Usa subida asistida con guardado humano.")
+    if action == "assist_publish":
+        revisar_publicacion_segura(json_path)
+        args.append("--subida-asistida-carm")
+        if bool(body.get("guardar_trace_subida")):
+            args.append("--guardar-trace-subida")
+    return args
+
+
+def _build_unit_action_args(action: str, body: dict) -> list[str]:
+    unidad = str(body.get("unidad") or "ud01").strip()
+    max_entregas = _validated_max_entregas(body)
+    require_allowed(unidad, allowed_units(), "Unidad")
+    if action == "list_carm":
+        return ["--solo-listar-carm", "--unidad", unidad]
+    if action == "cache_course":
+        return ["--cachear-curso", "--unidad", unidad]
+    if action == "prepare_carm_api":
+        return [
+            "--extraer-carm",
+            "--requerir-openai-api",
+            *_workdir_args(),
             "--max-entregas-por-prompt",
             max_entregas,
+            "--unidad",
+            unidad,
         ]
-        if modo == "course":
-            return args
-        if modo == "activity":
-            require_allowed(actividad, allowed_activities(), "Actividad")
-            args.extend(["--actividad", actividad])
-            return args
-        require_allowed(unidad, allowed_units(), "Unidad")
-        args.extend(["--unidad", unidad])
-        return args
+    return [
+        "--preparar-carm-codex",
+        *_workdir_args(),
+        "--unidad",
+        unidad,
+        "--max-entregas-por-prompt",
+        max_entregas,
+    ]
+
+
+def _build_activity_prepare_args(body: dict) -> list[str]:
+    actividad = str(body.get("actividad") or "").strip()
+    max_entregas = _validated_max_entregas(body)
+    require_allowed(actividad, allowed_activities(), "Actividad")
+    return [
+        "--preparar-carm-codex",
+        *_workdir_args(),
+        "--actividad",
+        actividad,
+        "--max-entregas-por-prompt",
+        max_entregas,
+    ]
+
+
+def _build_import_codex_args(body: dict) -> list[str]:
+    json_path = str(body.get("json_path") or "").strip()
+    require_allowed(json_path, allowed_json_paths(), "JSON")
+    return [
+        *_workdir_args(),
+        "--importar-correcciones-codex",
+        json_path,
+    ]
+
+
+def build_args(action: str, body: dict) -> list[str]:
+    if action == "prepare":
+        return _build_prepare_args(body)
 
     if action == "prepare_regularization_suspensos":
         return [
@@ -5247,24 +5330,7 @@ def build_args(action: str, body: dict) -> list[str]:
         ]
 
     if action in {"preview", "publish", "assist_publish"}:
-        json_path = require_allowed(
-            str(body.get("json_path") or default_correction_source_path()),
-            allowed_json_paths(),
-            "Archivo de correcciones",
-        )
-        if Path(json_path).is_dir():
-            raise ValueError("Para subir a CARM selecciona revision_pendiente.csv o un JSON concreto, no 'Todos los JSON pendientes'.")
-        args = ["--subir-correcciones-carm", str(json_path)]
-        if action == "preview":
-            args.extend(["--solo-primera-previsualizacion-carm", "--mantener-navegador"])
-        if action == "publish":
-            raise ValueError("La publicacion automatica directa esta desactivada. Usa subida asistida con guardado humano.")
-        if action == "assist_publish":
-            revisar_publicacion_segura(json_path)
-            args.append("--subida-asistida-carm")
-            if bool(body.get("guardar_trace_subida")):
-                args.append("--guardar-trace-subida")
-        return args
+        return _build_publication_args(action, body)
 
     if action == "diagnose":
         return ["--diagnosticar-carm"]
@@ -5284,89 +5350,29 @@ def build_args(action: str, body: dict) -> list[str]:
         return ["--comprobar-login-carm"]
 
     if action in {"list_carm", "cache_course", "prepare_carm_api", "prepare_carm_codex"}:
-        unidad = str(body.get("unidad") or "ud01").strip()
-        max_entregas = str(body.get("max_entregas") or "0").strip()
-        require_allowed(unidad, allowed_units(), "Unidad")
-        require_allowed(max_entregas, ALLOWED_MAX_ENTREGAS, "Entregas por prompt")
-        if action == "list_carm":
-            return ["--solo-listar-carm", "--unidad", unidad]
-        if action == "cache_course":
-            return ["--cachear-curso", "--unidad", unidad]
-        if action == "prepare_carm_api":
-            return [
-                "--extraer-carm",
-                "--requerir-openai-api",
-                "--pendientes",
-                str(PENDIENTES_DIR),
-                "--temporal",
-                str(TEMPORAL_DIR),
-                "--max-entregas-por-prompt",
-                max_entregas,
-                "--unidad",
-                unidad,
-            ]
-        return [
-            "--preparar-carm-codex",
-            "--pendientes",
-            str(PENDIENTES_DIR),
-            "--temporal",
-            str(TEMPORAL_DIR),
-            "--unidad",
-            unidad,
-            "--max-entregas-por-prompt",
-            max_entregas,
-        ]
+        return _build_unit_action_args(action, body)
 
     if action == "check_openai":
         return ["--comprobar-openai-api"]
 
     if action == "solve_prompts_api":
         return [
-            "--pendientes",
-            str(PENDIENTES_DIR),
-            "--temporal",
-            str(TEMPORAL_DIR),
+            *_workdir_args(),
             "--corregir-prompts-openai",
         ]
 
     if action == "solve_prompts_codex_app":
         return [
-            "--pendientes",
-            str(PENDIENTES_DIR),
-            "--temporal",
-            str(TEMPORAL_DIR),
+            *_workdir_args(),
             "--corregir-prompts-codex-app",
             "--importar-tras-codex",
         ]
 
     if action == "prepare_carm_codex_activity":
-        actividad = str(body.get("actividad") or "").strip()
-        max_entregas = str(body.get("max_entregas") or "0").strip()
-        require_allowed(actividad, allowed_activities(), "Actividad")
-        require_allowed(max_entregas, ALLOWED_MAX_ENTREGAS, "Entregas por prompt")
-        return [
-            "--preparar-carm-codex",
-            "--pendientes",
-            str(PENDIENTES_DIR),
-            "--temporal",
-            str(TEMPORAL_DIR),
-            "--actividad",
-            actividad,
-            "--max-entregas-por-prompt",
-            max_entregas,
-        ]
+        return _build_activity_prepare_args(body)
 
     if action == "import_codex":
-        json_path = str(body.get("json_path") or "").strip()
-        require_allowed(json_path, allowed_json_paths(), "JSON")
-        return [
-            "--pendientes",
-            str(PENDIENTES_DIR),
-            "--temporal",
-            str(TEMPORAL_DIR),
-            "--importar-correcciones-codex",
-            json_path,
-        ]
+        return _build_import_codex_args(body)
 
     if action == "delete_cache":
         return ["--borrar-cache-curso"]
