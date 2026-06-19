@@ -2,7 +2,7 @@
 # Instalar con:
 # pip install -r requirements-extraccion.txt
 
-pypdf==5.1.0
+pypdf==6.13.3
 pypdfium2>=4.30.0
 python-pptx==1.0.2
 openpyxl==3.1.5
