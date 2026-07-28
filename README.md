@@ -1,8 +1,44 @@
+<div align="center">
+
 # Corrector CARM
 
-Aplicación local para corregir casos prácticos descargados desde CARM Formación/Moodle. Prepara entregas, genera prompts o correcciones con OpenAI API/Codex y ayuda a subir notas y retroalimentación con revisión humana antes de guardar nada en CARM.
+### Flujo local y supervisado para revisar actividades de CARM Formación
 
-La idea principal es sencilla: el docente conserva el control. La app puede preparar, rellenar y organizar, pero la publicación final en CARM requiere una acción humana explícita.
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Windows](https://img.shields.io/badge/Windows-local-0078D4?logo=windows11&logoColor=white)](QUICKSTART.md)
+[![Privacidad](https://img.shields.io/badge/datos-locales-B8FF5A?labelColor=111512)](SECURITY.md)
+[![Licencia MIT](https://img.shields.io/badge/licencia-MIT-F1F0E8?labelColor=111512)](LICENSE)
+
+[Descargar](#descargar) ·
+[Caso de estudio](https://rubenasua.vercel.app/projects/corrector-carm) ·
+[Seguridad](SECURITY.md) ·
+[English](README.en.md)
+
+</div>
+
+Aplicación local para revisar casos prácticos descargados desde CARM Formación/Moodle. Prepara entregas, genera prompts o correcciones con OpenAI API o Codex y ayuda a transferir notas y retroalimentación con revisión humana.
+
+El principio de diseño es sencillo: **el docente conserva el control**. La aplicación prepara, organiza y rellena borradores, pero la publicación final en CARM exige una acción humana explícita.
+
+## Resumen técnico
+
+| Área | Implementación |
+|---|---|
+| Flujo | Descarga, extracción, preparación, corrección, revisión e importación |
+| Modos | OpenAI API, prompts externos o Codex con sesión de ChatGPT |
+| Interfaz | Panel web local limitado a loopback |
+| Automatización | Playwright con subida asistida y guardado manual |
+| Privacidad | Credenciales, sesiones, entregas y resultados permanecen fuera de Git |
+| Distribución | Instalador, ZIP guiado, verificador y desinstalador para Windows |
+
+```mermaid
+flowchart LR
+    CARM[CARM / Moodle] --> PREP[Preparar entregas]
+    PREP --> REVIEW[API o Codex]
+    REVIEW --> CSV[Revisión humana]
+    CSV --> ASSIST[Subida asistida]
+    ASSIST --> SAVE[Guardado manual]
+```
 
 ## Para Usuarios
 

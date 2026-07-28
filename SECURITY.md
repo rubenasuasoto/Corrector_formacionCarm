@@ -1,5 +1,7 @@
 # Seguridad
 
+[English](SECURITY.en.md)
+
 Corrector CARM es una aplicación local que puede manejar credenciales, sesiones
 de navegador, entregas de alumnos, calificaciones y retroalimentación. Trata
 todo dato operativo como sensible.
@@ -44,3 +46,11 @@ Antes de compartir un ZIP o EXE, revisa también
 publicable debe salir de un árbol limpio y no debe contener `.env`,
 `.corrector_app.json`, `.venv`, caches, logs, entregas, proyectos Codex ni
 correcciones generadas.
+
+## Historial y rotación de secretos
+
+El historial público se saneó para retirar archivos locales de credenciales y
+resultados generados que se habían versionado durante el desarrollo inicial.
+Reescribir Git no invalida un secreto: cualquier clave que haya aparecido en un
+commit debe revocarse en su proveedor y sustituirse por otra distinta solo en
+el entorno local.
