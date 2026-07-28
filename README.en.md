@@ -42,7 +42,7 @@ flowchart LR
 
 ## Download
 
-[Download the Windows installer](https://github.com/rubenasuasoto/agente/releases/latest/download/Corrector_CARM_0.3.0-local_Setup_20260616_084646.exe)
+[Download the Windows installer](https://github.com/rubenasuasoto/Corrector_formacionCarm/releases/latest/download/Corrector_CARM_0.3.0-local_Setup_20260616_084646.exe)
 
 Validated release: `0.3.0-local`.
 

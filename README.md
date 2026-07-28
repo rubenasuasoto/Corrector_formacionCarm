@@ -44,7 +44,7 @@ flowchart LR
 
 ### Descargar
 
-[Descargar instalador para Windows](https://github.com/rubenasuasoto/agente/releases/latest/download/Corrector_CARM_0.3.0-local_Setup_20260616_084646.exe)
+[Descargar instalador para Windows](https://github.com/rubenasuasoto/Corrector_formacionCarm/releases/latest/download/Corrector_CARM_0.3.0-local_Setup_20260616_084646.exe)
 
 Ejecuta el instalador y sigue el asistente. Si Windows SmartScreen avisa de editor desconocido, es normal mientras la app no esté firmada digitalmente.
 
