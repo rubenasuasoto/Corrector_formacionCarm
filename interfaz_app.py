@@ -2334,19 +2334,14 @@ def export_codex_course_project(course_id: str | None = None) -> Path:
         "Para Codex se exporta más contexto que en los prompts/API: aquí tienes un índice por unidad y, además, archivos completos en `unidades/`.",
         "",
     ]
-    unidades_root = unidades_dir.resolve()
-    for unidad in unidades:
+    for index, unidad in enumerate(unidades, start=1):
         unidad_codigo = re.sub(r"[^a-z0-9_-]+", "_", (unidad["codigo"] or "unidad").lower()).strip("._")
         if not unidad_codigo:
             unidad_codigo = "unidad"
         unidad_nombre = unidad["nombre"] or "Unidad"
         resumen = unidad["resumen"].strip()
         contenido = unidad["contenido"].strip()
-        unidad_path = (unidades_dir / f"{unidad_codigo}.md").resolve()
-        try:
-            unidad_path.relative_to(unidades_root)
-        except ValueError as exc:
-            raise ValueError("Código de unidad inválido para exportación local.") from exc
+        unidad_path = unidades_dir / f"unidad_{index:02d}.md"
         unidad_path.write_text(
             "\n".join(
                 [
